@@ -49,10 +49,13 @@ impl BLSAggregateSignatureVerifyGadget {
         let cs = parameters.g1_generator.cs();
 
         // Aggregate all public keys
-        let mut aggregated_pk = public_keys[0].pub_key.clone();
-        for pk in public_keys.iter().skip(1) {
-            aggregated_pk += &pk.pub_key;
-        }
+        let aggregated_pk =
+            public_keys
+                .iter()
+                .skip(1)
+                .fold(public_keys[0].clone(), |acc, new_pk| PublicKeyVar {
+                    pub_key: acc.pub_key + &new_pk.pub_key,
+                });
 
         // Hash the message into the curve point (this requires using a hash-to-curve function)
         let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
@@ -63,7 +66,7 @@ impl BLSAggregateSignatureVerifyGadget {
             G2PreparedVar::from_group_var(&signature.signature)?,
         )?;
         let aggregated_pk_paired = bls12::PairingVar::pairing(
-            G1PreparedVar::<ark_bls12_381::Config>::from_group_var(&aggregated_pk)?,
+            G1PreparedVar::<ark_bls12_381::Config>::from_group_var(&aggregated_pk.pub_key)?,
             G2PreparedVar::from_group_var(&hash_to_curve)?,
         )?;
 

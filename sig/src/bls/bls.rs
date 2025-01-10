@@ -88,13 +88,14 @@ impl Signature {
             return None;
         }
 
-        let mut secret_key = secret_keys[0].clone();
-        secret_keys
+        let sk = secret_keys
             .iter()
             .skip(1)
-            .for_each(|sk| secret_key.secret_key += sk.secret_key);
+            .fold(secret_keys[0].clone(), |acc, new_sk| SecretKey {
+                secret_key: acc.secret_key + new_sk.secret_key,
+            });
 
-        Some(Signature::sign(message, &secret_key, params))
+        Some(Signature::sign(message, &sk, params))
     }
 
     pub fn verify(
@@ -128,17 +129,13 @@ impl Signature {
             return None;
         }
 
-        let mut public_key = public_keys[0].clone();
-        public_keys
+        let pk = public_keys
             .iter()
             .skip(1)
-            .for_each(|pk| public_key.pub_key += pk.pub_key);
+            .fold(public_keys[0].clone(), |acc, new_pk| PublicKey {
+                pub_key: acc.pub_key + new_pk.pub_key,
+            });
 
-        Some(Signature::verify(
-            message,
-            aggregate_signature,
-            &public_key,
-            params,
-        ))
+        Some(Signature::verify(message, aggregate_signature, &pk, params))
     }
 }

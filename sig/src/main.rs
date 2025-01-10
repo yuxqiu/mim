@@ -50,7 +50,7 @@ fn check_r1cs() {
 
     BLSAggregateSignatureVerifyGadget::verify(&params_var, &pk_vars, &msg_var, &sig_var).unwrap();
 
-    println!("{}", cs.num_constraints());
+    println!("Number of constraints: {}", cs.num_constraints());
     assert!(cs.is_satisfied().unwrap());
 }
 
