@@ -1,12 +1,27 @@
 pub mod bls;
 
+use ark_bls12_381::Bls12_381;
+use ark_crypto_primitives::snark::SNARK;
+use ark_groth16::{prepare_verifying_key, Groth16};
 use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
-use ark_relations::r1cs::ConstraintSystem;
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
 use bls::{
     BLSAggregateSignatureVerifyGadget, BaseField, Parameters, ParametersVar, PublicKey,
     PublicKeyVar, SecretKey, Signature, SignatureVar,
 };
 use rand::thread_rng;
+
+fn check_signature() {
+    let msg = "Hello World";
+    let mut rng = thread_rng();
+
+    let params = Parameters::setup();
+    let sk = SecretKey::new(&mut rng);
+    let pk = PublicKey::new(&sk, &params);
+    let sig = Signature::sign(msg.as_bytes(), &sk, &params);
+
+    assert!(Signature::verify(msg.as_bytes(), &sig, &pk, &params));
+}
 
 fn get_aggregate_instances() -> (
     &'static str,
@@ -32,8 +47,13 @@ fn get_aggregate_instances() -> (
     return (msg, params, secret_keys, public_keys, sig);
 }
 
+fn check_aggregate_signature() {
+    let (msg, params, _, public_keys, sig) = get_aggregate_instances();
+    assert!(Signature::aggregate_verify(msg.as_bytes(), &sig, &public_keys, &params).unwrap());
+}
+
 fn check_r1cs() {
-    let cs = ConstraintSystem::<BaseField>::new_ref();
+    let cs = ConstraintSystem::new_ref();
     let (msg, params, _, public_keys, sig) = get_aggregate_instances();
 
     let msg_var: Vec<UInt8<BaseField>> = msg
@@ -52,27 +72,35 @@ fn check_r1cs() {
 
     println!("Number of constraints: {}", cs.num_constraints());
     assert!(cs.is_satisfied().unwrap());
+
+    println!("RC1S is satisfied!")
 }
 
-fn check_signature() {
-    let msg = "Hello World";
-    let mut rng = thread_rng();
+// fn check_snark() {
+//     let cs = ConstraintSystem::<BaseField>::new_ref();
+//     let (msg, params, _, public_keys, sig) = get_aggregate_instances();
+//     let mut rng = thread_rng();
 
-    let params = Parameters::setup();
-    let sk = SecretKey::new(&mut rng);
-    let pk = PublicKey::new(&sk, &params);
-    let sig = Signature::sign(msg.as_bytes(), &sk, &params);
+//     let circuit = BLSCircuit::new(params, &public_keys, msg.as_bytes(), sig);
 
-    assert!(Signature::verify(msg.as_bytes(), &sig, &pk, &params));
-}
+//     // Setup pk
+//     let pk =
+//         Groth16::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap();
 
-fn check_aggregate_signature() {
-    let (msg, params, _, public_keys, sig) = get_aggregate_instances();
-    assert!(Signature::aggregate_verify(msg.as_bytes(), &sig, &public_keys, &params).unwrap());
-}
+//     // Create a proof
+//     let proof = Groth16::prove(&pk, circuit, &mut rng).unwrap();
+
+//     // Verify the proof
+//     let pvk = prepare_verifying_key(&pk.vk);
+//     // let verified = Groth16::verify_with_processed_vk(&pvk, cs.in, &proof).unwrap();
+//     // assert!(verified);
+
+//     println!("Proof verified successfully!");
+// }
 
 fn main() {
     check_signature();
     check_aggregate_signature();
     check_r1cs();
+    // check_snark();
 }

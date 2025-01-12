@@ -1,5 +1,8 @@
 [workspace]
 
 members = [
-    "sig",
+    "sig"
 ]
+
+[patch.crates-io]
+ark-r1cs-std = { path = "./third_party/r1cs-std" }
