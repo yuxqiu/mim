@@ -49,6 +49,48 @@ pub struct BLSAggregateSignatureVerifyGadget;
 impl BLSAggregateSignatureVerifyGadget {
     pub fn verify(
         parameters: &ParametersVar,
+        pk: &PublicKeyVar,
+        message: &[UInt8<BaseField>],
+        signature: &SignatureVar,
+    ) -> Result<(), SynthesisError> {
+        let cs = parameters.g1_generator.cs();
+
+        // Hash the message into the curve point (this requires using a hash-to-curve function)
+        let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
+
+        // Verify e(signature, G) == e(aggregated_pk, H(m))
+        let signature_paired =
+            bls12::PairingVar::pairing(
+                G1PreparedVar::<
+                    ark_bls12_381::Config,
+                    EmulatedFpVar<TargetField, BaseField>,
+                    BaseField,
+                >::from_group_var(&parameters.g1_generator)?,
+                G2PreparedVar::from_group_var(&signature.signature)?,
+            )?;
+        let aggregated_pk_paired =
+            bls12::PairingVar::pairing(
+                G1PreparedVar::<
+                    ark_bls12_381::Config,
+                    EmulatedFpVar<TargetField, BaseField>,
+                    BaseField,
+                >::from_group_var(&pk.pub_key)?,
+                G2PreparedVar::from_group_var(&hash_to_curve)?,
+            )?;
+
+        signature_paired
+            .is_eq(&aggregated_pk_paired)?
+            .enforce_equal(&Boolean::TRUE)?;
+
+        Ok(())
+    }
+
+    /// Not recommended, public key aggregation can be moved outside the SNARK
+    ///
+    /// The time complexity will not change as we always need to pay the cost of
+    /// deserializing public keys
+    pub fn aggregate_verify(
+        parameters: &ParametersVar,
         public_keys: &[PublicKeyVar],
         message: &[UInt8<BaseField>],
         signature: &SignatureVar,

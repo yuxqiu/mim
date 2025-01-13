@@ -13,16 +13,16 @@ use super::{
 #[derive(Clone)]
 pub struct BLSCircuit<'a> {
     params: Parameters,
-    pks: &'a [PublicKey],
+    pk: PublicKey,
     msg: &'a [u8],
     sig: Signature,
 }
 
 impl<'a> BLSCircuit<'a> {
-    pub fn new(params: Parameters, pks: &'a [PublicKey], msg: &'a [u8], sig: Signature) -> Self {
+    pub fn new(params: Parameters, pk: PublicKey, msg: &'a [u8], sig: Signature) -> Self {
         Self {
             params: params,
-            pks: pks,
+            pk,
             msg: msg,
             sig: sig,
         }
@@ -38,14 +38,10 @@ impl<'a> BLSCircuit<'a> {
         let g1 = params_var.g1_generator.to_constraint_field()?;
         let g2 = params_var.g2_generator.to_constraint_field()?;
 
-        let mut pk_vars: Vec<_> = vec![];
-        pk_vars.reserve_exact(self.pks.len());
-        for pk in self.pks {
-            PublicKeyVar::new_input(cs.clone(), || Ok(pk))
-                .unwrap()
-                .pub_key
-                .to_constraint_field()?;
-        }
+        let pk_var = PublicKeyVar::new_input(cs.clone(), || Ok(&self.pk))
+            .unwrap()
+            .pub_key
+            .to_constraint_field()?;
 
         let sig_var = SignatureVar::new_input(cs.clone(), || Ok(&self.sig))?
             .signature
@@ -53,13 +49,13 @@ impl<'a> BLSCircuit<'a> {
 
         let mut field_elements = vec![];
         field_elements
-            .reserve_exact(msg_var.len() + g1.len() + g2.len() + pk_vars.len() + sig_var.len());
+            .reserve_exact(msg_var.len() + g1.len() + g2.len() + pk_var.len() + sig_var.len());
 
         for fpvar in msg_var
             .iter()
             .chain(g1.iter())
             .chain(g2.iter())
-            .chain(pk_vars.iter())
+            .chain(pk_var.iter())
             .chain(sig_var.iter())
         {
             field_elements.push(match fpvar {
@@ -84,14 +80,10 @@ impl<'a> ConstraintSynthesizer<BaseField> for BLSCircuit<'a> {
             .map(|b| UInt8::new_input(cs.clone(), || Ok(b)).unwrap())
             .collect();
         let params_var = ParametersVar::new_input(cs.clone(), || Ok(self.params))?;
-        let pk_vars: Vec<PublicKeyVar> = self
-            .pks
-            .iter()
-            .map(|pk| PublicKeyVar::new_input(cs.clone(), || Ok(pk)).unwrap())
-            .collect();
+        let pk_var = PublicKeyVar::new_input(cs.clone(), || Ok(&self.pk)).unwrap();
         let sig_var = SignatureVar::new_input(cs.clone(), || Ok(self.sig))?;
 
-        BLSAggregateSignatureVerifyGadget::verify(&params_var, &pk_vars, &msg_var, &sig_var)?;
+        BLSAggregateSignatureVerifyGadget::verify(&params_var, &pk_var, &msg_var, &sig_var)?;
 
         Ok(())
     }
