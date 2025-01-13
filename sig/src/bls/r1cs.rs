@@ -19,12 +19,6 @@ use ark_r1cs_std::pairing::bls12;
 use super::params::BaseField;
 use super::{Parameters, PublicKey, Signature, TargetField};
 
-// type G1Var<P> = ProjectiveVar<
-//     <P as Bls12Config>::G1Config,
-//     EmulatedFpVar<TargetField, BaseField>,
-//     BaseField,
-// >;
-
 type G1Gadget = G1Var<ark_bls12_381::Config, EmulatedFpVar<TargetField, BaseField>, BaseField>;
 type G2Gadget = G2Var<ark_bls12_381::Config, EmulatedFpVar<TargetField, BaseField>, BaseField>;
 
