@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
 use ark_r1cs_std::prelude::{Boolean, PairingVar};
 use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
@@ -16,10 +17,16 @@ use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
 use ark_r1cs_std::pairing::bls12;
 
 use super::params::BaseField;
-use super::{Parameters, PublicKey, Signature};
+use super::{Parameters, PublicKey, Signature, TargetField};
 
-type G1Gadget = G1Var<ark_bls12_381::Config>;
-type G2Gadget = G2Var<ark_bls12_381::Config>;
+// type G1Var<P> = ProjectiveVar<
+//     <P as Bls12Config>::G1Config,
+//     EmulatedFpVar<TargetField, BaseField>,
+//     BaseField,
+// >;
+
+type G1Gadget = G1Var<ark_bls12_381::Config, EmulatedFpVar<TargetField, BaseField>, BaseField>;
+type G2Gadget = G2Var<ark_bls12_381::Config, EmulatedFpVar<TargetField, BaseField>, BaseField>;
 
 #[derive(Clone)]
 pub struct ParametersVar {
@@ -61,14 +68,24 @@ impl BLSAggregateSignatureVerifyGadget {
         let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
 
         // Verify e(signature, G) == e(aggregated_pk, H(m))
-        let signature_paired = bls12::PairingVar::pairing(
-            G1PreparedVar::<ark_bls12_381::Config>::from_group_var(&parameters.g1_generator)?,
-            G2PreparedVar::from_group_var(&signature.signature)?,
-        )?;
-        let aggregated_pk_paired = bls12::PairingVar::pairing(
-            G1PreparedVar::<ark_bls12_381::Config>::from_group_var(&aggregated_pk.pub_key)?,
-            G2PreparedVar::from_group_var(&hash_to_curve)?,
-        )?;
+        let signature_paired =
+            bls12::PairingVar::pairing(
+                G1PreparedVar::<
+                    ark_bls12_381::Config,
+                    EmulatedFpVar<TargetField, BaseField>,
+                    BaseField,
+                >::from_group_var(&parameters.g1_generator)?,
+                G2PreparedVar::from_group_var(&signature.signature)?,
+            )?;
+        let aggregated_pk_paired =
+            bls12::PairingVar::pairing(
+                G1PreparedVar::<
+                    ark_bls12_381::Config,
+                    EmulatedFpVar<TargetField, BaseField>,
+                    BaseField,
+                >::from_group_var(&aggregated_pk.pub_key)?,
+                G2PreparedVar::from_group_var(&hash_to_curve)?,
+            )?;
 
         signature_paired
             .is_eq(&aggregated_pk_paired)?

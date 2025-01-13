@@ -1,35 +1,38 @@
 use ark_relations::r1cs::SynthesisError;
 
-use super::PairingVar as PG;
+use super::{FieldOpsBounds, PairingVar as PG};
 
 use crate::{
-    fields::{fp::FpVar, fp12::Fp12Var, fp2::Fp2Var, FieldVar},
+    fields::{fp12::Fp12Var, fp2::Fp2Var, FieldVar},
     groups::bls12::{G1AffineVar, G1PreparedVar, G1Var, G2PreparedVar, G2Var},
 };
 use ark_ec::bls12::{Bls12, Bls12Config, TwistType};
-use ark_ff::BitIteratorBE;
+use ark_ff::{BitIteratorBE, PrimeField};
 use ark_std::marker::PhantomData;
 
 /// Specifies the constraints for computing a pairing in a BLS12 bilinear group.
-pub struct PairingVar<P: Bls12Config>(PhantomData<P>);
+pub struct PairingVar<P: Bls12Config, F, CF>(PhantomData<P>, PhantomData<F>, PhantomData<CF>);
 
-type Fp2V<P> = Fp2Var<<P as Bls12Config>::Fp2Config>;
+type Fp2V<P, F, CF> = Fp2Var<<P as Bls12Config>::Fp2Config, F, CF>;
 
-impl<P: Bls12Config> PairingVar<P> {
+impl<P: Bls12Config, F: FieldVar<P::Fp, CF>, CF: PrimeField> PairingVar<P, F, CF>
+where
+    for<'a> &'a F: FieldOpsBounds<'a, <P as Bls12Config>::Fp, F>,
+{
     // Evaluate the line function at point p.
     #[tracing::instrument(target = "r1cs")]
     fn ell(
-        f: &mut Fp12Var<P::Fp12Config>,
-        coeffs: &(Fp2V<P>, Fp2V<P>),
-        p: &G1AffineVar<P>,
+        f: &mut Fp12Var<P::Fp12Config, F, CF>,
+        coeffs: &(Fp2V<P, F, CF>, Fp2V<P, F, CF>),
+        p: &G1AffineVar<P, F, CF>,
     ) -> Result<(), SynthesisError> {
-        let zero = FpVar::<P::Fp>::zero();
+        let zero = F::zero();
 
         match P::TWIST_TYPE {
             TwistType::M => {
                 let c0 = coeffs.0.clone();
                 let mut c1 = coeffs.1.clone();
-                let c2 = Fp2V::<P>::new(p.y.clone(), zero);
+                let c2 = Fp2V::<P, F, CF>::new(p.y.clone(), zero);
 
                 c1.c0 *= &p.x;
                 c1.c1 *= &p.x;
@@ -37,7 +40,7 @@ impl<P: Bls12Config> PairingVar<P> {
                 Ok(())
             },
             TwistType::D => {
-                let c0 = Fp2V::<P>::new(p.y.clone(), zero);
+                let c0 = Fp2V::<P, F, CF>::new(p.y.clone(), zero);
                 let mut c1 = coeffs.0.clone();
                 let c2 = coeffs.1.clone();
 
@@ -50,7 +53,9 @@ impl<P: Bls12Config> PairingVar<P> {
     }
 
     #[tracing::instrument(target = "r1cs")]
-    fn exp_by_x(f: &Fp12Var<P::Fp12Config>) -> Result<Fp12Var<P::Fp12Config>, SynthesisError> {
+    fn exp_by_x(
+        f: &Fp12Var<P::Fp12Config, F, CF>,
+    ) -> Result<Fp12Var<P::Fp12Config, F, CF>, SynthesisError> {
         let mut result = f.optimized_cyclotomic_exp(P::X)?;
         if P::X_IS_NEGATIVE {
             result = result.unitary_inverse()?;
@@ -59,12 +64,16 @@ impl<P: Bls12Config> PairingVar<P> {
     }
 }
 
-impl<P: Bls12Config> PG<Bls12<P>> for PairingVar<P> {
-    type G1Var = G1Var<P>;
-    type G2Var = G2Var<P>;
-    type G1PreparedVar = G1PreparedVar<P>;
-    type G2PreparedVar = G2PreparedVar<P>;
-    type GTVar = Fp12Var<P::Fp12Config>;
+impl<P: Bls12Config, F: FieldVar<P::Fp, CF>, CF: PrimeField> PG<Bls12<P>, CF>
+    for PairingVar<P, F, CF>
+where
+    for<'a> &'a F: FieldOpsBounds<'a, <P as Bls12Config>::Fp, F>,
+{
+    type G1Var = G1Var<P, F, CF>;
+    type G2Var = G2Var<P, F, CF>;
+    type G1PreparedVar = G1PreparedVar<P, F, CF>;
+    type G2PreparedVar = G2PreparedVar<P, F, CF>;
+    type GTVar = Fp12Var<P::Fp12Config, F, CF>;
 
     #[tracing::instrument(target = "r1cs")]
     fn miller_loop(

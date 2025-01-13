@@ -6,7 +6,7 @@ use crate::{
 };
 use ark_ff::{
     fields::{CubicExtField, Field},
-    CubicExtConfig, Zero,
+    CubicExtConfig, PrimeField, Zero,
 };
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use core::{borrow::Borrow, marker::PhantomData};
@@ -17,7 +17,7 @@ use educe::Educe;
 #[derive(Educe)]
 #[educe(Debug, Clone)]
 #[must_use]
-pub struct CubicExtVar<BF: FieldVar<P::BaseField, P::BasePrimeField>, P: CubicExtVarConfig<BF>>
+pub struct CubicExtVar<BF: FieldVar<P::BaseField, CF>, P: CubicExtVarConfig<BF, CF>, CF: PrimeField>
 where
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
 {
@@ -29,11 +29,13 @@ where
     pub c2: BF,
     #[educe(Debug(ignore))]
     _params: PhantomData<P>,
+    #[educe(Debug(ignore))]
+    _base_prime_field: PhantomData<CF>,
 }
 
 /// This trait describes parameters that are used to implement arithmetic for
 /// `CubicExtVar`.
-pub trait CubicExtVarConfig<BF: FieldVar<Self::BaseField, Self::BasePrimeField>>:
+pub trait CubicExtVarConfig<BF: FieldVar<Self::BaseField, CF>, CF: PrimeField>:
     CubicExtConfig
 where
     for<'a> &'a BF: FieldOpsBounds<'a, Self::BaseField, BF>,
@@ -44,7 +46,8 @@ where
     fn mul_base_field_vars_by_frob_coeff(c1: &mut BF, c2: &mut BF, power: usize);
 }
 
-impl<BF: FieldVar<P::BaseField, P::BasePrimeField>, P: CubicExtVarConfig<BF>> CubicExtVar<BF, P>
+impl<BF: FieldVar<P::BaseField, CF>, P: CubicExtVarConfig<BF, CF>, CF: PrimeField>
+    CubicExtVar<BF, P, CF>
 where
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
 {
@@ -52,11 +55,13 @@ where
     #[inline]
     pub fn new(c0: BF, c1: BF, c2: BF) -> Self {
         let _params = PhantomData;
+        let _base_prime_field = PhantomData;
         Self {
             c0,
             c1,
             c2,
             _params,
+            _base_prime_field,
         }
     }
 
@@ -83,15 +88,16 @@ where
     }
 }
 
-impl<BF, P> R1CSVar<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> R1CSVar<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     type Value = CubicExtField<P>;
 
-    fn cs(&self) -> ConstraintSystemRef<P::BasePrimeField> {
+    fn cs(&self) -> ConstraintSystemRef<CF> {
         [&self.c0, &self.c1, &self.c2].cs()
     }
 
@@ -104,13 +110,14 @@ where
     }
 }
 
-impl<BF, P> From<Boolean<P::BasePrimeField>> for CubicExtVar<BF, P>
+impl<BF, P, CF> From<Boolean<CF>> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
-    fn from(other: Boolean<P::BasePrimeField>) -> Self {
+    fn from(other: Boolean<CF>) -> Self {
         let c0 = BF::from(other);
         let c1 = BF::zero();
         let c2 = BF::zero();
@@ -118,26 +125,31 @@ where
     }
 }
 
-impl<'a, BF, P> FieldOpsBounds<'a, CubicExtField<P>, CubicExtVar<BF, P>> for CubicExtVar<BF, P>
+impl<'a, BF, P, CF> FieldOpsBounds<'a, CubicExtField<P>, CubicExtVar<BF, P, CF>>
+    for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'b> &'b BF: FieldOpsBounds<'b, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
 }
-impl<'a, BF, P> FieldOpsBounds<'a, CubicExtField<P>, CubicExtVar<BF, P>> for &'a CubicExtVar<BF, P>
+impl<'a, BF, P, CF> FieldOpsBounds<'a, CubicExtField<P>, CubicExtVar<BF, P, CF>>
+    for &'a CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'b> &'b BF: FieldOpsBounds<'b, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
 }
 
-impl<BF, P> FieldVar<CubicExtField<P>, P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> FieldVar<CubicExtField<P>, CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     fn constant(other: CubicExtField<P>) -> Self {
         let c0 = BF::constant(other.c0);
@@ -287,51 +299,51 @@ where
 }
 
 impl_bounded_ops!(
-    CubicExtVar<BF, P>,
+    CubicExtVar<BF, P, CF>,
     CubicExtField<P>,
     Add,
     add,
     AddAssign,
     add_assign,
-    |this: &'a CubicExtVar<BF, P>, other: &'a CubicExtVar<BF, P>| {
+    |this: &'a CubicExtVar<BF, P, CF>, other: &'a CubicExtVar<BF, P, CF>| {
         let c0 = &this.c0 + &other.c0;
         let c1 = &this.c1 + &other.c1;
         let c2 = &this.c2 + &other.c2;
         CubicExtVar::new(c0, c1, c2)
     },
-    |this: &'a CubicExtVar<BF, P>, other: CubicExtField<P>| {
+    |this: &'a CubicExtVar<BF, P, CF>, other: CubicExtField<P>| {
         this + CubicExtVar::constant(other)
     },
-    (BF: FieldVar<P::BaseField, P::BasePrimeField>, P: CubicExtVarConfig<BF>),
+    (BF: FieldVar<P::BaseField, CF>, P: CubicExtVarConfig<BF, CF>, CF: PrimeField),
     for<'b> &'b BF: FieldOpsBounds<'b, P::BaseField, BF>,
 );
 impl_bounded_ops!(
-    CubicExtVar<BF, P>,
+    CubicExtVar<BF, P, CF>,
     CubicExtField<P>,
     Sub,
     sub,
     SubAssign,
     sub_assign,
-    |this: &'a CubicExtVar<BF, P>, other: &'a CubicExtVar<BF, P>| {
+    |this: &'a CubicExtVar<BF, P, CF>, other: &'a CubicExtVar<BF, P, CF>| {
         let c0 = &this.c0 - &other.c0;
         let c1 = &this.c1 - &other.c1;
         let c2 = &this.c2 - &other.c2;
         CubicExtVar::new(c0, c1, c2)
     },
-    |this: &'a CubicExtVar<BF, P>, other: CubicExtField<P>| {
+    |this: &'a CubicExtVar<BF, P, CF>, other: CubicExtField<P>| {
         this - CubicExtVar::constant(other)
     },
-    (BF: FieldVar<P::BaseField, P::BasePrimeField>, P: CubicExtVarConfig<BF>),
+    (BF: FieldVar<P::BaseField, CF>, P: CubicExtVarConfig<BF, CF>, CF: PrimeField),
     for<'b> &'b BF: FieldOpsBounds<'b, P::BaseField, BF>,
 );
 impl_bounded_ops!(
-    CubicExtVar<BF, P>,
+    CubicExtVar<BF, P, CF>,
     CubicExtField<P>,
     Mul,
     mul,
     MulAssign,
     mul_assign,
-    |this: &'a CubicExtVar<BF, P>, other: &'a CubicExtVar<BF, P>| {
+    |this: &'a CubicExtVar<BF, P, CF>, other: &'a CubicExtVar<BF, P, CF>| {
         // Karatsuba multiplication for cubic extensions:
         //     v0 = A.c0 * B.c0
         //     v1 = A.c1 * B.c1
@@ -355,21 +367,22 @@ impl_bounded_ops!(
 
         CubicExtVar::new(c0, c1, c2)
     },
-    |this: &'a CubicExtVar<BF, P>, other: CubicExtField<P>| {
+    |this: &'a CubicExtVar<BF, P, CF>, other: CubicExtField<P>| {
         this * CubicExtVar::constant(other)
     },
-    (BF: FieldVar<P::BaseField, P::BasePrimeField>, P: CubicExtVarConfig<BF>),
+    (BF: FieldVar<P::BaseField, CF>, P: CubicExtVarConfig<BF, CF>, CF: PrimeField),
     for<'b> &'b BF: FieldOpsBounds<'b, P::BaseField, BF>,
 );
 
-impl<BF, P> EqGadget<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> EqGadget<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn is_eq(&self, other: &Self) -> Result<Boolean<P::BasePrimeField>, SynthesisError> {
+    fn is_eq(&self, other: &Self) -> Result<Boolean<CF>, SynthesisError> {
         let b0 = self.c0.is_eq(&other.c0)?;
         let b1 = self.c1.is_eq(&other.c1)?;
         let b2 = self.c2.is_eq(&other.c2)?;
@@ -381,7 +394,7 @@ where
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        condition: &Boolean<P::BasePrimeField>,
+        condition: &Boolean<CF>,
     ) -> Result<(), SynthesisError> {
         self.c0.conditional_enforce_equal(&other.c0, condition)?;
         self.c1.conditional_enforce_equal(&other.c1, condition)?;
@@ -394,21 +407,22 @@ where
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        condition: &Boolean<P::BasePrimeField>,
+        condition: &Boolean<CF>,
     ) -> Result<(), SynthesisError> {
         let is_equal = self.is_eq(other)?;
         (is_equal & condition).enforce_equal(&Boolean::FALSE)
     }
 }
 
-impl<BF, P> ToBitsGadget<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> ToBitsGadget<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn to_bits_le(&self) -> Result<Vec<Boolean<P::BasePrimeField>>, SynthesisError> {
+    fn to_bits_le(&self) -> Result<Vec<Boolean<CF>>, SynthesisError> {
         let mut c0 = self.c0.to_bits_le()?;
         let mut c1 = self.c1.to_bits_le()?;
         let mut c2 = self.c2.to_bits_le()?;
@@ -418,7 +432,7 @@ where
     }
 
     #[tracing::instrument(target = "r1cs")]
-    fn to_non_unique_bits_le(&self) -> Result<Vec<Boolean<P::BasePrimeField>>, SynthesisError> {
+    fn to_non_unique_bits_le(&self) -> Result<Vec<Boolean<CF>>, SynthesisError> {
         let mut c0 = self.c0.to_non_unique_bits_le()?;
         let mut c1 = self.c1.to_non_unique_bits_le()?;
         let mut c2 = self.c2.to_non_unique_bits_le()?;
@@ -428,14 +442,15 @@ where
     }
 }
 
-impl<BF, P> ToBytesGadget<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> ToBytesGadget<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn to_bytes_le(&self) -> Result<Vec<UInt8<P::BasePrimeField>>, SynthesisError> {
+    fn to_bytes_le(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let mut c0 = self.c0.to_bytes_le()?;
         let mut c1 = self.c1.to_bytes_le()?;
         let mut c2 = self.c2.to_bytes_le()?;
@@ -446,7 +461,7 @@ where
     }
 
     #[tracing::instrument(target = "r1cs")]
-    fn to_non_unique_bytes_le(&self) -> Result<Vec<UInt8<P::BasePrimeField>>, SynthesisError> {
+    fn to_non_unique_bytes_le(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let mut c0 = self.c0.to_non_unique_bytes_le()?;
         let mut c1 = self.c1.to_non_unique_bytes_le()?;
         let mut c2 = self.c2.to_non_unique_bytes_le()?;
@@ -458,15 +473,16 @@ where
     }
 }
 
-impl<BF, P> ToConstraintFieldGadget<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> ToConstraintFieldGadget<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
-    BF: ToConstraintFieldGadget<P::BasePrimeField>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
+    BF: ToConstraintFieldGadget<CF>,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn to_constraint_field(&self) -> Result<Vec<FpVar<P::BasePrimeField>>, SynthesisError> {
+    fn to_constraint_field(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         let mut res = Vec::new();
 
         res.extend_from_slice(&self.c0.to_constraint_field()?);
@@ -477,16 +493,17 @@ where
     }
 }
 
-impl<BF, P> CondSelectGadget<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> CondSelectGadget<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     #[inline]
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &Boolean<P::BasePrimeField>,
+        cond: &Boolean<CF>,
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -497,18 +514,18 @@ where
     }
 }
 
-impl<BF, P> TwoBitLookupGadget<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> TwoBitLookupGadget<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>
-        + TwoBitLookupGadget<P::BasePrimeField, TableConstant = P::BaseField>,
+    BF: FieldVar<P::BaseField, CF> + TwoBitLookupGadget<CF, TableConstant = P::BaseField>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     type TableConstant = CubicExtField<P>;
 
     #[tracing::instrument(target = "r1cs")]
     fn two_bit_lookup(
-        b: &[Boolean<P::BasePrimeField>],
+        b: &[Boolean<CF>],
         c: &[Self::TableConstant],
     ) -> Result<Self, SynthesisError> {
         let c0s = c.iter().map(|f| f.c0).collect::<Vec<_>>();
@@ -521,19 +538,19 @@ where
     }
 }
 
-impl<BF, P> ThreeBitCondNegLookupGadget<P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> ThreeBitCondNegLookupGadget<CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>
-        + ThreeBitCondNegLookupGadget<P::BasePrimeField, TableConstant = P::BaseField>,
+    BF: FieldVar<P::BaseField, CF> + ThreeBitCondNegLookupGadget<CF, TableConstant = P::BaseField>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     type TableConstant = CubicExtField<P>;
 
     #[tracing::instrument(target = "r1cs")]
     fn three_bit_cond_neg_lookup(
-        b: &[Boolean<P::BasePrimeField>],
-        b0b1: &Boolean<P::BasePrimeField>,
+        b: &[Boolean<CF>],
+        b0b1: &Boolean<CF>,
         c: &[Self::TableConstant],
     ) -> Result<Self, SynthesisError> {
         let c0s = c.iter().map(|f| f.c0).collect::<Vec<_>>();
@@ -546,14 +563,15 @@ where
     }
 }
 
-impl<BF, P> AllocVar<CubicExtField<P>, P::BasePrimeField> for CubicExtVar<BF, P>
+impl<BF, P, CF> AllocVar<CubicExtField<P>, CF> for CubicExtVar<BF, P, CF>
 where
-    BF: FieldVar<P::BaseField, P::BasePrimeField>,
+    BF: FieldVar<P::BaseField, CF>,
     for<'a> &'a BF: FieldOpsBounds<'a, P::BaseField, BF>,
-    P: CubicExtVarConfig<BF>,
+    P: CubicExtVarConfig<BF, CF>,
+    CF: PrimeField,
 {
     fn new_variable<T: Borrow<CubicExtField<P>>>(
-        cs: impl Into<Namespace<P::BasePrimeField>>,
+        cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {

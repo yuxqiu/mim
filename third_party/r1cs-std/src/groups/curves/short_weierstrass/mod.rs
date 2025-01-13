@@ -46,8 +46,11 @@ type BasePrimeField<P> = <<P as CurveConfig>::BaseField as Field>::BasePrimeFiel
 #[derive(Educe)]
 #[educe(Debug, Clone)]
 #[must_use]
-pub struct ProjectiveVar<P: SWCurveConfig, F: FieldVar<P::BaseField, BasePrimeField<P>>>
-where
+pub struct ProjectiveVar<
+    P: SWCurveConfig,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField = BasePrimeField<P>,
+> where
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     /// The x-coordinate.
@@ -58,14 +61,19 @@ where
     pub z: F,
     #[educe(Debug(ignore))]
     _params: PhantomData<P>,
+    #[educe(Debug(ignore))]
+    _base_prime_field: PhantomData<CF>,
 }
 
 /// An affine representation of a curve point.
 #[derive(Educe)]
 #[educe(Debug, Clone)]
 #[must_use]
-pub struct AffineVar<P: SWCurveConfig, F: FieldVar<P::BaseField, BasePrimeField<P>>>
-where
+pub struct AffineVar<
+    P: SWCurveConfig,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField = BasePrimeField<P>,
+> where
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     /// The x-coordinate.
@@ -73,23 +81,27 @@ where
     /// The y-coordinate.
     pub y: F,
     /// Is `self` the point at infinity.
-    pub infinity: Boolean<BasePrimeField<P>>,
+    pub infinity: Boolean<CF>,
     #[educe(Debug(ignore))]
     _params: PhantomData<P>,
+    #[educe(Debug(ignore))]
+    _base_prime_field: PhantomData<CF>,
 }
 
-impl<P, F> AffineVar<P, F>
+impl<P, F, CF> AffineVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
-    fn new(x: F, y: F, infinity: Boolean<BasePrimeField<P>>) -> Self {
+    fn new(x: F, y: F, infinity: Boolean<CF>) -> Self {
         Self {
             x,
             y,
             infinity,
             _params: PhantomData,
+            _base_prime_field: PhantomData,
         }
     }
 
@@ -103,15 +115,16 @@ where
     }
 }
 
-impl<P, F> ToConstraintFieldGadget<BasePrimeField<P>> for AffineVar<P, F>
+impl<P, F, CF> ToConstraintFieldGadget<CF> for AffineVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
-    F: ToConstraintFieldGadget<BasePrimeField<P>>,
+    F: ToConstraintFieldGadget<CF>,
 {
-    fn to_constraint_field(&self) -> Result<Vec<FpVar<BasePrimeField<P>>>, SynthesisError> {
-        let mut res = Vec::<FpVar<BasePrimeField<P>>>::new();
+    fn to_constraint_field(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
+        let mut res = Vec::<FpVar<CF>>::new();
 
         res.extend_from_slice(&self.x.to_constraint_field()?);
         res.extend_from_slice(&self.y.to_constraint_field()?);
@@ -121,15 +134,16 @@ where
     }
 }
 
-impl<P, F> R1CSVar<BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> R1CSVar<CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     type Value = SWProjective<P>;
 
-    fn cs(&self) -> ConstraintSystemRef<BasePrimeField<P>> {
+    fn cs(&self) -> ConstraintSystemRef<CF> {
         self.x.cs().or(self.y.cs()).or(self.z.cs())
     }
 
@@ -144,7 +158,7 @@ where
     }
 }
 
-impl<P: SWCurveConfig, F: FieldVar<P::BaseField, BasePrimeField<P>>> ProjectiveVar<P, F>
+impl<P: SWCurveConfig, F: FieldVar<P::BaseField, CF>, CF: PrimeField> ProjectiveVar<P, F, CF>
 where
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
@@ -155,12 +169,13 @@ where
             y,
             z,
             _params: PhantomData,
+            _base_prime_field: PhantomData,
         }
     }
 
     /// Convert this point into affine form.
     #[tracing::instrument(target = "r1cs")]
-    pub fn to_affine(&self) -> Result<AffineVar<P, F>, SynthesisError> {
+    pub fn to_affine(&self) -> Result<AffineVar<P, F, CF>, SynthesisError> {
         if self.is_constant() {
             let point = self.value()?.into_affine();
             let x = F::new_constant(ConstraintSystemRef::None, point.x)?;
@@ -200,7 +215,7 @@ where
     /// is a constant or is a public input).
     #[tracing::instrument(target = "r1cs", skip(cs, f))]
     pub fn new_variable_omit_on_curve_check(
-        cs: impl Into<Namespace<BasePrimeField<P>>>,
+        cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<SWProjective<P>, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -239,7 +254,10 @@ where
     /// Mixed addition, which is useful when `other = (x2, y2)` is known to have
     /// z = 1.
     #[tracing::instrument(target = "r1cs", skip(self, other))]
-    pub(crate) fn add_mixed(&self, other: &NonZeroAffineVar<P, F>) -> Result<Self, SynthesisError> {
+    pub(crate) fn add_mixed(
+        &self,
+        other: &NonZeroAffineVar<P, F, CF>,
+    ) -> Result<Self, SynthesisError> {
         // Complete mixed addition formula from Renes-Costello-Batina 2015
         // Algorithm 2
         // (https://eprint.iacr.org/2015/1060).
@@ -258,18 +276,18 @@ where
         let xz_pairs = (x2 * z1) + x1; // 8, 9
         let yz_pairs = (y2 * z1) + y1; // 10, 11
 
-        let axz = mul_by_coeff_a::<P, F>(&xz_pairs); // 12
+        let axz = mul_by_coeff_a::<P, F, CF>(&xz_pairs); // 12
 
         let bz3_part = &axz + z1 * three_b; // 13, 14
 
         let yy_m_bz3 = &yy - &bz3_part; // 15
         let yy_p_bz3 = &yy + &bz3_part; // 16
 
-        let azz = mul_by_coeff_a::<P, F>(z1); // 20
+        let azz = mul_by_coeff_a::<P, F, CF>(z1); // 20
         let xx3_p_azz = xx.double().unwrap() + &xx + &azz; // 18, 19, 22
 
         let bxz3 = &xz_pairs * three_b; // 21
-        let b3_xz_pairs = mul_by_coeff_a::<P, F>(&(&xx - &azz)) + &bxz3; // 23, 24, 25
+        let b3_xz_pairs = mul_by_coeff_a::<P, F, CF>(&(&xx - &azz)) + &bxz3; // 23, 24, 25
 
         let x = (&yy_m_bz3 * &xy_pairs) - &yz_pairs * &b3_xz_pairs; // 28,29, 30
         let y = (&yy_p_bz3 * &yy_m_bz3) + &xx3_p_azz * b3_xz_pairs; // 17, 26, 27
@@ -287,8 +305,8 @@ where
     fn fixed_scalar_mul_le(
         &self,
         mul_result: &mut Self,
-        multiple_of_power_of_two: &mut NonZeroAffineVar<P, F>,
-        bits: &[&Boolean<BasePrimeField<P>>],
+        multiple_of_power_of_two: &mut NonZeroAffineVar<P, F, CF>,
+        bits: &[&Boolean<CF>],
     ) -> Result<(), SynthesisError> {
         let scalar_modulus_bits = <P::ScalarField as PrimeField>::MODULUS_BIT_SIZE as usize;
 
@@ -371,10 +389,11 @@ where
     }
 }
 
-impl<P, F> CurveVar<SWProjective<P>, BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> CurveVar<SWProjective<P>, CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     fn constant(g: SWProjective<P>) -> Self {
@@ -386,13 +405,13 @@ where
         Self::new(F::zero(), F::one(), F::zero())
     }
 
-    fn is_zero(&self) -> Result<Boolean<BasePrimeField<P>>, SynthesisError> {
+    fn is_zero(&self) -> Result<Boolean<CF>, SynthesisError> {
         self.z.is_zero()
     }
 
     #[tracing::instrument(target = "r1cs", skip(cs, f))]
     fn new_variable_omit_prime_order_check(
-        cs: impl Into<Namespace<BasePrimeField<P>>>,
+        cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<SWProjective<P>, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -469,7 +488,7 @@ where
         let xy2 = (&self.x * &self.y).double()?; // 4, 5
         let xz2 = (&self.x * &self.z).double()?; // 6, 7
 
-        let axz2 = mul_by_coeff_a::<P, F>(&xz2); // 8
+        let axz2 = mul_by_coeff_a::<P, F, CF>(&xz2); // 8
 
         let bzz3_part = &axz2 + &zz * three_b; // 9, 10
         let yy_m_bzz3 = &yy - &bzz3_part; // 11
@@ -478,8 +497,8 @@ where
         let x_frag = yy_m_bzz3 * &xy2; // 14
 
         let bxz3 = xz2 * three_b; // 15
-        let azz = mul_by_coeff_a::<P, F>(&zz); // 16
-        let b3_xz_pairs = mul_by_coeff_a::<P, F>(&(&xx - &azz)) + &bxz3; // 15, 16, 17, 18, 19
+        let azz = mul_by_coeff_a::<P, F, CF>(&zz); // 16
+        let b3_xz_pairs = mul_by_coeff_a::<P, F, CF>(&(&xx - &azz)) + &bxz3; // 15, 16, 17, 18, 19
         let xx3_p_azz = (xx.double()? + &xx + &azz) * &b3_xz_pairs; // 23, 24, 25
 
         let y = y_frag + &xx3_p_azz; // 26, 27
@@ -502,7 +521,7 @@ where
     #[tracing::instrument(target = "r1cs", skip(bits))]
     fn scalar_mul_le<'a>(
         &self,
-        bits: impl Iterator<Item = &'a Boolean<BasePrimeField<P>>>,
+        bits: impl Iterator<Item = &'a Boolean<CF>>,
     ) -> Result<Self, SynthesisError> {
         if self.is_constant() {
             if self.value().unwrap().is_zero() {
@@ -564,7 +583,7 @@ where
     ) -> Result<(), SynthesisError>
     where
         I: Iterator<Item = (B, &'a SWProjective<P>)>,
-        B: Borrow<Boolean<BasePrimeField<P>>>,
+        B: Borrow<Boolean<CF>>,
     {
         // We just ignore the provided bases and use the faster scalar multiplication.
         let (bits, bases): (Vec<_>, Vec<_>) = scalar_bits_with_bases
@@ -576,19 +595,20 @@ where
     }
 }
 
-impl<P, F> ToConstraintFieldGadget<BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> ToConstraintFieldGadget<CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
-    F: ToConstraintFieldGadget<BasePrimeField<P>>,
+    F: ToConstraintFieldGadget<CF>,
 {
-    fn to_constraint_field(&self) -> Result<Vec<FpVar<BasePrimeField<P>>>, SynthesisError> {
+    fn to_constraint_field(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         self.to_affine()?.to_constraint_field()
     }
 }
 
-fn mul_by_coeff_a<P: SWCurveConfig, F: FieldVar<P::BaseField, BasePrimeField<P>>>(f: &F) -> F
+fn mul_by_coeff_a<P: SWCurveConfig, F: FieldVar<P::BaseField, CF>, CF: PrimeField>(f: &F) -> F
 where
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
@@ -600,13 +620,13 @@ where
 }
 
 impl_bounded_ops!(
-    ProjectiveVar<P, F>,
+    ProjectiveVar<P, F, CF>,
     SWProjective<P>,
     Add,
     add,
     AddAssign,
     add_assign,
-    |mut this: &'a ProjectiveVar<P, F>, mut other: &'a ProjectiveVar<P, F>| {
+    |mut this: &'a ProjectiveVar<P, F, CF>, mut other: &'a ProjectiveVar<P, F, CF>| {
         // Implement complete addition for Short Weierstrass curves, following
         // the complete addition formula from Renes-Costello-Batina 2015
         // (https://eprint.iacr.org/2015/1060).
@@ -649,18 +669,18 @@ impl_bounded_ops!(
             let xz_pairs = ((x1 + z1) * &(x2 + z2)) - (&xx + &zz); // 9, 10, 11, 12, 13
             let yz_pairs = ((y1 + z1) * &(y2 + z2)) - (&yy + &zz); // 14, 15, 16, 17, 18
 
-            let axz = mul_by_coeff_a::<P, F>(&xz_pairs); // 19
+            let axz = mul_by_coeff_a::<P, F, CF>(&xz_pairs); // 19
 
             let bzz3_part = &axz + &zz * three_b; // 20, 21
 
             let yy_m_bzz3 = &yy - &bzz3_part; // 22
             let yy_p_bzz3 = &yy + &bzz3_part; // 23
 
-            let azz = mul_by_coeff_a::<P, F>(&zz);
+            let azz = mul_by_coeff_a::<P, F, CF>(&zz);
             let xx3_p_azz = xx.double().unwrap() + &xx + &azz; // 25, 26, 27, 29
 
             let bxz3 = &xz_pairs * three_b; // 28
-            let b3_xz_pairs = mul_by_coeff_a::<P, F>(&(&xx - &azz)) + &bxz3; // 30, 31, 32
+            let b3_xz_pairs = mul_by_coeff_a::<P, F, CF>(&(&xx - &azz)) + &bxz3; // 30, 31, 32
 
             let x = (&yy_m_bzz3 * &xy_pairs) - &yz_pairs * &b3_xz_pairs; // 35, 39, 40
             let y = (&yy_p_bzz3 * &yy_m_bzz3) + &xx3_p_azz * b3_xz_pairs; // 24, 36, 37, 38
@@ -670,36 +690,36 @@ impl_bounded_ops!(
         }
 
     },
-    |this: &'a ProjectiveVar<P, F>, other: SWProjective<P>| {
+    |this: &'a ProjectiveVar<P, F, CF>, other: SWProjective<P>| {
         this + ProjectiveVar::constant(other)
     },
-    (F: FieldVar<P::BaseField, BasePrimeField<P>>, P: SWCurveConfig),
+    (F: FieldVar<P::BaseField, CF>, P: SWCurveConfig, CF: PrimeField),
     for <'b> &'b F: FieldOpsBounds<'b, P::BaseField, F>,
 );
 
 impl_bounded_ops!(
-    ProjectiveVar<P, F>,
+    ProjectiveVar<P, F, CF>,
     SWProjective<P>,
     Sub,
     sub,
     SubAssign,
     sub_assign,
-    |this: &'a ProjectiveVar<P, F>, other: &'a ProjectiveVar<P, F>| this + other.negate().unwrap(),
-    |this: &'a ProjectiveVar<P, F>, other: SWProjective<P>| this - ProjectiveVar::constant(other),
-    (F: FieldVar<P::BaseField, BasePrimeField<P>>, P: SWCurveConfig),
+    |this: &'a ProjectiveVar<P, F, CF>, other: &'a ProjectiveVar<P, F, CF>| this + other.negate().unwrap(),
+    |this: &'a ProjectiveVar<P, F, CF>, other: SWProjective<P>| this - ProjectiveVar::constant(other),
+    (F: FieldVar<P::BaseField, CF>, P: SWCurveConfig, CF: PrimeField),
     for <'b> &'b F: FieldOpsBounds<'b, P::BaseField, F>
 );
 
 impl_bounded_ops_diff!(
-    ProjectiveVar<P, F>,
+    ProjectiveVar<P, F, CF>,
     SWProjective<P>,
-    EmulatedFpVar<P::ScalarField, BasePrimeField<P>>,
+    EmulatedFpVar<P::ScalarField, CF>,
     P::ScalarField,
     Mul,
     mul,
     MulAssign,
     mul_assign,
-    |this: &'a ProjectiveVar<P, F>, other: &'a EmulatedFpVar<P::ScalarField, BasePrimeField<P>>| {
+    |this: &'a ProjectiveVar<P, F, CF>, other: &'a EmulatedFpVar<P::ScalarField, CF>| {
         if this.is_constant() && other.is_constant() {
             assert!(this.is_constant() && other.is_constant());
             ProjectiveVar::constant(this.value().unwrap() * &other.value().unwrap())
@@ -708,37 +728,42 @@ impl_bounded_ops_diff!(
             this.scalar_mul_le(bits.iter()).unwrap()
         }
     },
-    |this: &'a ProjectiveVar<P, F>, other: P::ScalarField| this * EmulatedFpVar::constant(other),
-    (F: FieldVar<P::BaseField, BasePrimeField<P>>, P: SWCurveConfig),
+    |this: &'a ProjectiveVar<P, F, CF>, other: P::ScalarField| this * EmulatedFpVar::constant(other),
+    (F: FieldVar<P::BaseField, CF>, P: SWCurveConfig, CF: PrimeField),
     for <'b> &'b F: FieldOpsBounds<'b, P::BaseField, F>,
 );
 
-impl<'a, P, F> GroupOpsBounds<'a, SWProjective<P>, ProjectiveVar<P, F>> for ProjectiveVar<P, F>
+impl<'a, P, F, CF> GroupOpsBounds<'a, SWProjective<P>, ProjectiveVar<P, F, CF>>
+    for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'b> &'b F: FieldOpsBounds<'b, P::BaseField, F>,
 {
 }
 
-impl<'a, P, F> GroupOpsBounds<'a, SWProjective<P>, ProjectiveVar<P, F>> for &'a ProjectiveVar<P, F>
+impl<'a, P, F, CF> GroupOpsBounds<'a, SWProjective<P>, ProjectiveVar<P, F, CF>>
+    for &'a ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'b> &'b F: FieldOpsBounds<'b, P::BaseField, F>,
 {
 }
 
-impl<P, F> CondSelectGadget<BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> CondSelectGadget<CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     #[inline]
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &Boolean<BasePrimeField<P>>,
+        cond: &Boolean<CF>,
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -750,14 +775,15 @@ where
     }
 }
 
-impl<P, F> EqGadget<BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> EqGadget<CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn is_eq(&self, other: &Self) -> Result<Boolean<BasePrimeField<P>>, SynthesisError> {
+    fn is_eq(&self, other: &Self) -> Result<Boolean<CF>, SynthesisError> {
         let x_equal = (&self.x * &other.z).is_eq(&(&other.x * &self.z))?;
         let y_equal = (&self.y * &other.z).is_eq(&(&other.y * &self.z))?;
         let coordinates_equal = x_equal & y_equal;
@@ -770,7 +796,7 @@ where
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        condition: &Boolean<BasePrimeField<P>>,
+        condition: &Boolean<CF>,
     ) -> Result<(), SynthesisError> {
         let x_equal = (&self.x * &other.z).is_eq(&(&other.x * &self.z))?;
         let y_equal = (&self.y * &other.z).is_eq(&(&other.y * &self.z))?;
@@ -784,21 +810,22 @@ where
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        condition: &Boolean<BasePrimeField<P>>,
+        condition: &Boolean<CF>,
     ) -> Result<(), SynthesisError> {
         let is_equal = self.is_eq(other)?;
         (is_equal & condition).enforce_equal(&Boolean::FALSE)
     }
 }
 
-impl<P, F> AllocVar<SWAffine<P>, BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> AllocVar<SWAffine<P>, CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     fn new_variable<T: Borrow<SWAffine<P>>>(
-        cs: impl Into<Namespace<BasePrimeField<P>>>,
+        cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -810,14 +837,15 @@ where
     }
 }
 
-impl<P, F> AllocVar<SWProjective<P>, BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> AllocVar<SWProjective<P>, CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     fn new_variable<T: Borrow<SWProjective<P>>>(
-        cs: impl Into<Namespace<BasePrimeField<P>>>,
+        cs: impl Into<Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -920,14 +948,15 @@ fn div2(limbs: &mut [u64]) {
     }
 }
 
-impl<P, F> ToBitsGadget<BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> ToBitsGadget<CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn to_bits_le(&self) -> Result<Vec<Boolean<BasePrimeField<P>>>, SynthesisError> {
+    fn to_bits_le(&self) -> Result<Vec<Boolean<CF>>, SynthesisError> {
         let g = self.to_affine()?;
         let mut bits = g.x.to_bits_le()?;
         let y_bits = g.y.to_bits_le()?;
@@ -937,7 +966,7 @@ where
     }
 
     #[tracing::instrument(target = "r1cs")]
-    fn to_non_unique_bits_le(&self) -> Result<Vec<Boolean<BasePrimeField<P>>>, SynthesisError> {
+    fn to_non_unique_bits_le(&self) -> Result<Vec<Boolean<CF>>, SynthesisError> {
         let g = self.to_affine()?;
         let mut bits = g.x.to_non_unique_bits_le()?;
         let y_bits = g.y.to_non_unique_bits_le()?;
@@ -947,14 +976,15 @@ where
     }
 }
 
-impl<P, F> ToBytesGadget<BasePrimeField<P>> for ProjectiveVar<P, F>
+impl<P, F, CF> ToBytesGadget<CF> for ProjectiveVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, BasePrimeField<P>>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn to_bytes_le(&self) -> Result<Vec<UInt8<BasePrimeField<P>>>, SynthesisError> {
+    fn to_bytes_le(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let g = self.to_affine()?;
         let mut bytes = g.x.to_bytes_le()?;
         let y_bytes = g.y.to_bytes_le()?;
@@ -965,7 +995,7 @@ where
     }
 
     #[tracing::instrument(target = "r1cs")]
-    fn to_non_unique_bytes_le(&self) -> Result<Vec<UInt8<BasePrimeField<P>>>, SynthesisError> {
+    fn to_non_unique_bytes_le(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let g = self.to_affine()?;
         let mut bytes = g.x.to_non_unique_bytes_le()?;
         let y_bytes = g.y.to_non_unique_bytes_le()?;

@@ -2,34 +2,57 @@ use crate::fields::{fp2::Fp2Var, fp6_3over2::Fp6Var, quadratic_extension::*, Fie
 use ark_ff::{
     fields::{fp12_2over3over2::*, Field},
     fp6_3over2::Fp6Config,
-    QuadExtConfig,
+    PrimeField, QuadExtConfig,
 };
 use ark_relations::r1cs::SynthesisError;
+
+use super::FieldOpsBounds;
 
 /// A degree-12 extension field constructed as the tower of a
 /// quadratic extension over a cubic extension over a quadratic extension field.
 /// This is the R1CS equivalent of `ark_ff::fp12_2over3over2::Fp12<P>`.
-pub type Fp12Var<P> = QuadExtVar<Fp6Var<<P as Fp12Config>::Fp6Config>, Fp12ConfigWrapper<P>>;
+pub type Fp12Var<P, F, CF> =
+    QuadExtVar<Fp6Var<<P as Fp12Config>::Fp6Config, F, CF>, Fp12ConfigWrapper<P>, CF>;
 
 type Fp2Config<P> = <<P as Fp12Config>::Fp6Config as Fp6Config>::Fp2Config;
 
-impl<P: Fp12Config> QuadExtVarConfig<Fp6Var<P::Fp6Config>> for Fp12ConfigWrapper<P> {
-    fn mul_base_field_var_by_frob_coeff(fe: &mut Fp6Var<P::Fp6Config>, power: usize) {
+impl<
+        P: Fp12Config,
+        F: FieldVar<
+            <<<P as Fp12Config>::Fp6Config as Fp6Config>::Fp2Config as ark_ff::Fp2Config>::Fp,
+            CF,
+        >,
+        CF: PrimeField,
+    > QuadExtVarConfig<Fp6Var<P::Fp6Config, F, CF>, CF> for Fp12ConfigWrapper<P>
+where
+    for<'a> &'a F: FieldOpsBounds<'a, <<<P as ark_ff::Fp12Config>::Fp6Config as ark_ff::Fp6Config>::Fp2Config as ark_ff::Fp2Config>::Fp, F>
+{
+    fn mul_base_field_var_by_frob_coeff(fe: &mut Fp6Var<P::Fp6Config, F, CF>, power: usize) {
         fe.c0 *= Self::FROBENIUS_COEFF_C1[power % Self::DEGREE_OVER_BASE_PRIME_FIELD];
         fe.c1 *= Self::FROBENIUS_COEFF_C1[power % Self::DEGREE_OVER_BASE_PRIME_FIELD];
         fe.c2 *= Self::FROBENIUS_COEFF_C1[power % Self::DEGREE_OVER_BASE_PRIME_FIELD];
     }
 }
 
-impl<P: Fp12Config> Fp12Var<P> {
+impl<
+        P: Fp12Config,
+        F: FieldVar<
+            <<<P as Fp12Config>::Fp6Config as Fp6Config>::Fp2Config as ark_ff::Fp2Config>::Fp,
+            CF,
+        >,
+        CF: PrimeField,
+    > Fp12Var<P, F, CF>
+where
+    for<'a> &'a F: FieldOpsBounds<'a, <<<P as ark_ff::Fp12Config>::Fp6Config as ark_ff::Fp6Config>::Fp2Config as ark_ff::Fp2Config>::Fp, F>
+{
     /// Multiplies by a sparse element of the form `(c0 = (c0, c1, 0), c1 = (0,
     /// d1, 0))`.
     #[inline]
     pub fn mul_by_014(
         &self,
-        c0: &Fp2Var<Fp2Config<P>>,
-        c1: &Fp2Var<Fp2Config<P>>,
-        d1: &Fp2Var<Fp2Config<P>>,
+        c0: &Fp2Var<Fp2Config<P>, F, CF>,
+        c1: &Fp2Var<Fp2Config<P>, F, CF>,
+        d1: &Fp2Var<Fp2Config<P>, F, CF>,
     ) -> Result<Self, SynthesisError> {
         let v0 = self.c0.mul_by_c0_c1_0(&c0, &c1)?;
         let v1 = self.c1.mul_by_0_c1_0(&d1)?;
@@ -44,9 +67,9 @@ impl<P: Fp12Config> Fp12Var<P> {
     #[inline]
     pub fn mul_by_034(
         &self,
-        c0: &Fp2Var<Fp2Config<P>>,
-        d0: &Fp2Var<Fp2Config<P>>,
-        d1: &Fp2Var<Fp2Config<P>>,
+        c0: &Fp2Var<Fp2Config<P>, F, CF>,
+        d0: &Fp2Var<Fp2Config<P>, F, CF>,
+        d1: &Fp2Var<Fp2Config<P>, F, CF>,
     ) -> Result<Self, SynthesisError> {
         let a0 = &self.c0.c0 * c0;
         let a1 = &self.c0.c1 * c0;

@@ -4,9 +4,9 @@ use ark_bls12_381::Bls12_381;
 use ark_crypto_primitives::snark::SNARK;
 use ark_groth16::{prepare_verifying_key, Groth16};
 use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
+use ark_relations::r1cs::ConstraintSystem;
 use bls::{
-    BLSAggregateSignatureVerifyGadget, BaseField, Parameters, ParametersVar, PublicKey,
+    BLSAggregateSignatureVerifyGadget, BLSCircuit, BaseField, Parameters, ParametersVar, PublicKey,
     PublicKeyVar, SecretKey, Signature, SignatureVar,
 };
 use rand::thread_rng;
@@ -76,31 +76,33 @@ fn check_r1cs() {
     println!("RC1S is satisfied!")
 }
 
-// fn check_snark() {
-//     let cs = ConstraintSystem::<BaseField>::new_ref();
-//     let (msg, params, _, public_keys, sig) = get_aggregate_instances();
-//     let mut rng = thread_rng();
+fn check_snark() {
+    let (msg, params, _, public_keys, sig) = get_aggregate_instances();
+    let mut rng = thread_rng();
 
-//     let circuit = BLSCircuit::new(params, &public_keys, msg.as_bytes(), sig);
+    let circuit = BLSCircuit::new(params, &public_keys, msg.as_bytes(), sig);
 
-//     // Setup pk
-//     let pk =
-//         Groth16::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap();
+    // Setup pk
+    let pk =
+        Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit.clone(), &mut rng)
+            .unwrap();
 
-//     // Create a proof
-//     let proof = Groth16::prove(&pk, circuit, &mut rng).unwrap();
+    // Create a proof
+    let proof = Groth16::<Bls12_381>::prove(&pk, circuit.clone(), &mut rng).unwrap();
 
-//     // Verify the proof
-//     let pvk = prepare_verifying_key(&pk.vk);
-//     // let verified = Groth16::verify_with_processed_vk(&pvk, cs.in, &proof).unwrap();
-//     // assert!(verified);
+    // Verify the proof
+    let pvk = prepare_verifying_key(&pk.vk);
+    let verified =
+        Groth16::<Bls12_381>::verify_proof(&pvk, &proof, &circuit.get_public_inputs().unwrap())
+            .unwrap();
+    assert!(verified);
 
-//     println!("Proof verified successfully!");
-// }
+    println!("Proof verified successfully!");
+}
 
 fn main() {
     check_signature();
     check_aggregate_signature();
     check_r1cs();
-    // check_snark();
+    check_snark();
 }

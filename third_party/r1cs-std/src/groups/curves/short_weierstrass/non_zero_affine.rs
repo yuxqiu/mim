@@ -9,7 +9,8 @@ use ark_std::ops::Add;
 #[must_use]
 pub struct NonZeroAffineVar<
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, <P::BaseField as Field>::BasePrimeField>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField = <<P as CurveConfig>::BaseField as Field>::BasePrimeField,
 > where
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
@@ -19,12 +20,15 @@ pub struct NonZeroAffineVar<
     pub y: F,
     #[educe(Debug(ignore))]
     _params: PhantomData<P>,
+    #[educe(Debug(ignore))]
+    _base_prime_field: PhantomData<CF>,
 }
 
-impl<P, F> NonZeroAffineVar<P, F>
+impl<P, F, CF> NonZeroAffineVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, <P::BaseField as Field>::BasePrimeField>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     pub fn new(x: F, y: F) -> Self {
@@ -32,12 +36,13 @@ where
             x,
             y,
             _params: PhantomData,
+            _base_prime_field: PhantomData,
         }
     }
 
     /// Converts self into a non-zero projective point.
     #[tracing::instrument(target = "r1cs", skip(self))]
-    pub fn into_projective(&self) -> ProjectiveVar<P, F> {
+    pub fn into_projective(&self) -> ProjectiveVar<P, F, CF> {
         ProjectiveVar::new(self.x.clone(), self.y.clone(), F::one())
     }
 
@@ -138,15 +143,16 @@ where
     }
 }
 
-impl<P, F> R1CSVar<<P::BaseField as Field>::BasePrimeField> for NonZeroAffineVar<P, F>
+impl<P, F, CF> R1CSVar<CF> for NonZeroAffineVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, <P::BaseField as Field>::BasePrimeField>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     type Value = SWAffine<P>;
 
-    fn cs(&self) -> ConstraintSystemRef<<P::BaseField as Field>::BasePrimeField> {
+    fn cs(&self) -> ConstraintSystemRef<CF> {
         self.x.cs().or(self.y.cs())
     }
 
@@ -155,16 +161,17 @@ where
     }
 }
 
-impl<P, F> CondSelectGadget<<P::BaseField as Field>::BasePrimeField> for NonZeroAffineVar<P, F>
+impl<P, F, CF> CondSelectGadget<CF> for NonZeroAffineVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, <P::BaseField as Field>::BasePrimeField>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     #[inline]
     #[tracing::instrument(target = "r1cs")]
     fn conditionally_select(
-        cond: &Boolean<<P::BaseField as Field>::BasePrimeField>,
+        cond: &Boolean<CF>,
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
@@ -175,17 +182,15 @@ where
     }
 }
 
-impl<P, F> EqGadget<<P::BaseField as Field>::BasePrimeField> for NonZeroAffineVar<P, F>
+impl<P, F, CF> EqGadget<CF> for NonZeroAffineVar<P, F, CF>
 where
     P: SWCurveConfig,
-    F: FieldVar<P::BaseField, <P::BaseField as Field>::BasePrimeField>,
+    F: FieldVar<P::BaseField, CF>,
+    CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
     #[tracing::instrument(target = "r1cs")]
-    fn is_eq(
-        &self,
-        other: &Self,
-    ) -> Result<Boolean<<P::BaseField as Field>::BasePrimeField>, SynthesisError> {
+    fn is_eq(&self, other: &Self) -> Result<Boolean<CF>, SynthesisError> {
         let x_equal = self.x.is_eq(&other.x)?;
         let y_equal = self.y.is_eq(&other.y)?;
         Ok(x_equal & y_equal)
@@ -196,7 +201,7 @@ where
     fn conditional_enforce_equal(
         &self,
         other: &Self,
-        condition: &Boolean<<P::BaseField as Field>::BasePrimeField>,
+        condition: &Boolean<CF>,
     ) -> Result<(), SynthesisError> {
         let x_equal = self.x.is_eq(&other.x)?;
         let y_equal = self.y.is_eq(&other.y)?;
@@ -218,7 +223,7 @@ where
     fn conditional_enforce_not_equal(
         &self,
         other: &Self,
-        condition: &Boolean<<P::BaseField as Field>::BasePrimeField>,
+        condition: &Boolean<CF>,
     ) -> Result<(), SynthesisError> {
         let is_equal = self.is_eq(other)?;
         (is_equal & condition).enforce_equal(&Boolean::FALSE)

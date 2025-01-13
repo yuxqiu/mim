@@ -1,5 +1,6 @@
 use crate::{convert::ToBytesGadget, prelude::*};
 use ark_ec::pairing::Pairing;
+use ark_ff::PrimeField;
 use ark_relations::r1cs::SynthesisError;
 use core::fmt::Debug;
 
@@ -14,33 +15,27 @@ type BasePrimeField<E> = <<E as Pairing>::BaseField as ark_ff::Field>::BasePrime
 
 /// Specifies the constraints for computing a pairing in the yybilinear group
 /// `E`.
-pub trait PairingVar<E: Pairing> {
+pub trait PairingVar<E: Pairing, CF: PrimeField = BasePrimeField<E>> {
     /// An variable representing an element of `G1`.
     /// This is the R1CS equivalent of `E::G1Projective`.
-    type G1Var: CurveVar<E::G1, BasePrimeField<E>>;
+    type G1Var: CurveVar<E::G1, CF>;
 
     /// An variable representing an element of `G2`.
     /// This is the R1CS equivalent of `E::G2Projective`.
-    type G2Var: CurveVar<E::G2, BasePrimeField<E>>;
+    type G2Var: CurveVar<E::G2, CF>;
 
     /// An variable representing an element of `GT`.
     /// This is the R1CS equivalent of `E::GT`.
-    type GTVar: FieldVar<E::TargetField, BasePrimeField<E>>;
+    type GTVar: FieldVar<E::TargetField, CF>;
 
     /// An variable representing cached precomputation  that can speed up
     /// pairings computations. This is the R1CS equivalent of
     /// `E::G1Prepared`.
-    type G1PreparedVar: ToBytesGadget<BasePrimeField<E>>
-        + AllocVar<E::G1Prepared, BasePrimeField<E>>
-        + Clone
-        + Debug;
+    type G1PreparedVar: ToBytesGadget<CF> + AllocVar<E::G1Prepared, CF> + Clone + Debug;
     /// An variable representing cached precomputation  that can speed up
     /// pairings computations. This is the R1CS equivalent of
     /// `E::G2Prepared`.
-    type G2PreparedVar: ToBytesGadget<BasePrimeField<E>>
-        + AllocVar<E::G2Prepared, BasePrimeField<E>>
-        + Clone
-        + Debug;
+    type G2PreparedVar: ToBytesGadget<CF> + AllocVar<E::G2Prepared, CF> + Clone + Debug;
 
     /// Computes a multi-miller loop between elements
     /// of `p` and `q`.
