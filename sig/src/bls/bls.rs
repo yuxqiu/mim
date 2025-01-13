@@ -86,6 +86,10 @@ impl Signature {
         secret_keys: &[SecretKey],
         params: &Parameters,
     ) -> Option<Signature> {
+        // we can theoretically do the following, but to mimic the real-world scenario,
+        // let's sign them one by one and then add all sigs together
+
+        /*
         if secret_keys.is_empty() {
             return None;
         }
@@ -98,6 +102,16 @@ impl Signature {
             });
 
         Some(Signature::sign(message, &sk, params))
+        */
+
+        let mut sigs = secret_keys
+            .iter()
+            .map(|sk| Signature::sign(message, sk, params));
+        let first_sig = sigs.next()?;
+
+        Some(sigs.fold(first_sig, |acc, new_sig| Signature {
+            signature: acc.signature + new_sig.signature,
+        }))
     }
 
     pub fn verify(
