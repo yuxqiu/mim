@@ -21,10 +21,10 @@ pub struct BLSCircuit<'a> {
 impl<'a> BLSCircuit<'a> {
     pub fn new(params: Parameters, pk: PublicKey, msg: &'a [u8], sig: Signature) -> Self {
         Self {
-            params: params,
+            params,
             pk,
-            msg: msg,
-            sig: sig,
+            msg,
+            sig,
         }
     }
 
@@ -33,7 +33,7 @@ impl<'a> BLSCircuit<'a> {
     pub fn get_public_inputs(&self) -> Result<Vec<BaseField>, SynthesisError> {
         let cs = ConstraintSystem::new_ref();
 
-        let msg_var = UInt8::new_input_vec(cs.clone(), &self.msg)?.to_constraint_field()?;
+        let msg_var = UInt8::new_input_vec(cs.clone(), self.msg)?.to_constraint_field()?;
         let params_var = ParametersVar::new_input(cs.clone(), || Ok(&self.params))?;
         let g1 = params_var.g1_generator.to_constraint_field()?;
         let g2 = params_var.g2_generator.to_constraint_field()?;
@@ -59,7 +59,7 @@ impl<'a> BLSCircuit<'a> {
             .chain(sig_var.iter())
         {
             field_elements.push(match fpvar {
-                FpVar::Constant(value) => value.clone(),
+                FpVar::Constant(value) => *value,
                 FpVar::Var(_) => return Err(SynthesisError::AssignmentMissing),
             });
         }

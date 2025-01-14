@@ -49,7 +49,7 @@ impl Parameters {
 
 impl PublicKey {
     pub fn new(secret_key: &SecretKey, params: &Parameters) -> Self {
-        let pub_key = params.g1_generator.mul(secret_key.secret_key).into();
+        let pub_key = params.g1_generator.mul(secret_key.secret_key);
         Self { pub_key }
     }
 }

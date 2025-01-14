@@ -21,7 +21,7 @@ fn get_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature)
 
     let sig = Signature::sign(msg.as_bytes(), &sk, &params);
 
-    return (msg, params, sk, pk, sig);
+    (msg, params, sk, pk, sig)
 }
 
 fn get_aggregate_instances() -> (
@@ -45,7 +45,7 @@ fn get_aggregate_instances() -> (
 
     let sig = Signature::aggregate_sign(msg.as_bytes(), &secret_keys, &params).unwrap();
 
-    return (msg, params, secret_keys, public_keys, sig);
+    (msg, params, secret_keys, public_keys, sig)
 }
 
 fn check_signature() {
