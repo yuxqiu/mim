@@ -8,9 +8,9 @@ use ark_bls12_381::{
 use ark_ec::{
     bls12,
     hashing::{curve_maps::wb::WBMap, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
-    pairing::Pairing,
+    pairing::{Pairing, PairingOutput},
 };
-use ark_ff::{field_hashers::DefaultFieldHasher, UniformRand};
+use ark_ff::{field_hashers::DefaultFieldHasher, AdditiveGroup, UniformRand};
 use ark_std::rand::Rng;
 use blake2::Blake2s256;
 
@@ -115,7 +115,7 @@ impl Signature {
         }))
     }
 
-    pub fn verify(
+    pub fn verify_slow(
         message: &[u8],
         signature: &Signature,
         public_key: &PublicKey,
@@ -123,7 +123,7 @@ impl Signature {
     ) -> bool {
         let hashed_message = Signature::hash_to_curve(message);
 
-        // Check pairing equation: e(g1, sig) == e(pk, H(msg))
+        // a naive way to check pairing equation: e(g1, sig) == e(pk, H(msg))
         let pairing_1 = bls12::Bls12::<ark_bls12_381::Config>::pairing(
             params.g1_generator,
             signature.signature,
@@ -134,6 +134,27 @@ impl Signature {
         );
 
         pairing_1 == pairing_2
+    }
+
+    pub fn verify(
+        message: &[u8],
+        signature: &Signature,
+        public_key: &PublicKey,
+        params: &Parameters,
+    ) -> bool {
+        let hashed_message = Signature::hash_to_curve(message);
+
+        // an optimized way to check pairing equation: e(g1, sig) == e(pk, H(msg))
+        //
+        // e'(g1, sig)^x == e'(pk, H(msg))^x (do miller loop for two sides without final exponentiation)
+        // <=> check e'(g1, sig)^-x * e'(pk, H(msg))^x = 1
+        // <=> check e'(-g1, sig)^x * e'(pk, H(msg))^x = 1
+        let prod = ark_ec::bls12::Bls12::<ark_bls12_381::Config>::multi_pairing(
+            [-params.g1_generator, public_key.pub_key],
+            [signature.signature, hashed_message],
+        );
+
+        prod == PairingOutput::ZERO
     }
 
     pub fn aggregate_verify(
@@ -153,6 +174,11 @@ impl Signature {
                 pub_key: acc.pub_key + new_pk.pub_key,
             });
 
-        Some(Signature::verify(message, aggregate_signature, &pk, params))
+        Some(Signature::verify_slow(
+            message,
+            aggregate_signature,
+            &pk,
+            params,
+        ))
     }
 }
