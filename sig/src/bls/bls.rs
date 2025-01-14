@@ -70,9 +70,10 @@ impl Signature {
             MapToCurveBasedHasher::new(&[]).unwrap();
         let hashed_message: G2Affine = hasher.hash(message).unwrap();
 
-        // hashed_message.into()
+        hashed_message.into()
 
-        G2Affine::new(G2_GENERATOR_X, G2_GENERATOR_Y).into()
+        // For Testing Purpose
+        // G2Affine::new(G2_GENERATOR_X, G2_GENERATOR_Y).into()
     }
 
     pub fn sign(message: &[u8], secret_key: &SecretKey, _: &Parameters) -> Self {

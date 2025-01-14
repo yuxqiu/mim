@@ -106,6 +106,6 @@ fn check_snark() {
 fn main() {
     check_signature();
     check_aggregate_signature();
-    // check_r1cs();
-    // check_snark();
+    check_r1cs();
+    check_snark();
 }
