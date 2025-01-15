@@ -1,3 +1,0 @@
-[submodule "r1cs-std"]
-	path = r1cs-std
-	url = https://github.com/arkworks-rs/r1cs-std.git
