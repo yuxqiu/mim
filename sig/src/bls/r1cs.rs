@@ -1,8 +1,12 @@
 use std::borrow::Borrow;
 
+use ark_ec::bls12::Bls12;
+use ark_ff::AdditiveGroup;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
+use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::pairing::bls12;
 use ark_r1cs_std::prelude::{Boolean, PairingVar};
 use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
@@ -14,13 +18,22 @@ use ark_bls12_381::{
     G2Affine,
 };
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
-use ark_r1cs_std::pairing::bls12;
 
 use super::params::BaseField;
 use super::{Parameters, PublicKey, Signature, TargetField};
 
-type G1Gadget = G1Var<ark_bls12_381::Config, EmulatedFpVar<TargetField, BaseField>, BaseField>;
-type G2Gadget = G2Var<ark_bls12_381::Config, EmulatedFpVar<TargetField, BaseField>, BaseField>;
+macro_rules! fp_var {
+    // For experimentation: checking whether R1CS circuit is satisfied
+    // ($type_a:ty, $type_b:ty) => {
+    //     FpVar::<$type_a>
+    // };
+    ($type_a:ty, $type_b:ty) => {
+        EmulatedFpVar::<$type_a, $type_b>
+    };
+}
+
+type G1Gadget = G1Var<ark_bls12_381::Config, fp_var!(TargetField, BaseField), BaseField>;
+type G2Gadget = G2Var<ark_bls12_381::Config, fp_var!(TargetField, BaseField), BaseField>;
 
 #[derive(Clone)]
 pub struct ParametersVar {
@@ -52,12 +65,60 @@ impl BLSAggregateSignatureVerifyGadget {
         // Hash the message into the curve point (this requires using a hash-to-curve function)
         let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
 
+        // an optimised way to check two pairings are equal
+        let prod =
+            bls12::PairingVar::product_of_pairings(
+                &[
+                    G1PreparedVar::<
+                        ark_bls12_381::Config,
+                        fp_var!(TargetField, BaseField),
+                        BaseField,
+                    >::from_group_var(&parameters.g1_generator.negate()?)?,
+                    G1PreparedVar::<
+                        ark_bls12_381::Config,
+                        fp_var!(TargetField, BaseField),
+                        BaseField,
+                    >::from_group_var(&pk.pub_key)?,
+                ],
+                &[
+                    G2PreparedVar::from_group_var(&signature.signature)?,
+                    G2PreparedVar::from_group_var(&hash_to_curve)?,
+                ],
+            )?;
+
+        prod
+            .is_eq(
+                &<bls12::PairingVar<
+                    ark_bls12_381::Config,
+                    fp_var!(TargetField, BaseField),
+                    BaseField,
+                > as PairingVar<Bls12<ark_bls12_381::Config>, BaseField>>::GTVar::new_constant(
+                    cs,
+                    ark_ec::pairing::PairingOutput::<Bls12<ark_bls12_381::Config>>::ZERO.0,
+                )?,
+            )?
+            .enforce_equal(&Boolean::TRUE)?;
+
+        Ok(())
+    }
+
+    pub fn verify_slow(
+        parameters: &ParametersVar,
+        pk: &PublicKeyVar,
+        message: &[UInt8<BaseField>],
+        signature: &SignatureVar,
+    ) -> Result<(), SynthesisError> {
+        let cs = parameters.g1_generator.cs();
+
+        // Hash the message into the curve point (this requires using a hash-to-curve function)
+        let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
+
         // Verify e(signature, G) == e(aggregated_pk, H(m))
         let signature_paired =
             bls12::PairingVar::pairing(
                 G1PreparedVar::<
                     ark_bls12_381::Config,
-                    EmulatedFpVar<TargetField, BaseField>,
+                    fp_var!(TargetField, BaseField),
                     BaseField,
                 >::from_group_var(&parameters.g1_generator)?,
                 G2PreparedVar::from_group_var(&signature.signature)?,
@@ -66,7 +127,7 @@ impl BLSAggregateSignatureVerifyGadget {
             bls12::PairingVar::pairing(
                 G1PreparedVar::<
                     ark_bls12_381::Config,
-                    EmulatedFpVar<TargetField, BaseField>,
+                    fp_var!(TargetField, BaseField),
                     BaseField,
                 >::from_group_var(&pk.pub_key)?,
                 G2PreparedVar::from_group_var(&hash_to_curve)?,
@@ -89,8 +150,6 @@ impl BLSAggregateSignatureVerifyGadget {
         message: &[UInt8<BaseField>],
         signature: &SignatureVar,
     ) -> Result<(), SynthesisError> {
-        let cs = parameters.g1_generator.cs();
-
         // Aggregate all public keys
         let aggregated_pk =
             public_keys
@@ -100,34 +159,8 @@ impl BLSAggregateSignatureVerifyGadget {
                     pub_key: acc.pub_key + &new_pk.pub_key,
                 });
 
-        // Hash the message into the curve point (this requires using a hash-to-curve function)
-        let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
-
         // Verify e(signature, G) == e(aggregated_pk, H(m))
-        let signature_paired =
-            bls12::PairingVar::pairing(
-                G1PreparedVar::<
-                    ark_bls12_381::Config,
-                    EmulatedFpVar<TargetField, BaseField>,
-                    BaseField,
-                >::from_group_var(&parameters.g1_generator)?,
-                G2PreparedVar::from_group_var(&signature.signature)?,
-            )?;
-        let aggregated_pk_paired =
-            bls12::PairingVar::pairing(
-                G1PreparedVar::<
-                    ark_bls12_381::Config,
-                    EmulatedFpVar<TargetField, BaseField>,
-                    BaseField,
-                >::from_group_var(&aggregated_pk.pub_key)?,
-                G2PreparedVar::from_group_var(&hash_to_curve)?,
-            )?;
-
-        signature_paired
-            .is_eq(&aggregated_pk_paired)?
-            .enforce_equal(&Boolean::TRUE)?;
-
-        Ok(())
+        Self::verify(parameters, &aggregated_pk, message, signature)
     }
 
     fn hash_to_curve(
