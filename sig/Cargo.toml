@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ark-bls12-377 = "0.5.0"
 ark-bls12-381 = "0.5.0"
 ark-bw6-761 = "0.5.0"
 ark-ec = "0.5.0"
@@ -16,6 +17,7 @@ ark-snark = "0.5.1"
 ark-std = "0.5.0"
 blake2 = "0.10.6"
 rand = "0.8.5"
+rayon = "1.10.0"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

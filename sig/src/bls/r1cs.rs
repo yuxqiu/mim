@@ -34,8 +34,9 @@ macro_rules! fp_var {
     };
 }
 
-type G1Gadget = G1Var<ark_bls12_381::Config, fp_var!(TargetField, BaseField), BaseField>;
-type G2Gadget = G2Var<ark_bls12_381::Config, fp_var!(TargetField, BaseField), BaseField>;
+type CurveConfig = ark_bls12_381::Config;
+type G1Gadget = G1Var<CurveConfig, fp_var!(TargetField, BaseField), BaseField>;
+type G2Gadget = G2Var<CurveConfig, fp_var!(TargetField, BaseField), BaseField>;
 
 #[derive(Clone)]
 pub struct ParametersVar {
@@ -72,12 +73,12 @@ impl BLSAggregateSignatureVerifyGadget {
             bls12::PairingVar::product_of_pairings(
                 &[
                     G1PreparedVar::<
-                        ark_bls12_381::Config,
+                        CurveConfig,
                         fp_var!(TargetField, BaseField),
                         BaseField,
                     >::from_group_var(&parameters.g1_generator.negate()?)?,
                     G1PreparedVar::<
-                        ark_bls12_381::Config,
+                        CurveConfig,
                         fp_var!(TargetField, BaseField),
                         BaseField,
                     >::from_group_var(&pk.pub_key)?,
@@ -88,18 +89,15 @@ impl BLSAggregateSignatureVerifyGadget {
                 ],
             )?;
 
-        prod
-            .is_eq(
-                &<bls12::PairingVar<
-                    ark_bls12_381::Config,
-                    fp_var!(TargetField, BaseField),
-                    BaseField,
-                > as PairingVar<Bls12<ark_bls12_381::Config>, BaseField>>::GTVar::new_constant(
-                    cs,
-                    <Bls12<ark_bls12_381::Config> as Pairing>::TargetField::one(),
-                )?,
-            )?
-            .enforce_equal(&Boolean::TRUE)?;
+        prod.is_eq(&<bls12::PairingVar<
+            CurveConfig,
+            fp_var!(TargetField, BaseField),
+            BaseField,
+        > as PairingVar<Bls12<CurveConfig>, BaseField>>::GTVar::new_constant(
+            cs,
+            <Bls12<CurveConfig> as Pairing>::TargetField::one(),
+        )?)?
+        .enforce_equal(&Boolean::TRUE)?;
 
         Ok(())
     }
@@ -119,7 +117,7 @@ impl BLSAggregateSignatureVerifyGadget {
         let signature_paired =
             bls12::PairingVar::pairing(
                 G1PreparedVar::<
-                    ark_bls12_381::Config,
+                    CurveConfig,
                     fp_var!(TargetField, BaseField),
                     BaseField,
                 >::from_group_var(&parameters.g1_generator)?,
@@ -128,7 +126,7 @@ impl BLSAggregateSignatureVerifyGadget {
         let aggregated_pk_paired =
             bls12::PairingVar::pairing(
                 G1PreparedVar::<
-                    ark_bls12_381::Config,
+                    CurveConfig,
                     fp_var!(TargetField, BaseField),
                     BaseField,
                 >::from_group_var(&pk.pub_key)?,

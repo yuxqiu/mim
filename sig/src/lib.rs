@@ -2,15 +2,23 @@ pub mod bls;
 
 #[cfg(test)]
 mod tests {
+    use ark_ff::{BigInt, Fp};
     use ark_groth16::{prepare_verifying_key, Groth16};
-    use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
+    use ark_r1cs_std::{
+        alloc::AllocVar,
+        eq::EqGadget,
+        fields::emulated_fp::{AllocatedEmulatedFpVar, EmulatedFpVar},
+        prelude::Boolean,
+        uint8::UInt8,
+        Assignment,
+    };
     use ark_relations::r1cs::ConstraintSystem;
     use ark_snark::SNARK;
     use bls::{
         BLSAggregateSignatureVerifyGadget, BLSCircuit, BaseField, Parameters, ParametersVar,
-        PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar,
+        PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar, TargetField,
     };
-    use rand::thread_rng;
+    use rand::{thread_rng, RngCore};
 
     type Curve = ark_bw6_761::BW6_761;
 
@@ -104,6 +112,50 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
 
         println!("RC1S is satisfied!")
+    }
+
+    #[test]
+    fn check_emulated() {
+        use rayon::prelude::*;
+
+        (0..100000).into_par_iter().for_each(|_| {
+            let mut rng = thread_rng();
+            let cs = ConstraintSystem::new_ref();
+            let a: u32 = rng.next_u32();
+            let b: u32 = rng.next_u32();
+
+            let v1: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+                AllocatedEmulatedFpVar::new_input(cs.clone(), || {
+                    Ok(Fp::new(BigInt::new([a as u64, 0, 0, 0, 0, 0])))
+                })
+                .unwrap(),
+            );
+            let v2: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+                AllocatedEmulatedFpVar::new_input(cs.clone(), || {
+                    Ok(Fp::new(BigInt::new([b as u64, 0, 0, 0, 0, 0])))
+                })
+                .unwrap(),
+            );
+            let v3: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+                AllocatedEmulatedFpVar::new_input(cs.clone(), || {
+                    Ok(Fp::new(BigInt::new([(a as u64 * b as u64), 0, 0, 0, 0, 0])))
+                })
+                .unwrap(),
+            );
+            (v1 * v2)
+                .is_eq(&v3)
+                .unwrap()
+                .enforce_equal(&Boolean::TRUE)
+                .unwrap();
+
+            assert!(
+                cs.is_satisfied().unwrap(),
+                "{} x {} = {}",
+                a,
+                b,
+                ((a as u64) * (b as u64))
+            );
+        });
     }
 
     #[test]
