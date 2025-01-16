@@ -12,7 +12,7 @@ mod tests {
     };
     use rand::thread_rng;
 
-    type Curve = ark_mnt4_753::MNT4_753;
+    type Curve = ark_bw6_761::BW6_761;
 
     use super::*;
 
