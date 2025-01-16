@@ -1,16 +1,18 @@
 use std::borrow::Borrow;
 
 use ark_ec::bls12::Bls12;
-use ark_ff::AdditiveGroup;
+use ark_ec::pairing::Pairing;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
+use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::pairing::bls12;
 use ark_r1cs_std::prelude::{Boolean, PairingVar};
 use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use ark_std::One;
 
 // Assuming BLS-specific types
 use ark_bls12_381::{
@@ -94,7 +96,7 @@ impl BLSAggregateSignatureVerifyGadget {
                     BaseField,
                 > as PairingVar<Bls12<ark_bls12_381::Config>, BaseField>>::GTVar::new_constant(
                     cs,
-                    ark_ec::pairing::PairingOutput::<Bls12<ark_bls12_381::Config>>::ZERO.0,
+                    <Bls12<ark_bls12_381::Config> as Pairing>::TargetField::one(),
                 )?,
             )?
             .enforce_equal(&Boolean::TRUE)?;
