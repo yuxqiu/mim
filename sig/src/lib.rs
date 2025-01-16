@@ -2,10 +2,10 @@ pub mod bls;
 
 #[cfg(test)]
 mod tests {
-    use ark_crypto_primitives::snark::SNARK;
     use ark_groth16::{prepare_verifying_key, Groth16};
     use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
     use ark_relations::r1cs::ConstraintSystem;
+    use ark_snark::SNARK;
     use bls::{
         BLSAggregateSignatureVerifyGadget, BLSCircuit, BaseField, Parameters, ParametersVar,
         PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar,
