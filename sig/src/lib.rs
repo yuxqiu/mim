@@ -2,15 +2,18 @@ pub mod bls;
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::{BigInt, Fp};
+    use ark_ff::{BigInt, Fp, PrimeField};
     use ark_groth16::{prepare_verifying_key, Groth16};
     use ark_r1cs_std::{
         alloc::AllocVar,
         eq::EqGadget,
-        fields::emulated_fp::{AllocatedEmulatedFpVar, EmulatedFpVar},
+        fields::{
+            emulated_fp::{AllocatedEmulatedFpVar, EmulatedFpVar},
+            fp::FpVar,
+        },
         prelude::Boolean,
         uint8::UInt8,
-        Assignment,
+        R1CSVar,
     };
     use ark_relations::r1cs::ConstraintSystem;
     use ark_snark::SNARK;
@@ -18,7 +21,7 @@ mod tests {
         BLSAggregateSignatureVerifyGadget, BLSCircuit, BaseField, Parameters, ParametersVar,
         PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar, TargetField,
     };
-    use rand::{thread_rng, RngCore};
+    use rand::{thread_rng, Rng};
 
     type Curve = ark_bw6_761::BW6_761;
 
@@ -114,48 +117,55 @@ mod tests {
         println!("RC1S is satisfied!")
     }
 
+    fn check_emulated_helper(a: [u64; 6], b: [u64; 6]) {
+        let cs = ConstraintSystem::new_ref();
+
+        let av: FpVar<BaseField> =
+            FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(a))).unwrap();
+        let bv = FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(b))).unwrap();
+        let cv = av * bv;
+        let c = cv.value().unwrap().into_bigint();
+
+        let cs = ConstraintSystem::new_ref();
+        let a = BigInt::new(a);
+        let b = BigInt::new(b);
+
+        let v1: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+            AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(a))).unwrap(),
+        );
+        let v2: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+            AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(b))).unwrap(),
+        );
+        let v3: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+            AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(c))).unwrap(),
+        );
+
+        let v1v2 = v1 * v2;
+        let v1v2v = v1v2.value().unwrap().into_bigint();
+        (v1v2)
+            .is_eq(&v3)
+            .unwrap()
+            .enforce_equal(&Boolean::TRUE)
+            .unwrap();
+
+        assert!(
+            cs.is_satisfied().unwrap(),
+            "{:?} x {:?} = {:?} (got {})",
+            a,
+            b,
+            c,
+            v1v2v
+        );
+    }
+
     #[test]
     fn check_emulated() {
-        use rayon::prelude::*;
-
-        (0..100000).into_par_iter().for_each(|_| {
-            let mut rng = thread_rng();
-            let cs = ConstraintSystem::new_ref();
-            let a: u32 = rng.next_u32();
-            let b: u32 = rng.next_u32();
-
-            let v1: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
-                AllocatedEmulatedFpVar::new_input(cs.clone(), || {
-                    Ok(Fp::new(BigInt::new([a as u64, 0, 0, 0, 0, 0])))
-                })
-                .unwrap(),
-            );
-            let v2: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
-                AllocatedEmulatedFpVar::new_input(cs.clone(), || {
-                    Ok(Fp::new(BigInt::new([b as u64, 0, 0, 0, 0, 0])))
-                })
-                .unwrap(),
-            );
-            let v3: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
-                AllocatedEmulatedFpVar::new_input(cs.clone(), || {
-                    Ok(Fp::new(BigInt::new([(a as u64 * b as u64), 0, 0, 0, 0, 0])))
-                })
-                .unwrap(),
-            );
-            (v1 * v2)
-                .is_eq(&v3)
-                .unwrap()
-                .enforce_equal(&Boolean::TRUE)
-                .unwrap();
-
-            assert!(
-                cs.is_satisfied().unwrap(),
-                "{} x {} = {}",
-                a,
-                b,
-                ((a as u64) * (b as u64))
-            );
-        });
+        let mut rng = thread_rng();
+        let mut a: [u64; 6] = [0; 6];
+        let mut b: [u64; 6] = [0; 6];
+        rng.fill(&mut a[..]);
+        rng.fill(&mut b[..]);
+        check_emulated_helper(a, b);
     }
 
     #[test]

@@ -17,7 +17,6 @@ ark-snark = "0.5.1"
 ark-std = "0.5.0"
 blake2 = "0.10.6"
 rand = "0.8.5"
-rayon = "1.10.0"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

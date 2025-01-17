@@ -1,6 +1,4 @@
-use ark_r1cs_std::{
-    alloc::AllocVar, convert::ToConstraintFieldGadget, fields::fp::FpVar, uint8::UInt8,
-};
+use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
 };
@@ -33,38 +31,16 @@ impl<'a> BLSCircuit<'a> {
     pub fn get_public_inputs(&self) -> Result<Vec<BaseField>, SynthesisError> {
         let cs = ConstraintSystem::new_ref();
 
-        let msg_var = UInt8::new_input_vec(cs.clone(), self.msg)?.to_constraint_field()?;
-        let params_var = ParametersVar::new_input(cs.clone(), || Ok(&self.params))?;
-        let g1 = params_var.g1_generator.to_constraint_field()?;
-        let g2 = params_var.g2_generator.to_constraint_field()?;
-
-        let pk_var = PublicKeyVar::new_input(cs.clone(), || Ok(&self.pk))
-            .unwrap()
-            .pub_key
-            .to_constraint_field()?;
-
-        let sig_var = SignatureVar::new_input(cs.clone(), || Ok(&self.sig))?
-            .signature
-            .to_constraint_field()?;
-
-        let mut field_elements = vec![];
-        field_elements
-            .reserve_exact(msg_var.len() + g1.len() + g2.len() + pk_var.len() + sig_var.len());
-
-        for fpvar in msg_var
+        let _: Vec<UInt8<BaseField>> = self
+            .msg
             .iter()
-            .chain(g1.iter())
-            .chain(g2.iter())
-            .chain(pk_var.iter())
-            .chain(sig_var.iter())
-        {
-            field_elements.push(match fpvar {
-                FpVar::Constant(value) => *value,
-                FpVar::Var(_) => return Err(SynthesisError::AssignmentMissing),
-            });
-        }
+            .map(|b| UInt8::new_input(cs.clone(), || Ok(b)).unwrap())
+            .collect();
+        let _ = ParametersVar::new_input(cs.clone(), || Ok(&self.params))?;
+        let _ = PublicKeyVar::new_input(cs.clone(), || Ok(&self.pk)).unwrap();
+        let _ = SignatureVar::new_input(cs.clone(), || Ok(&self.sig))?;
 
-        Ok(field_elements)
+        Ok(cs.into_inner().unwrap().instance_assignment)
     }
 }
 
