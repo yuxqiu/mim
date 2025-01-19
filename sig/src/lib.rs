@@ -1,4 +1,5 @@
 pub mod bls;
+pub mod hash_to_curve;
 
 #[cfg(test)]
 mod tests {
@@ -117,10 +118,11 @@ mod tests {
         println!("RC1S is satisfied!")
     }
 
+    #[test_fuzz::test_fuzz]
     fn check_emulated_helper(a: [u64; 6], b: [u64; 6]) {
         let cs = ConstraintSystem::new_ref();
 
-        let av: FpVar<BaseField> =
+        let av: FpVar<TargetField> =
             FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(a))).unwrap();
         let bv = FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(b))).unwrap();
         let cv = av * bv;
