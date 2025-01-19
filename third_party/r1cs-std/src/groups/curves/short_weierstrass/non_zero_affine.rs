@@ -19,9 +19,7 @@ pub struct NonZeroAffineVar<
     /// The y-coordinate.
     pub y: F,
     #[educe(Debug(ignore))]
-    _params: PhantomData<P>,
-    #[educe(Debug(ignore))]
-    _base_prime_field: PhantomData<CF>,
+    _params: PhantomData<(P, CF)>,
 }
 
 impl<P, F, CF> NonZeroAffineVar<P, F, CF>
@@ -36,7 +34,6 @@ where
             x,
             y,
             _params: PhantomData,
-            _base_prime_field: PhantomData,
         }
     }
 

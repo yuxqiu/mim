@@ -26,9 +26,7 @@ where
     /// The first coefficient of this field element.
     pub c1: BF,
     #[educe(Debug(ignore))]
-    _params: PhantomData<P>,
-    #[educe(Debug(ignore))]
-    _base_prime_field: PhantomData<CF>,
+    _params: PhantomData<(P, CF)>,
 }
 
 /// This trait describes parameters that are used to implement arithmetic for
@@ -55,7 +53,6 @@ where
             c0,
             c1,
             _params: PhantomData,
-            _base_prime_field: PhantomData,
         }
     }
 

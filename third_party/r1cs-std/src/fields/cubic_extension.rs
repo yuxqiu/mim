@@ -28,9 +28,7 @@ where
     /// The second coefficient of this field element.
     pub c2: BF,
     #[educe(Debug(ignore))]
-    _params: PhantomData<P>,
-    #[educe(Debug(ignore))]
-    _base_prime_field: PhantomData<CF>,
+    _params: PhantomData<(P, CF)>,
 }
 
 /// This trait describes parameters that are used to implement arithmetic for
@@ -55,13 +53,11 @@ where
     #[inline]
     pub fn new(c0: BF, c1: BF, c2: BF) -> Self {
         let _params = PhantomData;
-        let _base_prime_field = PhantomData;
         Self {
             c0,
             c1,
             c2,
             _params,
-            _base_prime_field,
         }
     }
 

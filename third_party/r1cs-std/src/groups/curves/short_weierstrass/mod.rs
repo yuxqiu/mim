@@ -60,9 +60,7 @@ pub struct ProjectiveVar<
     /// The z-coordinate.
     pub z: F,
     #[educe(Debug(ignore))]
-    _params: PhantomData<P>,
-    #[educe(Debug(ignore))]
-    _base_prime_field: PhantomData<CF>,
+    _params: PhantomData<(P, CF)>,
 }
 
 /// An affine representation of a curve point.
@@ -83,9 +81,7 @@ pub struct AffineVar<
     /// Is `self` the point at infinity.
     pub infinity: Boolean<CF>,
     #[educe(Debug(ignore))]
-    _params: PhantomData<P>,
-    #[educe(Debug(ignore))]
-    _base_prime_field: PhantomData<CF>,
+    _params: PhantomData<(P, CF)>,
 }
 
 impl<P, F, CF> AffineVar<P, F, CF>
@@ -101,7 +97,6 @@ where
             y,
             infinity,
             _params: PhantomData,
-            _base_prime_field: PhantomData,
         }
     }
 
@@ -169,7 +164,6 @@ where
             y,
             z,
             _params: PhantomData,
-            _base_prime_field: PhantomData,
         }
     }
 
