@@ -12,3 +12,6 @@ pub trait HashToFieldGadget<TF: Field, CF: PrimeField, FP: FieldVar<TF, CF>>: Si
     /// Hash an arbitrary `msg` to `N` elements of the field `F`.
     fn hash_to_field<const N: usize>(&self, msg: &[UInt8<CF>]) -> [FP; N];
 }
+
+// use ark_crypto_primitives::crh::poseidon::constraints
+use ark_crypto_primitives::crh::poseidon::constraints::CRHGadget;
