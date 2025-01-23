@@ -11,6 +11,7 @@ use ark_ec::{
     pairing::{Pairing, PairingOutput},
 };
 use ark_ff::{field_hashers::DefaultFieldHasher, AdditiveGroup, UniformRand};
+use ark_r1cs_std::fields::fp::FpVar;
 use ark_std::rand::Rng;
 use blake2::Blake2s256;
 

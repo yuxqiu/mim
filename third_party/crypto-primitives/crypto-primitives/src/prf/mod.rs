@@ -6,7 +6,7 @@ use ark_std::{fmt::Debug, hash::Hash};
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 #[cfg(feature = "r1cs")]
-pub use constraints::*;
+pub use self::constraints::*;
 
 pub mod blake2s;
 pub use self::blake2s::*;

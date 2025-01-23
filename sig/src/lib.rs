@@ -1,5 +1,5 @@
 pub mod bls;
-pub mod hash_to_curve;
+pub mod hash;
 
 #[cfg(test)]
 mod tests {

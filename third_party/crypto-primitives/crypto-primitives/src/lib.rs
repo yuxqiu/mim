@@ -42,7 +42,15 @@ extern crate ark_std;
 
 #[allow(unused_imports)]
 #[macro_use]
+extern crate blake2;
+
+#[allow(unused_imports)]
+#[macro_use]
 extern crate derivative;
+
+#[allow(unused_imports)]
+#[macro_use]
+extern crate digest;
 
 #[allow(unused_imports)]
 #[macro_use]

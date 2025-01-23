@@ -1,10 +1,10 @@
-use crate::prf::PRFGadget;
 use ark_ff::PrimeField;
 use ark_r1cs_std::prelude::*;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::borrow::Borrow;
 #[cfg(not(feature = "std"))]
 use ark_std::vec::Vec;
+use prf::constraints::PRFGadget;
 
 // 2.1.  Parameters
 // The following table summarizes various parameters and their ranges:
