@@ -4,8 +4,6 @@ use ark_ec::bls12::Bls12;
 use ark_ec::pairing::Pairing;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
-use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::pairing::bls12;
 use ark_r1cs_std::prelude::{Boolean, PairingVar};
@@ -27,10 +25,10 @@ use super::{Parameters, PublicKey, Signature, TargetField};
 macro_rules! fp_var {
     // For experimentation: checking whether R1CS circuit is satisfied
     // ($type_a:ty, $type_b:ty) => {
-    //     FpVar::<$type_a>
+    //     ark_r1cs_std::fields::fp::FpVarFpVar::<$type_a>
     // };
     ($type_a:ty, $type_b:ty) => {
-        EmulatedFpVar::<$type_a, $type_b>
+        ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
     };
 }
 

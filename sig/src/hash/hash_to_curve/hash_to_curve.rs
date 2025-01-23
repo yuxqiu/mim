@@ -1,5 +1,5 @@
-use ark_ec::{hashing::HashToCurveError, CurveGroup};
-use ark_ff::{field_hashers::HashToField, PrimeField};
+use ark_ec::CurveGroup;
+use ark_ff::PrimeField;
 use ark_r1cs_std::fields::FieldVar;
 use ark_std::marker::PhantomData;
 
@@ -16,7 +16,7 @@ where
     CF: PrimeField,
     FP: FieldVar<T::BaseField, CF>,
 {
-    field_hasher: H2F,
+    _field_hasher: H2F,
     _phantom: PhantomData<(T, M2C, CF, FP)>,
 }
 

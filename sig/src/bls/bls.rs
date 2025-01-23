@@ -11,7 +11,6 @@ use ark_ec::{
     pairing::{Pairing, PairingOutput},
 };
 use ark_ff::{field_hashers::DefaultFieldHasher, AdditiveGroup, UniformRand};
-use ark_r1cs_std::fields::fp::FpVar;
 use ark_std::rand::Rng;
 use blake2::Blake2s256;
 
@@ -69,7 +68,7 @@ impl Signature {
         type CurveMap = WBMap<ark_bls12_381::g2::Config>;
         let hasher: MapToCurveBasedHasher<G2Projective, FieldHasher, CurveMap> =
             MapToCurveBasedHasher::new(&[]).unwrap();
-        let hashed_message: G2Affine = hasher.hash(message).unwrap();
+        let _hashed_message: G2Affine = hasher.hash(message).unwrap();
 
         // hashed_message.into()
 

@@ -383,7 +383,7 @@ impl<F: PrimeField> PRFGadget<Blake2s, F> for Blake2sGadget {
             .flat_map(|b| b.to_bits_le().unwrap())
             .collect();
         let result: Vec<_> = evaluate_blake2s(&input)?
-            .into_iter()
+            .iter()
             .flat_map(|int| int.to_bytes_le().unwrap())
             .collect();
         Ok(OutputVar(result))
