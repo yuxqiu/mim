@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 
 use ark_crypto_primitives::prf::{PRFGadget, PRF};
-use ark_ff::{Field, PrimeField};
+use ark_ff::{
+    field_hashers::expander::{LONG_DST_PREFIX, MAX_DST_LENGTH, Z_PAD},
+    Field, PrimeField,
+};
 use ark_r1cs_std::{fields::FieldVar, prelude::ToBytesGadget, uint8::UInt8};
 use arrayvec::ArrayVec;
 use std::ops::BitXor;
@@ -19,8 +22,6 @@ pub trait HashToFieldGadget<TF: Field, CF: PrimeField, FP: FieldVar<TF, CF>>: Si
 }
 
 // From `ark-ff-0.5.0/src/fields/field_hashers/expander/mod.rs`
-const MAX_DST_LENGTH: usize = 255;
-const LONG_DST_PREFIX: &[u8; 17] = b"H2C-OVERSIZE-DST-";
 
 pub struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
 
@@ -70,7 +71,7 @@ impl<H: PRFGadget<P, F>, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P, F> {
 
         let dst_prime = DSTGadget::<F>::new_xmd::<H, P>(&self.dst);
 
-        let msg_bytes: Vec<UInt8<F>> = [0u8; 256][0..self.block_size]
+        let msg_bytes: Vec<UInt8<F>> = Z_PAD[0..self.block_size]
             .iter()
             .map(|b| UInt8::constant(*b))
             .chain(msg.iter().cloned())
@@ -116,23 +117,6 @@ impl<H: PRFGadget<P, F>, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P, F> {
     }
 }
 
-/// This function computes the length in bytes that a hash function should output
-/// for hashing an element of type `Field`.
-/// See section 5.1 and 5.3 of the
-/// [IETF hash standardization draft](https://datatracker.ietf.org/doc/draft-irtf-cfrg-hash-to-curve/14/)]
-///
-/// Copied from `ark-ff-0.5.0/src/fields/field_hashers/mod.rs`
-const fn get_len_per_elem<F: Field, const SEC_PARAM: usize>() -> usize {
-    // ceil(log(p))
-    let base_field_size_in_bits = F::BasePrimeField::MODULUS_BIT_SIZE as usize;
-    // ceil(log(p)) + security_parameter
-    let base_field_size_with_security_padding_in_bits = base_field_size_in_bits + SEC_PARAM;
-    // ceil( (ceil(log(p)) + security_parameter) / 8)
-    let bytes_per_base_field_elem =
-        ((base_field_size_with_security_padding_in_bits + 7) / 8) as u64;
-    bytes_per_base_field_elem as usize
-}
-
 // Work on CF => Follow `le_bits_to_fp` without `enforce_in_field_le` as we are doing mod arithmetic
 // - In this process, construct EmulatedFpVar<TF::BasePrimeField, CF>
 //
@@ -149,12 +133,15 @@ mod test {
     use std::marker::PhantomData;
 
     use ark_crypto_primitives::prf::{blake2s::constraints::Blake2sGadget, Blake2s};
-    use ark_ff::field_hashers::{Expander, ExpanderXmd};
+    use ark_ff::field_hashers::{
+        expander::{Expander, ExpanderXmd},
+        get_len_per_elem,
+    };
     use ark_r1cs_std::{uint8::UInt8, R1CSVar};
     use blake2::{digest::Update, Blake2s256, Digest};
     use rand::{thread_rng, Rng};
 
-    use crate::hash::hash_to_curve::hash_to_field::{get_len_per_elem, ExpanderXmdGadget};
+    use crate::hash::hash_to_curve::hash_to_field::ExpanderXmdGadget;
 
     // This function is to validate how blake2 hash works.
     // So, I can implement the corresponding R1CS version.
@@ -163,8 +150,8 @@ mod test {
         let mut rng = thread_rng();
         let mut a: [u8; 6] = [0; 6];
         let mut b: [u8; 6] = [0; 6];
-        rng.fill(&mut a[..]);
-        rng.fill(&mut b[..]);
+        rng.fill(&mut a);
+        rng.fill(&mut b);
         let c: Vec<_> = a.iter().chain(b.iter()).copied().collect();
 
         let mut hasher = blake2::Blake2s256::default();
@@ -185,7 +172,7 @@ mod test {
 
         let mut rng = thread_rng();
         let mut msg: [u8; 64] = [0; 64];
-        rng.fill(&mut msg[..]);
+        rng.fill(&mut msg);
         let msg_var: Vec<UInt8<F>> = msg.iter().map(|byte| UInt8::constant(*byte)).collect();
 
         let len_per_base_elem = get_len_per_elem::<F, 128>();

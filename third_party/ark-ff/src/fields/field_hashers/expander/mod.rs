@@ -11,9 +11,9 @@ use digest::{ExtendableOutput, FixedOutputReset, Update};
 pub trait Expander {
     fn expand(&self, msg: &[u8], length: usize) -> Vec<u8>;
 }
-const MAX_DST_LENGTH: usize = 255;
 
-const LONG_DST_PREFIX: &[u8; 17] = b"H2C-OVERSIZE-DST-";
+pub const MAX_DST_LENGTH: usize = 255;
+pub const LONG_DST_PREFIX: &[u8; 17] = b"H2C-OVERSIZE-DST-";
 
 /// Implements section [5.3.3](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve-16#section-5.3.3)
 /// "Using DSTs longer than 255 bytes" of the
@@ -84,7 +84,7 @@ pub struct ExpanderXmd<H: FixedOutputReset + Default + Clone> {
     pub block_size: usize,
 }
 
-static Z_PAD: [u8; 256] = [0u8; 256];
+pub const Z_PAD: [u8; 256] = [0u8; 256];
 
 impl<H: FixedOutputReset + Default + Clone> Expander for ExpanderXmd<H> {
     fn expand(&self, msg: &[u8], n: usize) -> Vec<u8> {

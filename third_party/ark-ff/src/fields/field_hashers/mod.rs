@@ -1,13 +1,13 @@
-mod expander;
+pub mod expander;
 
 use core::marker::PhantomData;
 
 use crate::{Field, PrimeField};
 
 use digest::{FixedOutputReset, XofReader};
+use expander::Expander;
 
-pub use self::expander::ExpanderXmd;
-pub use expander::Expander;
+use self::expander::ExpanderXmd;
 /// Trait for hashing messages to field elements.
 pub trait HashToField<F: Field>: Sized {
     /// Initialises a new hash-to-field helper struct.
@@ -104,7 +104,7 @@ pub fn hash_to_field<F: Field, H: XofReader, const SEC_PARAM: usize>(h: &mut H) 
 /// for hashing an element of type `Field`.
 /// See section 5.1 and 5.3 of the
 /// [IETF hash standardization draft](https://datatracker.ietf.org/doc/draft-irtf-cfrg-hash-to-curve/14/)
-const fn get_len_per_elem<F: Field, const SEC_PARAM: usize>() -> usize {
+pub const fn get_len_per_elem<F: Field, const SEC_PARAM: usize>() -> usize {
     // ceil(log(p))
     let base_field_size_in_bits = F::BasePrimeField::MODULUS_BIT_SIZE as usize;
     // ceil(log(p)) + security_parameter

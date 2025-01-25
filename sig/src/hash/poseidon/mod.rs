@@ -53,11 +53,11 @@ impl<TF: Field, F: PoseidonDefaultConfigField, const SEC_LEVEL: usize> HashToFie
         //
         // capacity = ceil(SEC_LEVEL * 2 / MODULUS_BIT_SIZE)
         let mut config = F::get_default_poseidon_parameters(2, false).unwrap();
-        config.capacity = (SEC_LEVEL << 1 + F::BasePrimeField::MODULUS_BIT_SIZE - 1)
+        config.capacity = ((SEC_LEVEL << 1) + F::BasePrimeField::MODULUS_BIT_SIZE as usize - 1)
             / (F::BasePrimeField::MODULUS_BIT_SIZE) as usize;
 
         Self {
-            config: config,
+            config,
             domain: domain.into(),
             _params: PhantomData,
         }
