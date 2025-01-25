@@ -1,6 +1,7 @@
 use crate::{prf::PRF, Error};
 #[cfg(not(feature = "std"))]
 use ark_std::vec::Vec;
+use ark_std::{end_timer, start_timer};
 use blake2::{Blake2s256 as B2s, Blake2sMac};
 use digest::Digest;
 

@@ -1,10 +1,10 @@
+use crate::prf::constraints::PRFGadget;
 use ark_ff::PrimeField;
 use ark_r1cs_std::prelude::*;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::borrow::Borrow;
 #[cfg(not(feature = "std"))]
 use ark_std::vec::Vec;
-use prf::constraints::PRFGadget;
 
 // 2.1.  Parameters
 // The following table summarizes various parameters and their ranges:
@@ -227,70 +227,96 @@ fn blake2s_compression<ConstraintF: PrimeField>(
 // END FUNCTION.
 //
 
-pub fn evaluate_blake2s<ConstraintF: PrimeField>(
-    input: &[Boolean<ConstraintF>],
-) -> Result<[UInt32<ConstraintF>; 8], SynthesisError> {
-    assert!(input.len() % 8 == 0);
-    let mut parameters = [0; 8];
-    parameters[0] = 0x01010000 ^ 32;
-    evaluate_blake2s_with_parameters(input, &parameters)
+pub struct Blake2sState<ConstraintF: PrimeField> {
+    h: [UInt32<ConstraintF>; 8],
+    buffer: Vec<Boolean<ConstraintF>>,
+    t: u64,
 }
 
-pub fn evaluate_blake2s_with_parameters<F: PrimeField>(
-    input: &[Boolean<F>],
-    parameters: &[u32; 8],
-) -> Result<[UInt32<F>; 8], SynthesisError> {
-    assert!(input.len() % 8 == 0);
+impl<ConstraintF: PrimeField> Blake2sState<ConstraintF> {
+    pub fn new() -> Result<Self, SynthesisError> {
+        let h = [
+            UInt32::constant(0x6A09E667 ^ (0x01010000 ^ 32)),
+            UInt32::constant(0xBB67AE85),
+            UInt32::constant(0x3C6EF372),
+            UInt32::constant(0xA54FF53A),
+            UInt32::constant(0x510E527F),
+            UInt32::constant(0x9B05688C),
+            UInt32::constant(0x1F83D9AB),
+            UInt32::constant(0x5BE0CD19),
+        ];
 
-    let mut h = [
-        UInt32::constant(0x6A09E667 ^ parameters[0]),
-        UInt32::constant(0xBB67AE85 ^ parameters[1]),
-        UInt32::constant(0x3C6EF372 ^ parameters[2]),
-        UInt32::constant(0xA54FF53A ^ parameters[3]),
-        UInt32::constant(0x510E527F ^ parameters[4]),
-        UInt32::constant(0x9B05688C ^ parameters[5]),
-        UInt32::constant(0x1F83D9AB ^ parameters[6]),
-        UInt32::constant(0x5BE0CD19 ^ parameters[7]),
-    ];
+        Ok(Blake2sState {
+            h,
+            buffer: Vec::new(),
+            t: 0,
+        })
+    }
 
-    let mut blocks: Vec<Vec<UInt32<F>>> = vec![];
+    pub fn update(&mut self, input: &[Boolean<ConstraintF>]) -> Result<(), SynthesisError> {
+        self.buffer.extend_from_slice(input);
 
-    for block in input.chunks(512) {
-        let mut this_block = Vec::with_capacity(16);
-        for word in block.chunks(32) {
-            let mut tmp = word.to_vec();
-            while tmp.len() < 32 {
-                tmp.push(Boolean::constant(false));
+        // if there are only multiple of 512 bytes, reserve it for next round
+        // because we might want to compress it as the last block
+        let mut buffer_end = (self.buffer.len() / 512) * 512;
+        if self.buffer.len() % 512 == 0 {
+            buffer_end = buffer_end.saturating_sub(512);
+        }
+
+        for block in self.buffer[..buffer_end].chunks(512) {
+            let this_block: Vec<_> = block
+                .chunks(32)
+                .into_iter()
+                .map(UInt32::from_bits_le)
+                .collect();
+
+            self.t += 64;
+            blake2s_compression(&mut self.h, &this_block, self.t, false)?;
+        }
+
+        self.buffer.drain(..buffer_end);
+
+        Ok(())
+    }
+
+    pub fn finalize(mut self) -> Result<[UInt32<ConstraintF>; 8], SynthesisError> {
+        // hash the remaining bits in the buffer
+        if !self.buffer.is_empty() {
+            let mut final_block = Vec::with_capacity(16);
+
+            for word in self.buffer.chunks(32) {
+                let mut tmp = word.to_vec();
+                while tmp.len() < 32 {
+                    tmp.push(Boolean::constant(false));
+                }
+                final_block.push(UInt32::from_bits_le(&tmp));
             }
-            this_block.push(UInt32::from_bits_le(&tmp));
+
+            while final_block.len() < 16 {
+                final_block.push(UInt32::constant(0));
+            }
+
+            self.t += (self.buffer.len() / 8) as u64;
+            blake2s_compression(&mut self.h, &final_block, self.t, true)?;
         }
-        while this_block.len() < 16 {
-            this_block.push(UInt32::constant(0));
+
+        // if no input is consumed, hash a block of 0
+        if self.t == 0 {
+            let final_block = (0..16)
+                .map(|_| UInt32::constant(0))
+                .collect::<Vec<UInt32<ConstraintF>>>();
+            blake2s_compression(&mut self.h, &final_block, self.t, true)?;
         }
-        blocks.push(this_block);
+
+        Ok(self.h)
     }
-
-    if blocks.is_empty() {
-        blocks.push((0..16).map(|_| UInt32::constant(0)).collect());
-    }
-
-    for (i, block) in blocks[0..blocks.len() - 1].iter().enumerate() {
-        blake2s_compression(&mut h, block, ((i as u64) + 1) * 64, false)?;
-    }
-
-    blake2s_compression(
-        &mut h,
-        &blocks[blocks.len() - 1],
-        (input.len() / 8) as u64,
-        true,
-    )?;
-
-    Ok(h)
 }
 
 use crate::prf::Blake2s;
 
-pub struct Blake2sGadget;
+pub struct Blake2sGadget<F: PrimeField> {
+    state: Blake2sState<F>,
+}
 #[derive(Clone, Debug)]
 pub struct OutputVar<ConstraintF: PrimeField>(pub Vec<UInt8<ConstraintF>>);
 
@@ -364,18 +390,33 @@ impl<F: PrimeField> R1CSVar<F> for OutputVar<F> {
     }
 }
 
-impl<F: PrimeField> PRFGadget<Blake2s, F> for Blake2sGadget {
+impl<F: PrimeField> PRFGadget<Blake2s, F> for Blake2sGadget<F> {
     type OutputVar = OutputVar<F>;
     const OUTPUT_SIZE: usize = 32;
 
-    #[tracing::instrument(target = "r1cs", skip(input))]
-    fn evaluate(input: &[UInt8<F>]) -> Result<Self::OutputVar, SynthesisError> {
-        let input: Vec<_> = input.iter().flat_map(|b| b.to_bits_le().unwrap()).collect();
-        let result: Vec<_> = evaluate_blake2s(&input)?
+    fn update(&mut self, input: &[UInt8<F>]) -> Result<(), SynthesisError> {
+        let input_bits: Vec<_> = input.iter().flat_map(|b| b.to_bits_le().unwrap()).collect();
+        self.state.update(&input_bits)
+    }
+
+    fn finalize(
+        self,
+    ) -> Result<<Blake2sGadget<F> as PRFGadget<Blake2s, F>>::OutputVar, SynthesisError> {
+        let result: Vec<_> = self
+            .state
+            .finalize()?
             .iter()
             .flat_map(|int| int.to_bytes_le().unwrap())
             .collect();
         Ok(OutputVar(result))
+    }
+}
+
+impl<F: PrimeField> Default for Blake2sGadget<F> {
+    fn default() -> Self {
+        Blake2sGadget {
+            state: Blake2sState::new().unwrap(),
+        }
     }
 }
 
@@ -384,13 +425,26 @@ mod test {
     use ark_ed_on_bls12_381::Fq as Fr;
     use ark_std::rand::Rng;
 
-    use crate::prf::blake2s::{constraints::evaluate_blake2s, Blake2s as B2SPRF};
+    use crate::prf::blake2s::constraints::blake2s_compression;
+    use crate::prf::blake2s::constraints::Blake2sState;
+    use crate::prf::blake2s::Blake2s as B2SPRF;
+    use ark_ff::PrimeField;
     use ark_relations::r1cs::ConstraintSystem;
+    use ark_relations::r1cs::SynthesisError;
     use blake2::Blake2s256;
     use digest::{Digest, FixedOutput};
 
     use super::Blake2sGadget;
     use ark_r1cs_std::prelude::*;
+
+    fn evaluate_blake2s<ConstraintF: PrimeField>(
+        input: &[Boolean<ConstraintF>],
+    ) -> Result<[UInt32<ConstraintF>; 8], SynthesisError> {
+        assert!(input.len() % 8 == 0);
+        let mut state = Blake2sState::new()?;
+        state.update(input)?;
+        state.finalize()
+    }
 
     #[test]
     fn test_blake2s_constraints() {
@@ -418,13 +472,15 @@ mod test {
         let input_var =
             UInt8::new_witness_vec(ark_relations::ns!(cs, "declare_input"), &input).unwrap();
         let out = B2SPRF::evaluate(&input).unwrap();
-        let actual_out_var = <Blake2sGadget as PRFGadget<_, Fr>>::OutputVar::new_witness(
+        let actual_out_var = <Blake2sGadget<Fr> as PRFGadget<_, Fr>>::OutputVar::new_witness(
             ark_relations::ns!(cs, "declare_output"),
             || Ok(out),
         )
         .unwrap();
 
-        let output_var = Blake2sGadget::evaluate(&input_var).unwrap();
+        let mut hasher = Blake2sGadget::default();
+        hasher.update(&input_var).unwrap();
+        let output_var = hasher.finalize().unwrap();
         output_var.enforce_equal(&actual_out_var).unwrap();
 
         if !cs.is_satisfied().unwrap() {

@@ -9,62 +9,6 @@
 #![forbid(unsafe_code)]
 
 #[allow(unused_imports)]
-#[macro_use]
-extern crate ark_ec;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate ark_ff;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate ark_crypto_primitives_macros;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate ark_serialize;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate ark_snark;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate ark_r1cs_std;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate ark_relations;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate ark_std;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate blake2;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate derivative;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate digest;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate sha2;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate merlin;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate rayon;
-
-#[allow(unused_imports)]
 pub(crate) use ark_std::{borrow::ToOwned, boxed::Box, vec::Vec};
 mod macros;
 

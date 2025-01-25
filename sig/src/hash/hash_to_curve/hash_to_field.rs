@@ -6,6 +6,7 @@ use ark_ff::{
     Field, PrimeField,
 };
 use ark_r1cs_std::{fields::FieldVar, prelude::ToBytesGadget, uint8::UInt8};
+use ark_relations::r1cs::SynthesisError;
 use arrayvec::ArrayVec;
 use std::ops::BitXor;
 
@@ -26,16 +27,25 @@ pub trait HashToFieldGadget<TF: Field, CF: PrimeField, FP: FieldVar<TF, CF>>: Si
 pub struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
 
 impl<F: PrimeField> DSTGadget<F> {
-    pub fn new_xmd<H: PRFGadget<P, F>, P: PRF>(dst: &[UInt8<F>]) -> Self {
+    pub fn new_xmd<H: PRFGadget<P, F> + Default, P: PRF>(
+        dst: &[UInt8<F>],
+    ) -> Result<Self, SynthesisError> {
         let array = if dst.len() > MAX_DST_LENGTH {
+            let mut hasher = H::default();
             let long_dst_prefix = LONG_DST_PREFIX.map(|value| UInt8::constant(value));
-            let msg: Vec<UInt8<F>> = long_dst_prefix.iter().chain(dst.iter()).cloned().collect();
-            let out = H::evaluate(&msg).unwrap().to_bytes_le().unwrap();
-            ArrayVec::try_from(&out[..]).unwrap()
+            hasher.update(&long_dst_prefix)?;
+            hasher.update(dst)?;
+            let out = hasher.finalize()?.to_bytes_le()?;
+            ArrayVec::try_from(&out[..]).expect(
+                "supplied hash function should produce an output with length smaller than 255",
+            )
         } else {
-            ArrayVec::try_from(dst).unwrap()
+            ArrayVec::try_from(dst).expect(
+                "supplied hash function should produce an output with length smaller than 255",
+            )
         };
-        DSTGadget(array)
+
+        Ok(DSTGadget(array))
     }
 
     pub fn get_update(&self) -> ArrayVec<UInt8<F>, MAX_DST_LENGTH> {
@@ -47,14 +57,14 @@ impl<F: PrimeField> DSTGadget<F> {
 }
 
 // Implement expander as it is in corresponding implementation in expander::ExpanderXmd
-struct ExpanderXmdGadget<H: PRFGadget<P, F>, P: PRF, F: PrimeField> {
+struct ExpanderXmdGadget<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> {
     hasher: PhantomData<(H, P)>,
     dst: Vec<UInt8<F>>,
     block_size: usize,
 }
 
-impl<H: PRFGadget<P, F>, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P, F> {
-    fn expand(&self, msg: &[UInt8<F>], n: usize) -> Vec<UInt8<F>> {
+impl<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P, F> {
+    fn expand(&self, msg: &[UInt8<F>], n: usize) -> Result<Vec<UInt8<F>>, SynthesisError> {
         // output size of the hash function, e.g. 32 bytes = 256 bits for sha2::Sha256
         let b_len = H::OUTPUT_SIZE;
         let ell = (n + (b_len - 1)) / b_len;
@@ -69,51 +79,52 @@ impl<H: PRFGadget<P, F>, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P, F> {
         assert!(n < (1 << 16), "Length should be smaller than 2^16");
         let lib_str: [u8; 2] = (n as u16).to_be_bytes();
 
-        let dst_prime = DSTGadget::<F>::new_xmd::<H, P>(&self.dst);
+        let dst_prime_data = DSTGadget::<F>::new_xmd::<H, P>(&self.dst)?.get_update();
 
-        let msg_bytes: Vec<UInt8<F>> = Z_PAD[0..self.block_size]
-            .iter()
-            .map(|b| UInt8::constant(*b))
-            .chain(msg.iter().cloned())
-            .chain(lib_str.iter().map(|b| UInt8::constant(*b)))
-            .chain(std::iter::once(UInt8::constant(0u8)))
-            .chain(dst_prime.get_update())
-            .collect();
-        let b0 = H::evaluate(&msg_bytes).unwrap();
+        let mut hasher = H::default();
+        hasher.update(
+            &Z_PAD[0..self.block_size]
+                .iter()
+                .map(|b| UInt8::constant(*b))
+                .collect::<Vec<_>>(),
+        )?;
+        hasher.update(msg)?;
+        hasher.update(
+            &lib_str
+                .iter()
+                .map(|b| UInt8::constant(*b))
+                .collect::<Vec<_>>(),
+        )?;
+        hasher.update(&[UInt8::constant(0u8)])?;
+        hasher.update(&dst_prime_data)?;
+        let b0 = hasher.finalize()?.to_bytes_le()?;
 
-        let msg_prime_bytes: Vec<UInt8<F>> = b0
-            .to_bytes_le()
-            .unwrap()
-            .into_iter()
-            .chain(std::iter::once(UInt8::constant(1u8)))
-            .chain(dst_prime.get_update())
-            .collect();
-        let mut bi = H::evaluate(&msg_prime_bytes)
-            .unwrap()
-            .to_bytes_le()
-            .unwrap();
+        let mut hasher = H::default();
+        hasher.update(&b0)?;
+        hasher.update(&[UInt8::constant(1u8)])?;
+        hasher.update(&dst_prime_data)?;
+        let mut bi = hasher.finalize()?.to_bytes_le()?;
 
-        let b0 = b0.to_bytes_le().unwrap();
         let mut uniform_bytes: Vec<UInt8<F>> = Vec::with_capacity(n);
         uniform_bytes.extend_from_slice(&bi);
         for i in 2..=ell {
             // update the hasher with xor of b_0 and b_i elements
-            let msg_prime_bytes: Vec<UInt8<F>> = b0
-                .iter()
-                .zip(bi.iter())
-                .map(|(l, r)| l.bitxor(r))
-                .chain(std::iter::once(UInt8::constant(i as u8)))
-                .chain(dst_prime.get_update())
-                .collect();
-            bi = H::evaluate(&msg_prime_bytes)
-                .unwrap()
-                .to_bytes_le()
-                .unwrap();
+            let mut hasher = H::default();
+            hasher.update(&b0)?;
+            hasher.update(
+                &bi.iter()
+                    .zip(&b0)
+                    .map(|(l, r)| l.bitxor(r))
+                    .collect::<Vec<_>>(),
+            )?;
+            hasher.update(&[UInt8::constant(i as u8)])?;
+            hasher.update(&dst_prime_data)?;
+            bi = hasher.finalize()?.to_bytes_le()?;
             uniform_bytes.extend_from_slice(&bi);
         }
 
         uniform_bytes.truncate(n);
-        uniform_bytes
+        Ok(uniform_bytes)
     }
 }
 
@@ -171,9 +182,6 @@ mod test {
         use ark_bls12_381::Fr as F;
 
         let mut rng = thread_rng();
-        let mut msg: [u8; 64] = [0; 64];
-        rng.fill(&mut msg);
-        let msg_var: Vec<UInt8<F>> = msg.iter().map(|byte| UInt8::constant(*byte)).collect();
 
         let len_per_base_elem = get_len_per_elem::<F, 128>();
         let dst: [u8; 16] = [0; 16];
@@ -184,11 +192,10 @@ mod test {
             dst: dst.to_vec(),
             block_size: len_per_base_elem,
         };
-        let s1 = expander.expand(&msg, len_in_bytes);
 
-        let hasher: PhantomData<(Blake2sGadget, Blake2s)> = PhantomData;
-        let expander = ExpanderXmdGadget {
-            hasher: hasher,
+        let hasher: PhantomData<(Blake2sGadget<F>, Blake2s)> = PhantomData;
+        let expander_gadget = ExpanderXmdGadget {
+            hasher,
             dst: dst
                 .to_vec()
                 .iter()
@@ -196,13 +203,21 @@ mod test {
                 .collect(),
             block_size: len_per_base_elem,
         };
-        let s2 = expander.expand(&msg_var, len_in_bytes);
 
-        assert!(
-            s1 == s2
-                .iter()
-                .map(|value| value.value().unwrap())
-                .collect::<Vec<u8>>()
-        );
+        for input_len in (0..32).chain((32..256).filter(|a| a % 8 == 0)) {
+            let mut msg = vec![0u8; input_len];
+            rng.fill(&mut msg[..]);
+            let msg_var: Vec<UInt8<F>> = msg.iter().map(|byte| UInt8::constant(*byte)).collect();
+
+            let s1 = expander.expand(&msg, len_in_bytes);
+            let s2 = expander_gadget.expand(&msg_var, len_in_bytes).unwrap();
+
+            assert!(
+                s1 == s2
+                    .iter()
+                    .map(|value| value.value().unwrap())
+                    .collect::<Vec<u8>>()
+            );
+        }
     }
 }

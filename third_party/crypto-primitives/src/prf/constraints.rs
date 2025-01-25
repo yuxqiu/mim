@@ -14,8 +14,10 @@ pub trait PRFGadget<P: PRF, F: Field> {
         + Clone
         + Debug;
 
-    // total output size in
+    // total output size in bytes
     const OUTPUT_SIZE: usize;
 
-    fn evaluate(input: &[UInt8<F>]) -> Result<Self::OutputVar, SynthesisError>;
+    fn update(&mut self, input: &[UInt8<F>]) -> Result<(), SynthesisError>;
+
+    fn finalize(self) -> Result<Self::OutputVar, SynthesisError>;
 }
