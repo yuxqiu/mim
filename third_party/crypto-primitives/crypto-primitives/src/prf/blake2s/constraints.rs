@@ -366,22 +366,11 @@ impl<F: PrimeField> R1CSVar<F> for OutputVar<F> {
 
 impl<F: PrimeField> PRFGadget<Blake2s, F> for Blake2sGadget {
     type OutputVar = OutputVar<F>;
+    const OUTPUT_SIZE: usize = 32;
 
-    #[tracing::instrument(target = "r1cs", skip(cs))]
-    fn new_seed(cs: impl Into<Namespace<F>>, seed: &[u8; 32]) -> Vec<UInt8<F>> {
-        let ns = cs.into();
-        let cs = ns.cs();
-        UInt8::new_witness_vec(ark_relations::ns!(cs, "New Blake2s seed"), seed).unwrap()
-    }
-
-    #[tracing::instrument(target = "r1cs", skip(seed, input))]
-    fn evaluate(seed: &[UInt8<F>], input: &[UInt8<F>]) -> Result<Self::OutputVar, SynthesisError> {
-        assert_eq!(seed.len(), 32);
-        let input: Vec<_> = seed
-            .iter()
-            .chain(input)
-            .flat_map(|b| b.to_bits_le().unwrap())
-            .collect();
+    #[tracing::instrument(target = "r1cs", skip(input))]
+    fn evaluate(input: &[UInt8<F>]) -> Result<Self::OutputVar, SynthesisError> {
+        let input: Vec<_> = input.iter().flat_map(|b| b.to_bits_le().unwrap()).collect();
         let result: Vec<_> = evaluate_blake2s(&input)?
             .iter()
             .flat_map(|int| int.to_bytes_le().unwrap())
@@ -423,23 +412,19 @@ mod test {
         let mut rng = ark_std::test_rng();
         let cs = ConstraintSystem::<Fr>::new_ref();
 
-        let mut seed = [0u8; 32];
-        rng.fill(&mut seed);
-
         let mut input = [0u8; 32];
         rng.fill(&mut input);
 
-        let seed_var = Blake2sGadget::new_seed(cs.clone(), &seed);
         let input_var =
             UInt8::new_witness_vec(ark_relations::ns!(cs, "declare_input"), &input).unwrap();
-        let out = B2SPRF::evaluate(&seed, &input).unwrap();
+        let out = B2SPRF::evaluate(&input).unwrap();
         let actual_out_var = <Blake2sGadget as PRFGadget<_, Fr>>::OutputVar::new_witness(
             ark_relations::ns!(cs, "declare_output"),
             || Ok(out),
         )
         .unwrap();
 
-        let output_var = Blake2sGadget::evaluate(&seed_var, &input_var).unwrap();
+        let output_var = Blake2sGadget::evaluate(&input_var).unwrap();
         output_var.enforce_equal(&actual_out_var).unwrap();
 
         if !cs.is_satisfied().unwrap() {
