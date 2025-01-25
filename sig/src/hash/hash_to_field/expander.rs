@@ -1,30 +1,14 @@
-use std::marker::PhantomData;
-
 use ark_crypto_primitives::prf::{PRFGadget, PRF};
 use ark_ff::{
     field_hashers::expander::{LONG_DST_PREFIX, MAX_DST_LENGTH, Z_PAD},
-    Field, PrimeField,
+    PrimeField,
 };
-use ark_r1cs_std::{fields::FieldVar, prelude::ToBytesGadget, uint8::UInt8};
+use ark_r1cs_std::{prelude::ToBytesGadget, uint8::UInt8};
 use ark_relations::r1cs::SynthesisError;
 use arrayvec::ArrayVec;
-use std::ops::BitXor;
+use std::{marker::PhantomData, ops::BitXor};
 
-pub trait HashToFieldGadget<TF: Field, CF: PrimeField, FP: FieldVar<TF, CF>>: Sized {
-    /// Initialises a new hash-to-field helper struct.
-    ///
-    /// # Arguments
-    ///
-    /// * `domain` - bytes that get concatenated with the `msg` during hashing, in order to separate potentially interfering instantiations of the hasher.
-    fn new(domain: &[u8]) -> Self;
-
-    /// Hash an arbitrary `msg` to `N` elements of the field `F`.
-    fn hash_to_field<const N: usize>(&self, msg: &[UInt8<CF>]) -> [FP; N];
-}
-
-// From `ark-ff-0.5.0/src/fields/field_hashers/expander/mod.rs`
-
-pub struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
+struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
 
 impl<F: PrimeField> DSTGadget<F> {
     pub fn new_xmd<H: PRFGadget<P, F> + Default, P: PRF>(
@@ -57,14 +41,14 @@ impl<F: PrimeField> DSTGadget<F> {
 }
 
 // Implement expander as it is in corresponding implementation in expander::ExpanderXmd
-struct ExpanderXmdGadget<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> {
-    hasher: PhantomData<(H, P)>,
-    dst: Vec<UInt8<F>>,
-    block_size: usize,
+pub struct ExpanderXmdGadget<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> {
+    pub hasher: PhantomData<(H, P)>,
+    pub dst: Vec<UInt8<F>>,
+    pub block_size: usize,
 }
 
 impl<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P, F> {
-    fn expand(&self, msg: &[UInt8<F>], n: usize) -> Result<Vec<UInt8<F>>, SynthesisError> {
+    pub fn expand(&self, msg: &[UInt8<F>], n: usize) -> Result<Vec<UInt8<F>>, SynthesisError> {
         // output size of the hash function, e.g. 32 bytes = 256 bits for sha2::Sha256
         let b_len = H::OUTPUT_SIZE;
         let ell = (n + (b_len - 1)) / b_len;
@@ -128,17 +112,6 @@ impl<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P
     }
 }
 
-// Work on CF => Follow `le_bits_to_fp` without `enforce_in_field_le` as we are doing mod arithmetic
-// - In this process, construct EmulatedFpVar<TF::BasePrimeField, CF>
-//
-// How to construct EmulatedFpVar<TF, CF> from EmulatedFpVar<TF::BasePrimeField, CF> is a problem
-// - Add a method to quadext and cubic ext to construct from base prime field variable
-//
-// struct DefaultFieldHasherGadget<P: PRF, TF: Field, CF: PrimeField, FP: FieldVar<TF, CF>> {
-//     expander: ExpanderXmdGadget<PRFGadget<P, TF>>,
-//     len_per_base_elem: usize,
-// }
-
 #[cfg(test)]
 mod test {
     use std::marker::PhantomData;
@@ -152,7 +125,7 @@ mod test {
     use blake2::{digest::Update, Blake2s256, Digest};
     use rand::{thread_rng, Rng};
 
-    use crate::hash::hash_to_curve::hash_to_field::ExpanderXmdGadget;
+    use super::ExpanderXmdGadget;
 
     // This function is to validate how blake2 hash works.
     // So, I can implement the corresponding R1CS version.
