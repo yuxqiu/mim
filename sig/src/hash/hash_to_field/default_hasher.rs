@@ -1,4 +1,4 @@
-use std::{array, marker::PhantomData};
+use std::marker::PhantomData;
 
 use super::{
     expander::ExpanderXmdGadget, from_base_field::FromBaseFieldGadget,
@@ -63,16 +63,23 @@ impl<
         let len_in_bytes = N * m * self.len_per_base_elem;
         let uniform_bytes = self.expander.expand(msg, len_in_bytes)?;
 
-        let mut base_field_var_iter = uniform_bytes.chunks(self.len_per_base_elem).map(|chunk| {
-            let mut chunk = chunk.to_vec();
-            chunk.reverse();
-            // handle this error properly
-            FP::BasePrimeFieldVar::from_le_bits(&chunk.to_bits_le().unwrap())
-        });
+        // collect this first to deal with the error
+        let bits_iter: Vec<_> = uniform_bytes
+            .chunks(self.len_per_base_elem)
+            .map(|chunk| {
+                let mut chunk = chunk.to_vec();
+                chunk.reverse();
+                chunk.to_bits_le()
+            })
+            .collect::<Result<_, _>>()?;
 
-        // handle this error properly
-        let f = |_| FP::from_base_field_var(&mut base_field_var_iter).unwrap();
-        Ok(array::from_fn::<FP, N, _>(f))
+        let mut base_field_var_iter = bits_iter
+            .into_iter()
+            .map(|bits| FP::BasePrimeFieldVar::from_le_bits(&bits));
+
+        // can replace this with `array::try_from` once it becomes stable
+        let f = |_| FP::from_base_field_var(&mut base_field_var_iter);
+        array_util::try_from_fn::<Result<FP, SynthesisError>, N, _>(f)
     }
 }
 
