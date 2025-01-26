@@ -91,7 +91,7 @@ where
     CF: PrimeField,
     for<'a> &'a F: FieldOpsBounds<'a, P::BaseField, F>,
 {
-    fn new(x: F, y: F, infinity: Boolean<CF>) -> Self {
+    pub fn new(x: F, y: F, infinity: Boolean<CF>) -> Self {
         Self {
             x,
             y,
