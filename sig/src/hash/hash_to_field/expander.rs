@@ -94,7 +94,6 @@ impl<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P
         for i in 2..=ell {
             // update the hasher with xor of b_0 and b_i elements
             let mut hasher = H::default();
-            hasher.update(&b0)?;
             hasher.update(
                 &bi.iter()
                     .zip(&b0)
@@ -121,7 +120,8 @@ mod test {
         expander::{Expander, ExpanderXmd},
         get_len_per_elem,
     };
-    use ark_r1cs_std::{uint8::UInt8, R1CSVar};
+    use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8, R1CSVar};
+    use ark_relations::r1cs::ConstraintSystem;
     use blake2::{digest::Update, Blake2s256, Digest};
     use rand::{thread_rng, Rng};
 
@@ -151,14 +151,13 @@ mod test {
     }
 
     #[test]
-    fn test_expander() {
+    fn test_expander_constant() {
         use ark_bls12_381::Fr as F;
 
         let mut rng = thread_rng();
 
         let len_per_base_elem = get_len_per_elem::<F, 128>();
         let dst: [u8; 16] = [0; 16];
-        let len_in_bytes = 16usize;
 
         let expander: ExpanderXmd<Blake2s256> = ExpanderXmd {
             hasher: PhantomData,
@@ -177,20 +176,83 @@ mod test {
             block_size: len_per_base_elem,
         };
 
-        for input_len in (0..32).chain((32..256).filter(|a| a % 8 == 0)) {
-            let mut msg = vec![0u8; input_len];
-            rng.fill(&mut msg[..]);
-            let msg_var: Vec<UInt8<F>> = msg.iter().map(|byte| UInt8::constant(*byte)).collect();
+        let input_lens = (0..32).chain(32..256).filter(|a| a % 8 == 0);
+        let expand_len = (1..256).filter(|a| a % 8 == 0);
 
-            let s1 = expander.expand(&msg, len_in_bytes);
-            let s2 = expander_gadget.expand(&msg_var, len_in_bytes).unwrap();
+        for input_len in input_lens {
+            for len_in_bytes in expand_len.clone() {
+                let mut msg = vec![0u8; input_len];
+                rng.fill(&mut msg[..]);
+                let msg_var: Vec<UInt8<F>> = msg.iter().cloned().map(UInt8::constant).collect();
 
-            assert!(
-                s1 == s2
+                let s1 = expander.expand(&msg, len_in_bytes);
+                let s2 = expander_gadget.expand(&msg_var, len_in_bytes).unwrap();
+
+                println!("{} {}", input_len, len_in_bytes);
+
+                assert!(
+                    s1 == s2
+                        .iter()
+                        .map(|value| value.value().unwrap())
+                        .collect::<Vec<u8>>()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_expander() {
+        use ark_bls12_381::Fr as F;
+
+        let mut rng = thread_rng();
+
+        let len_per_base_elem = get_len_per_elem::<F, 128>();
+        let dst: [u8; 16] = [0; 16];
+
+        let expander: ExpanderXmd<Blake2s256> = ExpanderXmd {
+            hasher: PhantomData,
+            dst: dst.to_vec(),
+            block_size: len_per_base_elem,
+        };
+
+        let hasher: PhantomData<(Blake2sGadget<F>, Blake2s)> = PhantomData;
+        let expander_gadget = ExpanderXmdGadget {
+            hasher,
+            dst: dst
+                .to_vec()
+                .iter()
+                .map(|value| UInt8::constant(*value))
+                .collect(),
+            block_size: len_per_base_elem,
+        };
+
+        let input_lens = (0..32).chain(32..128).filter(|a| a % 16 == 0);
+        let expand_len = (1..64).filter(|a| a % 16 == 0);
+
+        for input_len in input_lens {
+            for len_in_bytes in expand_len.clone() {
+                let cs = ConstraintSystem::new_ref();
+                let mut msg = vec![0u8; input_len];
+                rng.fill(&mut msg[..]);
+                let msg_var: Vec<UInt8<F>> = msg
                     .iter()
-                    .map(|value| value.value().unwrap())
-                    .collect::<Vec<u8>>()
-            );
+                    .cloned()
+                    .map(|value| UInt8::new_witness(cs.clone(), || Ok(value)).unwrap())
+                    .collect();
+
+                let s1 = expander.expand(&msg, len_in_bytes);
+                let s2 = expander_gadget.expand(&msg_var, len_in_bytes).unwrap();
+
+                println!("{} {}", input_len, len_in_bytes);
+
+                assert!(cs.is_satisfied().unwrap());
+                assert!(
+                    s1 == s2
+                        .iter()
+                        .map(|value| value.value().unwrap())
+                        .collect::<Vec<u8>>()
+                );
+            }
         }
     }
 }
