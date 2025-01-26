@@ -4,7 +4,7 @@ use super::{
     expander::ExpanderXmdGadget, from_base_field::FromBaseFieldGadget,
     from_base_field::FromBitsGadget, HashToFieldGadget,
 };
-use ark_crypto_primitives::prf::{PRFGadget, PRF};
+use ark_crypto_primitives::prf::PRFGadget;
 use ark_ff::{field_hashers::get_len_per_elem, Field, PrimeField};
 use ark_r1cs_std::{fields::FieldVar, prelude::ToBitsGadget, uint8::UInt8};
 use ark_relations::r1cs::SynthesisError;
@@ -18,26 +18,24 @@ use ark_relations::r1cs::SynthesisError;
 ///   `BasePrimeFieldVar` elements (the method to construct them from bits is defined in
 ///   `FromBaseFieldGadget` trait))
 struct DefaultFieldHasherGadget<
-    H: PRFGadget<P, CF> + Default,
-    P: PRF,
+    H: PRFGadget<CF> + Default,
     TF: Field,
     CF: PrimeField,
     FP: FieldVar<TF, CF>,
     const SEC_PARAM: usize = 128,
 > {
-    expander: ExpanderXmdGadget<H, P, CF>,
+    expander: ExpanderXmdGadget<H, CF>,
     len_per_base_elem: usize,
     _params: PhantomData<(TF, FP)>,
 }
 
 impl<
-        H: PRFGadget<P, CF> + Default,
-        P: PRF,
+        H: PRFGadget<CF> + Default,
         TF: Field,
         CF: PrimeField,
         FP: FieldVar<TF, CF> + FromBaseFieldGadget<CF>,
         const SEC_PARAM: usize,
-    > HashToFieldGadget<TF, CF, FP> for DefaultFieldHasherGadget<H, P, TF, CF, FP, SEC_PARAM>
+    > HashToFieldGadget<TF, CF, FP> for DefaultFieldHasherGadget<H, TF, CF, FP, SEC_PARAM>
 {
     fn new(domain: &[UInt8<CF>]) -> Self {
         // The final output of `hash_to_field` will be an array of field
@@ -80,7 +78,7 @@ impl<
 
 #[cfg(test)]
 mod test {
-    use ark_crypto_primitives::prf::{blake2s::constraints::Blake2sGadget, Blake2s};
+    use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
     use ark_ff::field_hashers::{DefaultFieldHasher, HashToField};
     use ark_r1cs_std::{alloc::AllocVar, fields::fp::FpVar, uint8::UInt8, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
@@ -100,9 +98,7 @@ mod test {
 
         let hasher = <DefaultFieldHasher<Blake2s256, 128> as HashToField<F>>::new(&dst);
         let hasher_gadget =
-            DefaultFieldHasherGadget::<Blake2sGadget<F>, Blake2s, F, F, FpVar<F>, 128>::new(
-                &dst_var,
-            );
+            DefaultFieldHasherGadget::<Blake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
 
         let input_lens = (0..32).chain(32..256).filter(|a| a % 8 == 0);
 
@@ -133,11 +129,10 @@ mod test {
         let dst: [u8; 16] = [0; 16];
         let dst_var: [UInt8<F>; 16] = dst.map(UInt8::constant);
 
+        // TODO: add tests based on EmulatedFpVar
         let hasher = <DefaultFieldHasher<Blake2s256, 128> as HashToField<F>>::new(&dst);
         let hasher_gadget =
-            DefaultFieldHasherGadget::<Blake2sGadget<F>, Blake2s, F, F, FpVar<F>, 128>::new(
-                &dst_var,
-            );
+            DefaultFieldHasherGadget::<Blake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
 
         let input_lens = (0..32).chain(32..128).filter(|a| a % 16 == 0);
 

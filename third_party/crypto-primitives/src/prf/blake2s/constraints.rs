@@ -1,8 +1,7 @@
 use crate::prf::constraints::PRFGadget;
 use ark_ff::PrimeField;
 use ark_r1cs_std::prelude::*;
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use ark_std::borrow::Borrow;
+use ark_relations::r1cs::SynthesisError;
 #[cfg(not(feature = "std"))]
 use ark_std::vec::Vec;
 
@@ -229,6 +228,8 @@ fn blake2s_compression<ConstraintF: PrimeField>(
 
 pub struct Blake2sState<ConstraintF: PrimeField> {
     h: [UInt32<ConstraintF>; 8],
+    // blake2s uses a LazyBuffer to optimize memory usage
+    // maybe we can adapt that?
     buffer: Vec<Boolean<ConstraintF>>,
     t: u64,
 }
@@ -312,8 +313,6 @@ impl<ConstraintF: PrimeField> Blake2sState<ConstraintF> {
     }
 }
 
-use crate::prf::Blake2s;
-
 pub struct Blake2sGadget<F: PrimeField> {
     state: Blake2sState<F>,
 }
@@ -358,39 +357,7 @@ impl<ConstraintF: PrimeField> ToBytesGadget<ConstraintF> for OutputVar<Constrain
     }
 }
 
-impl<ConstraintF: PrimeField> AllocVar<[u8; 32], ConstraintF> for OutputVar<ConstraintF> {
-    #[tracing::instrument(target = "r1cs", skip(cs, f))]
-    fn new_variable<T: Borrow<[u8; 32]>>(
-        cs: impl Into<Namespace<ConstraintF>>,
-        f: impl FnOnce() -> Result<T, SynthesisError>,
-        mode: AllocationMode,
-    ) -> Result<Self, SynthesisError> {
-        let bytes = f().map(|b| *b.borrow()).unwrap_or([0u8; 32]);
-        match mode {
-            AllocationMode::Constant => Ok(Self(UInt8::constant_vec(&bytes))),
-            AllocationMode::Input => UInt8::new_input_vec(cs, &bytes).map(Self),
-            AllocationMode::Witness => UInt8::new_witness_vec(cs, &bytes).map(Self),
-        }
-    }
-}
-
-impl<F: PrimeField> R1CSVar<F> for OutputVar<F> {
-    type Value = [u8; 32];
-
-    fn cs(&self) -> ConstraintSystemRef<F> {
-        self.0.cs()
-    }
-
-    fn value(&self) -> Result<Self::Value, SynthesisError> {
-        let mut value = [0u8; 32];
-        for (val_i, self_i) in value.iter_mut().zip(&self.0) {
-            *val_i = self_i.value()?;
-        }
-        Ok(value)
-    }
-}
-
-impl<F: PrimeField> PRFGadget<Blake2s, F> for Blake2sGadget<F> {
+impl<F: PrimeField> PRFGadget<F> for Blake2sGadget<F> {
     type OutputVar = OutputVar<F>;
     const OUTPUT_SIZE: usize = 32;
 
@@ -399,9 +366,7 @@ impl<F: PrimeField> PRFGadget<Blake2s, F> for Blake2sGadget<F> {
         self.state.update(&input_bits)
     }
 
-    fn finalize(
-        self,
-    ) -> Result<<Blake2sGadget<F> as PRFGadget<Blake2s, F>>::OutputVar, SynthesisError> {
+    fn finalize(self) -> Result<<Blake2sGadget<F> as PRFGadget<F>>::OutputVar, SynthesisError> {
         let result: Vec<_> = self
             .state
             .finalize()?

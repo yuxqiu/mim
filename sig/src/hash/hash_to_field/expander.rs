@@ -1,4 +1,4 @@
-use ark_crypto_primitives::prf::{PRFGadget, PRF};
+use ark_crypto_primitives::prf::PRFGadget;
 use ark_ff::{
     field_hashers::expander::{LONG_DST_PREFIX, MAX_DST_LENGTH, Z_PAD},
     PrimeField,
@@ -11,9 +11,7 @@ use std::{marker::PhantomData, ops::BitXor};
 struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
 
 impl<F: PrimeField> DSTGadget<F> {
-    pub fn new_xmd<H: PRFGadget<P, F> + Default, P: PRF>(
-        dst: &[UInt8<F>],
-    ) -> Result<Self, SynthesisError> {
+    pub fn new_xmd<H: PRFGadget<F> + Default>(dst: &[UInt8<F>]) -> Result<Self, SynthesisError> {
         let array = if dst.len() > MAX_DST_LENGTH {
             let mut hasher = H::default();
             let long_dst_prefix = LONG_DST_PREFIX.map(|value| UInt8::constant(value));
@@ -41,13 +39,13 @@ impl<F: PrimeField> DSTGadget<F> {
 }
 
 // Implement expander as it is in corresponding implementation in expander::ExpanderXmd
-pub struct ExpanderXmdGadget<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> {
-    pub hasher: PhantomData<(H, P)>,
+pub struct ExpanderXmdGadget<H: PRFGadget<F> + Default, F: PrimeField> {
+    pub hasher: PhantomData<H>,
     pub dst: Vec<UInt8<F>>,
     pub block_size: usize,
 }
 
-impl<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P, F> {
+impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
     pub fn expand(&self, msg: &[UInt8<F>], n: usize) -> Result<Vec<UInt8<F>>, SynthesisError> {
         // output size of the hash function, e.g. 32 bytes = 256 bits for sha2::Sha256
         let b_len = H::OUTPUT_SIZE;
@@ -63,7 +61,7 @@ impl<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P
         assert!(n < (1 << 16), "Length should be smaller than 2^16");
         let lib_str: [u8; 2] = (n as u16).to_be_bytes();
 
-        let dst_prime_data = DSTGadget::<F>::new_xmd::<H, P>(&self.dst)?.get_update();
+        let dst_prime_data = DSTGadget::<F>::new_xmd::<H>(&self.dst)?.get_update();
 
         let mut hasher = H::default();
         hasher.update(
@@ -115,7 +113,7 @@ impl<H: PRFGadget<P, F> + Default, P: PRF, F: PrimeField> ExpanderXmdGadget<H, P
 mod test {
     use std::marker::PhantomData;
 
-    use ark_crypto_primitives::prf::{blake2s::constraints::Blake2sGadget, Blake2s};
+    use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
     use ark_ff::field_hashers::{
         expander::{Expander, ExpanderXmd},
         get_len_per_elem,
@@ -165,7 +163,7 @@ mod test {
             block_size: len_per_base_elem,
         };
 
-        let hasher: PhantomData<(Blake2sGadget<F>, Blake2s)> = PhantomData;
+        let hasher: PhantomData<Blake2sGadget<F>> = PhantomData;
         let expander_gadget = ExpanderXmdGadget {
             hasher,
             dst: dst
@@ -215,7 +213,7 @@ mod test {
             block_size: len_per_base_elem,
         };
 
-        let hasher: PhantomData<(Blake2sGadget<F>, Blake2s)> = PhantomData;
+        let hasher: PhantomData<Blake2sGadget<F>> = PhantomData;
         let expander_gadget = ExpanderXmdGadget {
             hasher,
             dst: dst
