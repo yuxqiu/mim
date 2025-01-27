@@ -78,7 +78,7 @@ impl<
             .map(|bits| FP::BasePrimeFieldVar::from_le_bits(&bits));
 
         // can replace this with `array::try_from` once it becomes stable
-        let f = |_| FP::from_base_field_var(&mut base_field_var_iter);
+        let f = |_| FP::from_base_prime_field_var(&mut base_field_var_iter);
         array_util::try_from_fn::<Result<FP, SynthesisError>, N, _>(f)
     }
 }

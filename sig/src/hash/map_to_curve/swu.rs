@@ -111,8 +111,9 @@ use ark_ec::{
     short_weierstrass::{Projective, SWCurveConfig},
     CurveGroup,
 };
-use ark_ff::PrimeField;
+use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::{
+    eq::EqGadget,
     fields::{FieldOpsBounds, FieldVar},
     groups::curves::short_weierstrass::AffineVar,
     prelude::Boolean,
@@ -162,7 +163,7 @@ impl<P: SWUConfig, CF: PrimeField, FP: FieldVar<P::BaseField, CF>>
         let num_x1 = (ta + FP::one()) * b;
 
         // let div = a * if ta.is_zero()? { P::ZETA } else { -ta };
-        let div_f = FP::one() * P::ZETA;
+        let div_f = FP::constant(P::ZETA);
         let div_s = ta.negate()?;
         let div = ta.is_zero()?.select(&div_f, &div_s)?;
 
@@ -178,7 +179,9 @@ impl<P: SWUConfig, CF: PrimeField, FP: FieldVar<P::BaseField, CF>>
         // 7. If is_square(gx1), set x = x1 and y = sqrt(gx1)
         // 8. Else set x = x2 and y = sqrt(gx2)
         let gx1_square;
+        // TODO: check soundness, see if we can use `mul_by_inverse_unchecked`
         let gx1 = num_gx1 * div3.inverse()?;
+
         // TODO: implement this in R1CS
         let y1 = if gx1.legendre().is_qr() {
             gx1_square = true;
@@ -217,13 +220,30 @@ impl<P: SWUConfig, CF: PrimeField, FP: FieldVar<P::BaseField, CF>>
         let num_x = if gx1_square { num_x1 } else { num_x2 };
         let y = if gx1_square { y1 } else { y2 };
 
+        // TODO: check soundness, see if we can use `mul_by_inverse_unchecked`
         let x_affine = num_x * div.inverse()?;
-        // TODO: implement this parity func
-        let y_affine = if parity(&y) != parity(&point) { -y } else { y };
+        let parity_y = parity_var(&y)?;
+        let parity_p = parity_var(&point)?;
+        // let y_affine = if parity(&y) != parity(&point) { -y } else { y };
+        let y_affine = parity_y.is_eq(&parity_p)?.select(&y, &y.negate()?)?;
 
-        // TODO: is this guaranteed to not be at infinity?
         let point_on_curve = AffineVar::new(x_affine, y_affine, Boolean::constant(false));
 
         Ok(point_on_curve)
     }
+}
+
+// TODO: implement this parity func
+pub fn parity_var<F: FieldVar<TF, CF>, TF: Field, CF: PrimeField>(
+    element: &F,
+) -> Result<Boolean<CF>, SynthesisError> {
+    // Idea
+    // - follow 4.1. The sgn0 Function of https://datatracker.ietf.org/doc/html/rfc9380
+
+    // element
+    // .to_base_prime_field_elements()
+    // .find(|&x| !x.is_zero())
+    // .map_or(false, |x| x.into_bigint().is_odd())
+
+    todo!()
 }

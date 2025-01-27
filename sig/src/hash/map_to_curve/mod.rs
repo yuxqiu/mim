@@ -1,4 +1,5 @@
 mod swu;
+mod to_base_field;
 
 use ark_ec::{short_weierstrass::SWCurveConfig, CurveGroup};
 use ark_ff::PrimeField;

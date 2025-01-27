@@ -110,7 +110,7 @@ pub trait FromBaseFieldGadget<CF: PrimeField>: Sized {
     type BaseFieldVar: FromBaseFieldGadget<CF>;
     type BasePrimeFieldVar: FromBaseFieldGadget<CF> + FromBitsGadget<CF>;
 
-    fn from_base_field_var<'a>(
+    fn from_base_prime_field_var<'a>(
         iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError>;
 }
@@ -119,7 +119,7 @@ impl<CF: PrimeField> FromBaseFieldGadget<CF> for FpVar<CF> {
     type BaseFieldVar = Self;
     type BasePrimeFieldVar = Self;
 
-    fn from_base_field_var(
+    fn from_base_prime_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::AssignmentMissing)
@@ -130,7 +130,7 @@ impl<F: PrimeField, CF: PrimeField> FromBaseFieldGadget<CF> for EmulatedFpVar<F,
     type BaseFieldVar = Self;
     type BasePrimeFieldVar = Self;
 
-    fn from_base_field_var(
+    fn from_base_prime_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::AssignmentMissing)
@@ -148,12 +148,12 @@ where
     type BaseFieldVar = BF;
     type BasePrimeFieldVar = BF::BasePrimeFieldVar;
 
-    fn from_base_field_var(
+    fn from_base_prime_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         // a better implementation could mimic `QuadExtField::from_base_prime_field_elems`
-        let c0 = Self::BaseFieldVar::from_base_field_var(iter.by_ref())?;
-        let c1 = Self::BaseFieldVar::from_base_field_var(iter.by_ref())?;
+        let c0 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
+        let c1 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
         Ok(QuadExtVar::new(c0, c1))
     }
 }
@@ -169,13 +169,13 @@ where
     type BaseFieldVar = BF;
     type BasePrimeFieldVar = BF::BasePrimeFieldVar;
 
-    fn from_base_field_var(
+    fn from_base_prime_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         // a better implementation could mimic `CubicExtField::from_base_prime_field_elems`
-        let c0 = Self::BaseFieldVar::from_base_field_var(iter.by_ref())?;
-        let c1 = Self::BaseFieldVar::from_base_field_var(iter.by_ref())?;
-        let c2 = Self::BaseFieldVar::from_base_field_var(iter.by_ref())?;
+        let c0 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
+        let c1 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
+        let c2 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
         Ok(CubicExtVar::new(c0, c1, c2))
     }
 }
