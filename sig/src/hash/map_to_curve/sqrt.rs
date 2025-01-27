@@ -14,7 +14,7 @@ use ark_relations::r1cs::SynthesisError;
 use crate::hash::map_to_curve::norm::NormGadget;
 
 pub trait SqrtGadget<F: Field, CF: PrimeField>: Sized + FieldVar<F, CF> {
-    fn legendre(&self) -> Result<Boolean<CF>, SynthesisError>;
+    fn legendre_qr(&self) -> Result<Boolean<CF>, SynthesisError>;
 
     /// compute the square root of the FieldVar
     /// return (true, sqrt) iff the var is a quadratic residue
@@ -35,7 +35,7 @@ impl<F: PrimeField> SqrtGadget<F, F> for FpVar<F> {
                 Self::constant(value.sqrt().unwrap_or(F::zero())),
             ))
         } else {
-            let legendre = self.legendre()?;
+            let legendre = self.legendre_qr()?;
 
             let sqrt = self.value()?.sqrt().unwrap_or(F::zero());
             let sqrt_var = FpVar::new_witness(self.cs(), || Ok(sqrt))?;
@@ -48,7 +48,7 @@ impl<F: PrimeField> SqrtGadget<F, F> for FpVar<F> {
         }
     }
 
-    fn legendre(&self) -> Result<Boolean<F>, SynthesisError> {
+    fn legendre_qr(&self) -> Result<Boolean<F>, SynthesisError> {
         self.pow_by_constant(F::MODULUS_MINUS_ONE_DIV_TWO)?.is_one()
     }
 }
@@ -65,7 +65,7 @@ impl<F: PrimeField, CF: PrimeField> SqrtGadget<F, CF> for EmulatedFpVar<F, CF> {
                 Self::constant(value.sqrt().unwrap_or(F::zero())),
             ))
         } else {
-            let legendre = self.legendre()?;
+            let legendre = self.legendre_qr()?;
 
             let sqrt = self.value()?.sqrt().unwrap_or(F::zero());
             let sqrt_var = EmulatedFpVar::new_witness(self.cs(), || Ok(sqrt))?;
@@ -78,7 +78,7 @@ impl<F: PrimeField, CF: PrimeField> SqrtGadget<F, CF> for EmulatedFpVar<F, CF> {
         }
     }
 
-    fn legendre(&self) -> Result<Boolean<CF>, SynthesisError> {
+    fn legendre_qr(&self) -> Result<Boolean<CF>, SynthesisError> {
         self.pow_by_constant(F::MODULUS_MINUS_ONE_DIV_TWO)?.is_one()
     }
 }
@@ -102,7 +102,7 @@ where
                 Self::constant(value.sqrt().unwrap_or(QuadExtField::zero())),
             ))
         } else {
-            let legendre = self.legendre()?;
+            let legendre = self.legendre_qr()?;
 
             let sqrt = self.value()?.sqrt().unwrap_or(QuadExtField::<P>::zero());
             let sqrt_var = QuadExtVar::new_witness(self.cs(), || Ok(sqrt))?;
@@ -115,8 +115,8 @@ where
         }
     }
 
-    fn legendre(&self) -> Result<Boolean<CF>, SynthesisError> {
-        self.norm()?.legendre()
+    fn legendre_qr(&self) -> Result<Boolean<CF>, SynthesisError> {
+        self.norm()?.legendre_qr()
     }
 }
 
@@ -139,7 +139,7 @@ where
                 Self::constant(value.sqrt().unwrap_or(CubicExtField::zero())),
             ))
         } else {
-            let legendre = self.legendre()?;
+            let legendre = self.legendre_qr()?;
 
             let sqrt = self.value()?.sqrt().unwrap_or(CubicExtField::<P>::zero());
             let sqrt_var = CubicExtVar::new_witness(self.cs(), || Ok(sqrt))?;
@@ -152,8 +152,8 @@ where
         }
     }
 
-    fn legendre(&self) -> Result<Boolean<CF>, SynthesisError> {
-        self.norm()?.legendre()
+    fn legendre_qr(&self) -> Result<Boolean<CF>, SynthesisError> {
+        self.norm()?.legendre_qr()
     }
 }
 

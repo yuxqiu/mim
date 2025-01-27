@@ -110,7 +110,7 @@ pub trait FromBaseFieldGadget<CF: PrimeField>: Sized {
     type BaseFieldVar: FromBaseFieldGadget<CF>;
     type BasePrimeFieldVar: FromBaseFieldGadget<CF> + FromBitsGadget<CF>;
 
-    fn from_base_prime_field_var<'a>(
+    fn from_base_prime_field_var(
         iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError>;
 }
