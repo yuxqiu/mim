@@ -1,3 +1,5 @@
+mod norm;
+mod sqrt;
 mod swu;
 mod to_base_field;
 

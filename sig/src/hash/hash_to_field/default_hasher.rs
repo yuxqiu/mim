@@ -136,7 +136,6 @@ mod test {
         let dst: [u8; 16] = [0; 16];
         let dst_var: [UInt8<F>; 16] = dst.map(UInt8::constant);
 
-        // TODO: add tests based on EmulatedFpVar
         let hasher = <DefaultFieldHasher<Blake2s256, 128> as HashToField<F>>::new(&dst);
         let hasher_gadget =
             DefaultFieldHasherGadget::<Blake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);

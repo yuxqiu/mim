@@ -108,6 +108,16 @@ where
             false => SWAffine::new(self.x.value()?, self.y.value()?),
         })
     }
+
+    /// Returns the value assigned to `self` in the underlying
+    /// constraint system. It does not check that the point is on
+    /// curve and in correct subgroup.
+    pub fn value_unchecked(&self) -> Result<SWAffine<P>, SynthesisError> {
+        Ok(match self.infinity.value()? {
+            true => SWAffine::identity(),
+            false => SWAffine::new_unchecked(self.x.value()?, self.y.value()?),
+        })
+    }
 }
 
 impl<P, F, CF> ToConstraintFieldGadget<CF> for AffineVar<P, F, CF>
