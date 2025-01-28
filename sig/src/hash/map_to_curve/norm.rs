@@ -8,6 +8,8 @@ use ark_relations::r1cs::SynthesisError;
 
 // TODO: what is a norm?
 // - return a norm in field F
+
+/// Trait for calculating `norm` for `FieldVar<F: Field, CF: PrimeField>`.
 pub trait NormGadget<FV: FieldVar<F, CF>, F: Field, CF: PrimeField>: Sized {
     fn norm(&self) -> Result<FV, SynthesisError>;
 }

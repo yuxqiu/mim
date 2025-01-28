@@ -152,7 +152,11 @@ impl<
     }
 }
 
-pub fn parity_var<F: ToBitsGadget<CF> + ToBaseFieldGadget<TF, CF>, TF: Field, CF: PrimeField>(
+pub fn parity_var<
+    F: ToBitsGadget<CF> + ToBaseFieldGadget<TF, CF>,
+    TF: PrimeField,
+    CF: PrimeField,
+>(
     element: &F,
 ) -> Result<Boolean<CF>, SynthesisError> {
     // Based on the `sgn0` function documented in Section 4.1 of https://datatracker.ietf.org/doc/html/rfc9380

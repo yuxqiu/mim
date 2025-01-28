@@ -1,7 +1,9 @@
+mod isogeny_map;
 mod norm;
 mod sqrt;
 mod swu;
 mod to_base_field;
+mod wb;
 
 use ark_ec::{short_weierstrass::SWCurveConfig, CurveGroup};
 use ark_ff::PrimeField;
@@ -11,7 +13,8 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-/// Trait for mapping a random field element to a random curve point.
+/// Trait for mapping a random field element `FieldVar<T::BaseField, CF: PrimeField>` to a random curve point
+/// where the curve is specified by `T: CurveGroup`.
 pub trait MapToCurveGadget<T: CurveGroup, CF: PrimeField, FP: FieldVar<T::BaseField, CF>>:
     Sized
 {

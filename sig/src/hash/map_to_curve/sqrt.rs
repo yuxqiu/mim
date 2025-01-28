@@ -13,6 +13,7 @@ use ark_relations::r1cs::SynthesisError;
 
 use crate::hash::map_to_curve::norm::NormGadget;
 
+/// Trait for calculating `legendre_qr` and `sqrt` for FieldVar<F: Field, CF: PrimeField>
 pub trait SqrtGadget<F: Field, CF: PrimeField>: Sized + FieldVar<F, CF> {
     fn legendre_qr(&self) -> Result<Boolean<CF>, SynthesisError>;
 

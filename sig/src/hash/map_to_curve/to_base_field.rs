@@ -1,4 +1,4 @@
-use ark_ff::{CubicExtConfig, Field, PrimeField, QuadExtConfig};
+use ark_ff::{CubicExtConfig, PrimeField, QuadExtConfig};
 use ark_r1cs_std::fields::{
     cubic_extension::{CubicExtVar, CubicExtVarConfig},
     emulated_fp::EmulatedFpVar,
@@ -8,7 +8,8 @@ use ark_r1cs_std::fields::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-pub trait ToBaseFieldGadget<F: Field, CF: PrimeField>: Sized {
+/// Trait for converting any `FieldVar` to a vector of its underlying `FieldVar<F: PrimeField, CF: PrimeField>`.
+pub trait ToBaseFieldGadget<F: PrimeField, CF: PrimeField>: Sized {
     type BasePrimeFieldVar: ToBaseFieldGadget<F, CF> + FieldVar<F, CF>;
 
     fn to_base_prime_field_vars(&self) -> Result<Vec<Self::BasePrimeFieldVar>, SynthesisError>;
