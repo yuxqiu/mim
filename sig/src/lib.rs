@@ -1,3 +1,4 @@
+#[expect(clippy::missing_errors_doc)]
 pub mod bls;
 pub mod hash;
 
@@ -115,7 +116,7 @@ mod tests {
         println!("Number of constraints: {}", cs.num_constraints());
         assert!(cs.is_satisfied().unwrap());
 
-        println!("RC1S is satisfied!")
+        println!("RC1S is satisfied!");
     }
 
     #[test_fuzz::test_fuzz]
@@ -124,7 +125,7 @@ mod tests {
 
         let av: FpVar<TargetField> =
             FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(a))).unwrap();
-        let bv = FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(b))).unwrap();
+        let bv = FpVar::new_constant(cs, Fp::new(BigInt::new(b))).unwrap();
         let cv = av * bv;
         let c = cv.value().unwrap().into_bigint();
 

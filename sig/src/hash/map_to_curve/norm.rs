@@ -39,7 +39,8 @@ where
         // w.r.t to BaseField, we need the 0th, 1st & 2nd powers of `q`
         // Since Frobenius coefficients on the towered extensions are
         // indexed w.r.t. to BasePrimeField, we need to calculate the correct index.
-        let index_multiplier = P::BaseField::extension_degree() as usize;
+        let index_multiplier = usize::try_from(P::BaseField::extension_degree())
+            .expect("extension degree should be able to store in usize");
         let mut self_to_p = self.clone();
         self_to_p.frobenius_map_in_place(index_multiplier)?;
         let mut self_to_p2 = self.clone();

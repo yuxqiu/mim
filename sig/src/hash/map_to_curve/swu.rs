@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use ark_ec::{
     hashing::curve_maps::swu::SWUConfig,
@@ -18,6 +18,7 @@ use super::{sqrt::SqrtGadget, to_base_field::ToBaseFieldGadget, MapToCurveGadget
 
 pub struct SWUMapGadget<P: SWUConfig>(PhantomData<fn() -> P>);
 
+#[expect(clippy::similar_names)]
 impl<
         P: SWUConfig,
         CF: PrimeField,
@@ -228,8 +229,6 @@ mod test {
                     }
                 }
 
-                test_constant();
-
                 fn test_input() {
                     let mut rng = thread_rng();
 
@@ -267,6 +266,7 @@ mod test {
                     }
                 }
 
+                test_constant();
                 test_input();
             }
         };
@@ -317,7 +317,6 @@ mod test {
                     }
                 }
 
-                test_constant();
                 fn test_input() {
                     let mut rng = thread_rng();
 
@@ -355,6 +354,7 @@ mod test {
                     }
                 }
 
+                test_constant();
                 test_input();
             }
         };

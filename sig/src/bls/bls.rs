@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use core::ops::Mul;
 
 use ark_bls12_381::{
     g1::{G1_GENERATOR_X, G1_GENERATOR_Y},
@@ -39,8 +39,8 @@ pub struct Signature {
 }
 
 impl Parameters {
-    pub fn setup() -> Self {
-        Parameters {
+    #[must_use] pub fn setup() -> Self {
+        Self {
             g1_generator: G1Affine::new_unchecked(G1_GENERATOR_X, G1_GENERATOR_Y).into(),
             g2_generator: G2Affine::new_unchecked(G2_GENERATOR_X, G2_GENERATOR_Y).into(),
         }
@@ -48,7 +48,7 @@ impl Parameters {
 }
 
 impl PublicKey {
-    pub fn new(secret_key: &SecretKey, params: &Parameters) -> Self {
+    #[must_use] pub fn new(secret_key: &SecretKey, params: &Parameters) -> Self {
         let pub_key = params.g1_generator.mul(secret_key.secret_key);
         Self { pub_key }
     }
@@ -76,17 +76,17 @@ impl Signature {
         G2Affine::new(G2_GENERATOR_X, G2_GENERATOR_Y).into()
     }
 
-    pub fn sign(message: &[u8], secret_key: &SecretKey, _: &Parameters) -> Self {
-        let hashed_message = Signature::hash_to_curve(message);
+    #[must_use] pub fn sign(message: &[u8], secret_key: &SecretKey, _: &Parameters) -> Self {
+        let hashed_message = Self::hash_to_curve(message);
         let signature = hashed_message.mul(secret_key.secret_key);
         Self { signature }
     }
 
-    pub fn aggregate_sign(
+    #[must_use] pub fn aggregate_sign(
         message: &[u8],
         secret_keys: &[SecretKey],
         params: &Parameters,
-    ) -> Option<Signature> {
+    ) -> Option<Self> {
         // we can theoretically do the following, but to mimic the real-world scenario,
         // let's sign them one by one and then add all sigs together
 
@@ -107,21 +107,21 @@ impl Signature {
 
         let mut sigs = secret_keys
             .iter()
-            .map(|sk| Signature::sign(message, sk, params));
+            .map(|sk| Self::sign(message, sk, params));
         let first_sig = sigs.next()?;
 
-        Some(sigs.fold(first_sig, |acc, new_sig| Signature {
+        Some(sigs.fold(first_sig, |acc, new_sig| Self {
             signature: acc.signature + new_sig.signature,
         }))
     }
 
-    pub fn verify_slow(
+    #[must_use] pub fn verify_slow(
         message: &[u8],
-        signature: &Signature,
+        signature: &Self,
         public_key: &PublicKey,
         params: &Parameters,
     ) -> bool {
-        let hashed_message = Signature::hash_to_curve(message);
+        let hashed_message = Self::hash_to_curve(message);
 
         // a naive way to check pairing equation: e(g1, sig) == e(pk, H(msg))
         let pairing_1 = bls12::Bls12::<ark_bls12_381::Config>::pairing(
@@ -136,13 +136,13 @@ impl Signature {
         pairing_1 == pairing_2
     }
 
-    pub fn verify(
+    #[must_use] pub fn verify(
         message: &[u8],
-        signature: &Signature,
+        signature: &Self,
         public_key: &PublicKey,
         params: &Parameters,
     ) -> bool {
-        let hashed_message = Signature::hash_to_curve(message);
+        let hashed_message = Self::hash_to_curve(message);
 
         // an optimized way to check pairing equation: e(g1, sig) == e(pk, H(msg))
         //
@@ -157,9 +157,9 @@ impl Signature {
         prod == PairingOutput::ZERO
     }
 
-    pub fn aggregate_verify(
+    #[must_use] pub fn aggregate_verify(
         message: &[u8],
-        aggregate_signature: &Signature,
+        aggregate_signature: &Self,
         public_keys: &[PublicKey],
         params: &Parameters,
     ) -> Option<bool> {
@@ -174,7 +174,7 @@ impl Signature {
                 pub_key: acc.pub_key + new_pk.pub_key,
             });
 
-        Some(Signature::verify_slow(
+        Some(Self::verify_slow(
             message,
             aggregate_signature,
             &pk,

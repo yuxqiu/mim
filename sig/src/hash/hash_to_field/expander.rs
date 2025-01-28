@@ -6,7 +6,7 @@ use ark_ff::{
 use ark_r1cs_std::{prelude::ToBytesGadget, uint8::UInt8};
 use ark_relations::r1cs::SynthesisError;
 use arrayvec::ArrayVec;
-use std::{marker::PhantomData, ops::BitXor};
+use core::{marker::PhantomData, ops::BitXor};
 
 struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
 
@@ -18,7 +18,7 @@ impl<F: PrimeField> DSTGadget<F> {
             hasher.update(&long_dst_prefix)?;
             hasher.update(dst)?;
             let out = hasher.finalize()?.to_bytes_le()?;
-            ArrayVec::try_from(&out[..]).expect(
+            ArrayVec::try_from(&*out).expect(
                 "supplied hash function should produce an output with length smaller than 255",
             )
         } else {
@@ -27,12 +27,14 @@ impl<F: PrimeField> DSTGadget<F> {
             )
         };
 
-        Ok(DSTGadget(array))
+        Ok(Self(array))
     }
 
     pub fn get_update(&self) -> ArrayVec<UInt8<F>, MAX_DST_LENGTH> {
         // I2OSP(len,1) https://www.rfc-editor.org/rfc/rfc8017.txt
         let mut val = self.0.clone();
+        // self.0.len() is guaranteed to be smaller than MAX_DST_LENGTH (255)
+        #[expect(clippy::cast_possible_truncation)]
         val.push(UInt8::constant(self.0.len() as u8));
         val
     }
@@ -59,6 +61,7 @@ impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
         // As per I2OSP method outlined in https://tools.ietf.org/pdf/rfc8017.pdf,
         // The program should abort if integer that we're trying to convert is too large.
         assert!(n < (1 << 16), "Length should be smaller than 2^16");
+        #[expect(clippy::cast_possible_truncation)]
         let lib_str: [u8; 2] = (n as u16).to_be_bytes();
 
         let dst_prime_data = DSTGadget::<F>::new_xmd::<H>(&self.dst)?.get_update();
@@ -98,6 +101,8 @@ impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
                     .map(|(l, r)| l.bitxor(r))
                     .collect::<Vec<_>>(),
             )?;
+            // i < ell <= 255
+            #[expect(clippy::cast_possible_truncation)]
             hasher.update(&[UInt8::constant(i as u8)])?;
             hasher.update(&dst_prime_data)?;
             bi = hasher.finalize()?.to_bytes_le()?;
@@ -111,7 +116,7 @@ impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
 
 #[cfg(test)]
 mod test {
-    use std::marker::PhantomData;
+    use core::marker::PhantomData;
 
     use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
     use ark_ff::field_hashers::{
@@ -180,13 +185,13 @@ mod test {
         for input_len in input_lens {
             for len_in_bytes in expand_len.clone() {
                 let mut msg = vec![0u8; input_len];
-                rng.fill(&mut msg[..]);
-                let msg_var: Vec<UInt8<F>> = msg.iter().cloned().map(UInt8::constant).collect();
+                rng.fill(&mut *msg);
+                let msg_var: Vec<UInt8<F>> = msg.iter().copied().map(UInt8::constant).collect();
 
                 let s1 = expander.expand(&msg, len_in_bytes);
                 let s2 = expander_gadget.expand(&msg_var, len_in_bytes).unwrap();
 
-                println!("{} {}", input_len, len_in_bytes);
+                println!("{input_len} {len_in_bytes}");
 
                 assert!(
                     s1 == s2
@@ -231,17 +236,17 @@ mod test {
             for len_in_bytes in expand_len.clone() {
                 let cs = ConstraintSystem::new_ref();
                 let mut msg = vec![0u8; input_len];
-                rng.fill(&mut msg[..]);
+                rng.fill(&mut *msg);
                 let msg_var: Vec<UInt8<F>> = msg
                     .iter()
-                    .cloned()
+                    .copied()
                     .map(|value| UInt8::new_witness(cs.clone(), || Ok(value)).unwrap())
                     .collect();
 
                 let s1 = expander.expand(&msg, len_in_bytes);
                 let s2 = expander_gadget.expand(&msg_var, len_in_bytes).unwrap();
 
-                println!("{} {}", input_len, len_in_bytes);
+                println!("{input_len} {len_in_bytes}");
 
                 assert!(cs.is_satisfied().unwrap());
                 assert!(

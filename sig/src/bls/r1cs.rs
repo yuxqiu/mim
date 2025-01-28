@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use core::borrow::Borrow;
 
 use ark_ec::bls12::Bls12;
 use ark_ec::pairing::Pairing;
@@ -109,7 +109,7 @@ impl BLSAggregateSignatureVerifyGadget {
         let cs = parameters.g1_generator.cs();
 
         // Hash the message into the curve point (this requires using a hash-to-curve function)
-        let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
+        let hash_to_curve = Self::hash_to_curve(cs, message, &parameters.g2_generator)?;
 
         // Verify e(signature, G) == e(aggregated_pk, H(m))
         let signature_paired =

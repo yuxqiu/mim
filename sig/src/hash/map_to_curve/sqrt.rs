@@ -16,7 +16,7 @@ use crate::hash::map_to_curve::norm::NormGadget;
 pub trait SqrtGadget<F: Field, CF: PrimeField>: Sized + FieldVar<F, CF> {
     fn legendre_qr(&self) -> Result<Boolean<CF>, SynthesisError>;
 
-    /// compute the square root of the FieldVar
+    /// compute the square root of the `FieldVar`
     /// return (true, sqrt) iff the var is a quadratic residue
     /// otherwise, return (false, 0)
     /// - return 0 allows us to merge legendre == 0 and legendre == -1 cases
@@ -32,17 +32,17 @@ impl<F: PrimeField> SqrtGadget<F, F> for FpVar<F> {
             let value = self.value()?;
             Ok((
                 Boolean::constant(value.legendre().is_qr()),
-                Self::constant(value.sqrt().unwrap_or(F::zero())),
+                Self::constant(value.sqrt().unwrap_or_else(F::zero)),
             ))
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self.value()?.sqrt().unwrap_or(F::zero());
-            let sqrt_var = FpVar::new_witness(self.cs(), || Ok(sqrt))?;
+            let sqrt = self.value()?.sqrt().unwrap_or_else(F::zero);
+            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
-            sqrt_var.conditional_enforce_equal(&FpVar::zero(), &!legendre.clone())?;
+            sqrt_var.conditional_enforce_equal(&Self::zero(), &!legendre.clone())?;
 
             Ok((legendre, sqrt_var))
         }
@@ -62,17 +62,17 @@ impl<F: PrimeField, CF: PrimeField> SqrtGadget<F, CF> for EmulatedFpVar<F, CF> {
             let value = self.value()?;
             Ok((
                 Boolean::constant(value.legendre().is_qr()),
-                Self::constant(value.sqrt().unwrap_or(F::zero())),
+                Self::constant(value.sqrt().unwrap_or_else(F::zero)),
             ))
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self.value()?.sqrt().unwrap_or(F::zero());
-            let sqrt_var = EmulatedFpVar::new_witness(self.cs(), || Ok(sqrt))?;
+            let sqrt = self.value()?.sqrt().unwrap_or_else(F::zero);
+            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
-            sqrt_var.conditional_enforce_equal(&EmulatedFpVar::zero(), &!legendre.clone())?;
+            sqrt_var.conditional_enforce_equal(&Self::zero(), &!legendre.clone())?;
 
             Ok((legendre, sqrt_var))
         }
@@ -99,17 +99,17 @@ where
             let value = self.value()?;
             Ok((
                 Boolean::constant(value.legendre().is_qr()),
-                Self::constant(value.sqrt().unwrap_or(QuadExtField::zero())),
+                Self::constant(value.sqrt().unwrap_or_else(QuadExtField::zero)),
             ))
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self.value()?.sqrt().unwrap_or(QuadExtField::<P>::zero());
-            let sqrt_var = QuadExtVar::new_witness(self.cs(), || Ok(sqrt))?;
+            let sqrt = self.value()?.sqrt().unwrap_or_else(QuadExtField::<P>::zero);
+            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
-            sqrt_var.conditional_enforce_equal(&QuadExtVar::zero(), &!legendre.clone())?;
+            sqrt_var.conditional_enforce_equal(&Self::zero(), &!legendre.clone())?;
 
             Ok((legendre, sqrt_var))
         }
@@ -136,17 +136,20 @@ where
             let value = self.value()?;
             Ok((
                 Boolean::constant(value.legendre().is_qr()),
-                Self::constant(value.sqrt().unwrap_or(CubicExtField::zero())),
+                Self::constant(value.sqrt().unwrap_or_else(CubicExtField::zero)),
             ))
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self.value()?.sqrt().unwrap_or(CubicExtField::<P>::zero());
-            let sqrt_var = CubicExtVar::new_witness(self.cs(), || Ok(sqrt))?;
+            let sqrt = self
+                .value()?
+                .sqrt()
+                .unwrap_or_else(CubicExtField::<P>::zero);
+            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
-            sqrt_var.conditional_enforce_equal(&CubicExtVar::zero(), &!legendre.clone())?;
+            sqrt_var.conditional_enforce_equal(&Self::zero(), &!legendre.clone())?;
 
             Ok((legendre, sqrt_var))
         }
@@ -221,8 +224,6 @@ mod test {
                     }
                 }
 
-                test_constant();
-
                 fn test_input() {
                     let mut rng = thread_rng();
 
@@ -266,6 +267,7 @@ mod test {
                     }
                 }
 
+                test_constant();
                 test_input();
             }
         };

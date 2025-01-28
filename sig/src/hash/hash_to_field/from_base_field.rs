@@ -30,7 +30,7 @@ impl<CF: PrimeField> FromBitsGadget<CF> for FpVar<CF> {
                 .map(|c| {
                     let mut value = 0u8;
                     for (i, &bit) in c.iter().enumerate() {
-                        value += (bit as u8) << i;
+                        value += u8::from(bit) << i;
                     }
                     value
                 })
@@ -39,7 +39,7 @@ impl<CF: PrimeField> FromBitsGadget<CF> for FpVar<CF> {
         }
 
         if bits.is_constant() {
-            FpVar::constant(value.unwrap())
+            Self::constant(value.unwrap())
         } else {
             let mut power = CF::one();
             // Compute a linear combination for the new field variable, again
@@ -48,11 +48,11 @@ impl<CF: PrimeField> FromBitsGadget<CF> for FpVar<CF> {
             let combined = bits
                 .iter()
                 .map(|b| {
-                    let result = FpVar::from(b.clone()) * power;
+                    let result = Self::from(b.clone()) * power;
                     power.double_in_place();
                     result
                 })
-                .reduce(std::ops::Add::add)
+                .reduce(core::ops::Add::add)
                 .unwrap();
 
             combined
@@ -76,7 +76,7 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
                 .map(|c| {
                     let mut value = 0u8;
                     for (i, &bit) in c.iter().enumerate() {
-                        value += (bit as u8) << i;
+                        value += u8::from(bit) << i;
                     }
                     value
                 })
@@ -85,7 +85,7 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
         }
 
         if bits.is_constant() {
-            EmulatedFpVar::constant(value.unwrap())
+            Self::constant(value.unwrap())
         } else {
             let mut power = F::one();
             // Compute a linear combination for the new field variable, again
@@ -94,11 +94,11 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
             let combined = bits
                 .iter()
                 .map(|b| {
-                    let result = EmulatedFpVar::from(b.clone()) * power;
+                    let result = Self::from(b.clone()) * power;
                     power.double_in_place();
                     result
                 })
-                .reduce(std::ops::Add::add)
+                .reduce(core::ops::Add::add)
                 .unwrap();
 
             combined
@@ -154,7 +154,7 @@ where
         // a better implementation could mimic `QuadExtField::from_base_prime_field_elems`
         let c0 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
         let c1 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
-        Ok(QuadExtVar::new(c0, c1))
+        Ok(Self::new(c0, c1))
     }
 }
 
@@ -176,6 +176,6 @@ where
         let c0 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
         let c1 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
         let c2 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
-        Ok(CubicExtVar::new(c0, c1, c2))
+        Ok(Self::new(c0, c1, c2))
     }
 }

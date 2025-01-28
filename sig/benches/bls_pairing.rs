@@ -20,10 +20,10 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("BLS Signature");
 
     group.bench_function("verify (2 pairings)", |b| {
-        b.iter(|| Signature::verify_slow(msg.as_bytes(), &sig, &pk, &params))
+        b.iter(|| Signature::verify_slow(msg.as_bytes(), &sig, &pk, &params));
     });
     group.bench_function("verify (2 miller's loop + 1 final exponentiation)", |b| {
-        b.iter(|| Signature::verify(msg.as_bytes(), &sig, &pk, &params))
+        b.iter(|| Signature::verify(msg.as_bytes(), &sig, &pk, &params));
     });
     group.finish();
 }

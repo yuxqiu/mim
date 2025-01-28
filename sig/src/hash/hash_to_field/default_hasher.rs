@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use super::{
     expander::ExpanderXmdGadget, from_base_field::FromBaseFieldGadget,
@@ -9,8 +9,8 @@ use ark_ff::{field_hashers::get_len_per_elem, Field, PrimeField};
 use ark_r1cs_std::{fields::FieldVar, prelude::ToBitsGadget, uint8::UInt8};
 use ark_relations::r1cs::SynthesisError;
 
-/// This struct implements R1CS equivalent of DefaultFieldHasher. It works as follow
-/// - Use ExpanderGadget to derive a vector of uniform bytes
+/// This struct implements R1CS equivalent of `DefaultFieldHasher`. It works as follow
+/// - Use `ExpanderGadget` to derive a vector of uniform bytes
 /// - Construct a vector of `FpVar` or `EmulatedFpVar` based on the type of `BasePrimeFieldVar`
 ///   (defined in `FromBaseFieldGadget` trait, and the method to construct them from bits is
 ///   defined in `FromBitsGadget` trait)
@@ -56,7 +56,8 @@ impl<
     }
 
     fn hash_to_field<const N: usize>(&self, msg: &[UInt8<CF>]) -> Result<[FP; N], SynthesisError> {
-        let m = TF::extension_degree() as usize;
+        let m = usize::try_from(TF::extension_degree())
+            .expect("extension degree should be able to store in usize");
 
         // The user requests `N` of elements of F_p^m to output per input msg,
         // each field element comprising `m` BasePrimeField elements.
@@ -111,7 +112,7 @@ mod test {
 
         for input_len in input_lens {
             let mut msg = vec![0u8; input_len];
-            rng.fill(&mut msg[..]);
+            rng.fill(&mut *msg);
             let msg_var: Vec<UInt8<F>> = msg.iter().map(|byte| UInt8::constant(*byte)).collect();
 
             let s1: [F; 2] = hasher.hash_to_field::<2>(&msg);
@@ -145,7 +146,7 @@ mod test {
         for input_len in input_lens {
             let cs = ConstraintSystem::new_ref();
             let mut msg = vec![0u8; input_len];
-            rng.fill(&mut msg[..]);
+            rng.fill(&mut *msg);
             let msg_var: Vec<UInt8<F>> = msg
                 .iter()
                 .map(|byte| UInt8::new_witness(cs.clone(), || Ok(*byte)).unwrap())
