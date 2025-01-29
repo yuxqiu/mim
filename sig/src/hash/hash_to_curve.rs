@@ -8,6 +8,7 @@ use ark_r1cs_std::{
     },
     prelude::Boolean,
     uint8::UInt8,
+    R1CSVar,
 };
 use ark_relations::r1cs::SynthesisError;
 use ark_std::marker::PhantomData;
@@ -96,14 +97,12 @@ where
             })
             .collect();
 
-        // It's even wrong when I switched to a generic implementation. I tested `double_in_place`, it should be correct.
-        // At the same time, `+` should also be correct as the above rand_curve_elem is correctly calculated.
-        // - I should probably test cofactor_bits.
-        // - log every step of the calculation
+        // The corresponding cofactor clearing method is different from simply multiplying by cofactor.
+        // It's based on endomorphism, which still clears the cofactor but yields a different element in the curve group.
         //
-        // TODO: uncomment SWAffine check
-        let rand_subgroup_elem = rand_curve_elem.scalar_mul_le(cofactor_bits.iter())?;
-        println!("rse-0: {:?}", rand_subgroup_elem.to_affine_unchecked());
+        // That's why the assertion is not failing after I commented off the `clear_cofactor` function
+        // `ark-bls12-381-0.5.0/src/curves/g2.rs`.
+        let rand_subgroup_elem = rand_curve_elem.scalar_mul_le_unchecked(cofactor_bits.iter())?;
 
         rand_subgroup_elem.to_affine()
     }

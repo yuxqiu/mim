@@ -755,63 +755,63 @@ where
 
     /// Computes `bits * self`, where `bits` is a little-endian
     /// `Boolean` representation of a scalar.
-    // #[tracing::instrument(target = "r1cs", skip(bits))]
-    // fn scalar_mul_le<'a>(
-    //     &self,
-    //     bits: impl Iterator<Item = &'a Boolean<CF>>,
-    // ) -> Result<Self, SynthesisError> {
-    //     if self.is_constant() {
-    //         if self.value().unwrap().is_zero() {
-    //             return Ok(self.clone());
-    //         }
-    //     }
-    //     let self_affine = self.to_affine()?;
-    //     let (x, y, infinity) = (self_affine.x, self_affine.y, self_affine.infinity);
-    //     // We first handle the non-zero case, and then later will conditionally select
-    //     // zero if `self` was zero. However, we also want to make sure that generated
-    //     // constraints are satisfiable in both cases.
-    //     //
-    //     // In particular, using non-sensible values for `x` and `y` in zero-case may cause
-    //     // `unchecked` operations to generate constraints that can never be satisfied, depending
-    //     // on the curve equation coefficients.
-    //     //
-    //     // The safest approach is to use coordinates of some point from the curve, thus not
-    //     // violating assumptions of `NonZeroAffine`. For instance, generator point.
-    //     let x = infinity.select(&F::constant(P::GENERATOR.x), &x)?;
-    //     let y = infinity.select(&F::constant(P::GENERATOR.y), &y)?;
-    //     let non_zero_self = NonZeroAffineVar::new(x, y);
+    #[tracing::instrument(target = "r1cs", skip(bits))]
+    fn scalar_mul_le<'a>(
+        &self,
+        bits: impl Iterator<Item = &'a Boolean<CF>>,
+    ) -> Result<Self, SynthesisError> {
+        if self.is_constant() {
+            if self.value().unwrap().is_zero() {
+                return Ok(self.clone());
+            }
+        }
+        let self_affine = self.to_affine()?;
+        let (x, y, infinity) = (self_affine.x, self_affine.y, self_affine.infinity);
+        // We first handle the non-zero case, and then later will conditionally select
+        // zero if `self` was zero. However, we also want to make sure that generated
+        // constraints are satisfiable in both cases.
+        //
+        // In particular, using non-sensible values for `x` and `y` in zero-case may cause
+        // `unchecked` operations to generate constraints that can never be satisfied, depending
+        // on the curve equation coefficients.
+        //
+        // The safest approach is to use coordinates of some point from the curve, thus not
+        // violating assumptions of `NonZeroAffine`. For instance, generator point.
+        let x = infinity.select(&F::constant(P::GENERATOR.x), &x)?;
+        let y = infinity.select(&F::constant(P::GENERATOR.y), &y)?;
+        let non_zero_self = NonZeroAffineVar::new(x, y);
 
-    //     let mut bits = bits.collect::<Vec<_>>();
-    //     if bits.len() == 0 {
-    //         return Ok(Self::zero());
-    //     }
-    //     // Remove unnecessary constant zeros in the most-significant positions.
-    //     bits = bits
-    //         .into_iter()
-    //         // We iterate from the MSB down.
-    //         .rev()
-    //         // Skip leading zeros, if they are constants.
-    //         .skip_while(|b| b.is_constant() && (b.value().unwrap() == false))
-    //         .collect();
-    //     // After collecting we are in big-endian form; we have to reverse to get back to
-    //     // little-endian.
-    //     bits.reverse();
+        let mut bits = bits.collect::<Vec<_>>();
+        if bits.len() == 0 {
+            return Ok(Self::zero());
+        }
+        // Remove unnecessary constant zeros in the most-significant positions.
+        bits = bits
+            .into_iter()
+            // We iterate from the MSB down.
+            .rev()
+            // Skip leading zeros, if they are constants.
+            .skip_while(|b| b.is_constant() && (b.value().unwrap() == false))
+            .collect();
+        // After collecting we are in big-endian form; we have to reverse to get back to
+        // little-endian.
+        bits.reverse();
 
-    //     let scalar_modulus_bits = <P::ScalarField as PrimeField>::MODULUS_BIT_SIZE;
-    //     let mut mul_result = Self::zero();
-    //     let mut power_of_two_times_self = non_zero_self;
-    //     // We chunk up `bits` into `p`-sized chunks.
-    //     for bits in bits.chunks(scalar_modulus_bits as usize) {
-    //         self.fixed_scalar_mul_le(&mut mul_result, &mut power_of_two_times_self, bits)?;
-    //     }
+        let scalar_modulus_bits = <P::ScalarField as PrimeField>::MODULUS_BIT_SIZE;
+        let mut mul_result = Self::zero();
+        let mut power_of_two_times_self = non_zero_self;
+        // We chunk up `bits` into `p`-sized chunks.
+        for bits in bits.chunks(scalar_modulus_bits as usize) {
+            self.fixed_scalar_mul_le(&mut mul_result, &mut power_of_two_times_self, bits)?;
+        }
 
-    //     // The foregoing algorithm relies on incomplete addition, and so does not
-    //     // work when the input (`self`) is zero. We hence have to perform
-    //     // a check to ensure that if the input is zero, then so is the output.
-    //     // The cost of this check should be less than the benefit of using
-    //     // mixed addition in almost all cases.
-    //     infinity.select(&Self::zero(), &mul_result)
-    // }
+        // The foregoing algorithm relies on incomplete addition, and so does not
+        // work when the input (`self`) is zero. We hence have to perform
+        // a check to ensure that if the input is zero, then so is the output.
+        // The cost of this check should be less than the benefit of using
+        // mixed addition in almost all cases.
+        infinity.select(&Self::zero(), &mul_result)
+    }
 
     #[tracing::instrument(target = "r1cs", skip(scalar_bits_with_bases))]
     fn precomputed_base_scalar_mul_le<'a, I, B>(
