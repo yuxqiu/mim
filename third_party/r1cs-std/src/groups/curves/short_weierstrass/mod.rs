@@ -391,6 +391,239 @@ where
         }
         Ok(())
     }
+
+    fn fixed_scalar_mul_le_unchecked(
+        &self,
+        mul_result: &mut Self,
+        multiple_of_power_of_two: &mut NonZeroAffineVar<P, F, CF>,
+        bits: &[&Boolean<CF>],
+    ) -> Result<(), SynthesisError> {
+        let scalar_modulus_bits = <P::ScalarField as PrimeField>::MODULUS_BIT_SIZE as usize;
+
+        assert!(scalar_modulus_bits >= bits.len());
+        let split_len = ark_std::cmp::min(scalar_modulus_bits - 2, bits.len());
+        let (affine_bits, proj_bits) = bits.split_at(split_len);
+        // Computes the standard little-endian double-and-add algorithm
+        // (Algorithm 3.26, Guide to Elliptic Curve Cryptography)
+        //
+        // We rely on *incomplete* affine formulae for partially computing this.
+        // However, we avoid exceptional edge cases because we partition the scalar
+        // into two chunks: one guaranteed to be less than p - 2, and the rest.
+        // We only use incomplete formulae for the first chunk, which means we avoid
+        // exceptions:
+        //
+        // `add_unchecked(a, b)` is incomplete when either `b.is_zero()`, or when
+        // `b = ±a`. During scalar multiplication, we don't hit either case:
+        // * `b = ±a`: `b = accumulator = k * a`, where `2 <= k < p - 1`. This implies
+        //   that `k != p ± 1`, and so `b != (p ± 1) * a`. Because the group is finite,
+        //   this in turn means that `b != ±a`, as required.
+        // * `a` or `b` is zero: for `a`, we handle the zero case after the loop; for
+        //   `b`, notice that it is monotonically increasing, and furthermore, equals `k
+        //   * a`, where `k != p = 0 mod p`.
+
+        // Unlike normal double-and-add, here we start off with a non-zero
+        // `accumulator`, because `NonZeroAffineVar::add_unchecked` doesn't
+        // support addition with `zero`. In more detail, we initialize
+        // `accumulator` to be the initial value of `multiple_of_power_of_two`.
+        // This ensures that all unchecked additions of `accumulator` with later
+        // values of `multiple_of_power_of_two` are safe. However, to do this
+        // correctly, we need to perform two steps:
+        // * We must skip the LSB, and instead proceed assuming that it was 1. Later, we
+        //   will conditionally subtract the initial value of `accumulator`: if LSB ==
+        //   0: subtract initial_acc_value; else, subtract 0.
+        // * Because we are assuming the first bit, we must double
+        //   `multiple_of_power_of_two`.
+
+        let mut accumulator = multiple_of_power_of_two.clone();
+        let initial_acc_value = accumulator.into_projective();
+
+        // The powers start at 2 (instead of 1) because we're skipping the first bit.
+        multiple_of_power_of_two.double_in_place_unchecked()?;
+
+        // As mentioned, we will skip the LSB, and will later handle it via a
+        // conditional subtraction.
+        for bit in affine_bits.iter().skip(1) {
+            if bit.is_constant() {
+                if *bit == &Boolean::TRUE {
+                    accumulator = accumulator.add_unchecked_unchecked(multiple_of_power_of_two)?;
+                }
+            } else {
+                let temp = accumulator.add_unchecked_unchecked(multiple_of_power_of_two)?;
+                accumulator = bit.select(&temp, &accumulator)?;
+            }
+            multiple_of_power_of_two.double_in_place_unchecked()?;
+        }
+        // Perform conditional subtraction:
+
+        // We can convert to projective safely because the result is guaranteed to be
+        // non-zero by the condition on `affine_bits.len()`, and by the fact
+        // that `accumulator` is non-zero
+        let result = accumulator.into_projective();
+        // If bits[0] is 0, then we have to subtract `self`; else, we subtract zero.
+        let subtrahend = bits[0].select(&Self::zero(), &initial_acc_value)?;
+        *mul_result = mul_result.add_unchecked(&result.add_unchecked(&subtrahend.negate()?));
+
+        // Now, let's finish off the rest of the bits using our complete formulae
+        for bit in proj_bits {
+            if bit.is_constant() {
+                if *bit == &Boolean::TRUE {
+                    *mul_result =
+                        mul_result.add_unchecked(&multiple_of_power_of_two.into_projective());
+                }
+            } else {
+                let temp = mul_result.add_unchecked(&multiple_of_power_of_two.into_projective());
+                *mul_result = bit.select(&temp, &mul_result)?;
+            }
+            multiple_of_power_of_two.double_in_place_unchecked()?;
+        }
+        Ok(())
+    }
+
+    fn value_unchecked(&self) -> Result<<Self as R1CSVar<CF>>::Value, SynthesisError> {
+        let (x, y, z) = (self.x.value()?, self.y.value()?, self.z.value()?);
+        let result = if let Some(z_inv) = z.inverse() {
+            SWAffine::new_unchecked(x * &z_inv, y * &z_inv)
+        } else {
+            SWAffine::identity()
+        };
+        Ok(result.into())
+    }
+
+    pub fn to_affine_unchecked(&self) -> Result<AffineVar<P, F, CF>, SynthesisError> {
+        if self.is_constant() {
+            let point = self.value_unchecked()?.into_affine();
+            let x = F::new_constant(ConstraintSystemRef::None, point.x)?;
+            let y = F::new_constant(ConstraintSystemRef::None, point.y)?;
+            let infinity = Boolean::constant(point.infinity);
+            Ok(AffineVar::new(x, y, infinity))
+        } else {
+            let cs = self.cs();
+            let infinity = self.is_zero()?;
+            let zero_affine = SWAffine::<P>::zero();
+            let zero_x = F::new_constant(cs.clone(), &zero_affine.x)?;
+            let zero_y = F::new_constant(cs.clone(), &zero_affine.y)?;
+            // Allocate a variable whose value is either `self.z.inverse()` if the inverse
+            // exists, and is zero otherwise.
+            let z_inv = F::new_witness(ark_relations::ns!(cs, "z_inverse"), || {
+                Ok(self.z.value()?.inverse().unwrap_or_else(P::BaseField::zero))
+            })?;
+            // The inverse exists if `!self.is_zero()`.
+            // This means that `z_inv * self.z = 1` if `self.is_not_zero()`, and
+            //                 `z_inv * self.z = 0` if `self.is_zero()`.
+            //
+            // Thus, `z_inv * self.z = !self.is_zero()`.
+            z_inv.mul_equals(&self.z, &F::from(!&infinity))?;
+
+            let non_zero_x = &self.x * &z_inv;
+            let non_zero_y = &self.y * &z_inv;
+
+            let x = infinity.select(&zero_x, &non_zero_x)?;
+            let y = infinity.select(&zero_y, &non_zero_y)?;
+
+            Ok(AffineVar::new(x, y, infinity))
+        }
+    }
+
+    pub fn add_unchecked<'a>(&'a self, other: &'a Self) -> Self {
+        (|mut this: &'a ProjectiveVar<P, F, CF>, mut other: &'a ProjectiveVar<P, F, CF>| {
+            if this.is_constant() {
+                core::mem::swap(&mut this, &mut other);
+            }
+            if other.is_constant() {
+                let other = other.value_unchecked().unwrap();
+                if other.is_zero() {
+                    this.clone()
+                } else {
+                    let x = F::constant(other.x);
+                    let y = F::constant(other.y);
+                    this.add_mixed(&NonZeroAffineVar::new(x, y)).unwrap()
+                }
+            } else {
+                let three_b = P::COEFF_B.double() + &P::COEFF_B;
+                let (x1, y1, z1) = (&this.x, &this.y, &this.z);
+                let (x2, y2, z2) = (&other.x, &other.y, &other.z);
+                let xx = x1 * x2;
+                let yy = y1 * y2;
+                let zz = z1 * z2;
+                let xy_pairs = ((x1 + y1) * &(x2 + y2)) - (&xx + &yy);
+                let xz_pairs = ((x1 + z1) * &(x2 + z2)) - (&xx + &zz);
+                let yz_pairs = ((y1 + z1) * &(y2 + z2)) - (&yy + &zz);
+                let axz = mul_by_coeff_a::<P, F, CF>(&xz_pairs);
+                let bzz3_part = &axz + &zz * three_b;
+                let yy_m_bzz3 = &yy - &bzz3_part;
+                let yy_p_bzz3 = &yy + &bzz3_part;
+                let azz = mul_by_coeff_a::<P, F, CF>(&zz);
+                let xx3_p_azz = xx.double().unwrap() + &xx + &azz;
+                let bxz3 = &xz_pairs * three_b;
+                let b3_xz_pairs = mul_by_coeff_a::<P, F, CF>(&(&xx - &azz)) + &bxz3;
+                let x = (&yy_m_bzz3 * &xy_pairs) - &yz_pairs * &b3_xz_pairs;
+                let y = (&yy_p_bzz3 * &yy_m_bzz3) + &xx3_p_azz * b3_xz_pairs;
+                let z = (&yy_p_bzz3 * &yz_pairs) + xy_pairs * xx3_p_azz;
+                ProjectiveVar::new(x, y, z)
+            }
+        })(self, other)
+    }
+
+    pub fn scalar_mul_le_unchecked<'a>(
+        &self,
+        bits: impl Iterator<Item = &'a Boolean<CF>>,
+    ) -> Result<Self, SynthesisError> {
+        if self.is_constant() {
+            if self.value_unchecked().unwrap().is_zero() {
+                return Ok(self.clone());
+            }
+        }
+        let self_affine = self.to_affine_unchecked()?;
+        let (x, y, infinity) = (self_affine.x, self_affine.y, self_affine.infinity);
+        // We first handle the non-zero case, and then later will conditionally select
+        // zero if `self` was zero. However, we also want to make sure that generated
+        // constraints are satisfiable in both cases.
+        //
+        // In particular, using non-sensible values for `x` and `y` in zero-case may cause
+        // `unchecked` operations to generate constraints that can never be satisfied, depending
+        // on the curve equation coefficients.
+        //
+        // The safest approach is to use coordinates of some point from the curve, thus not
+        // violating assumptions of `NonZeroAffine`. For instance, generator point.
+        let x = infinity.select(&F::constant(P::GENERATOR.x), &x)?;
+        let y = infinity.select(&F::constant(P::GENERATOR.y), &y)?;
+        let non_zero_self = NonZeroAffineVar::new(x, y);
+
+        let mut bits = bits.collect::<Vec<_>>();
+        if bits.len() == 0 {
+            return Ok(Self::zero());
+        }
+        // Remove unnecessary constant zeros in the most-significant positions.
+        bits = bits
+            .into_iter()
+            // We iterate from the MSB down.
+            .rev()
+            // Skip leading zeros, if they are constants.
+            .skip_while(|b| b.is_constant() && (b.value().unwrap() == false))
+            .collect();
+        // After collecting we are in big-endian form; we have to reverse to get back to
+        // little-endian.
+        bits.reverse();
+
+        let scalar_modulus_bits = <P::ScalarField as PrimeField>::MODULUS_BIT_SIZE;
+        let mut mul_result = Self::zero();
+        let mut power_of_two_times_self = non_zero_self;
+        // We chunk up `bits` into `p`-sized chunks.
+        for bits in bits.chunks(scalar_modulus_bits as usize) {
+            self.fixed_scalar_mul_le_unchecked(
+                &mut mul_result,
+                &mut power_of_two_times_self,
+                bits,
+            )?;
+        }
+
+        // The foregoing algorithm relies on incomplete addition, and so does not
+        // work when the input (`self`) is zero. We hence have to perform
+        // a check to ensure that if the input is zero, then so is the output.
+        // The cost of this check should be less than the benefit of using
+        // mixed addition in almost all cases.
+        infinity.select(&Self::zero(), &mul_result)
+    }
 }
 
 impl<P, F, CF> CurveVar<SWProjective<P>, CF> for ProjectiveVar<P, F, CF>
@@ -522,63 +755,63 @@ where
 
     /// Computes `bits * self`, where `bits` is a little-endian
     /// `Boolean` representation of a scalar.
-    #[tracing::instrument(target = "r1cs", skip(bits))]
-    fn scalar_mul_le<'a>(
-        &self,
-        bits: impl Iterator<Item = &'a Boolean<CF>>,
-    ) -> Result<Self, SynthesisError> {
-        if self.is_constant() {
-            if self.value().unwrap().is_zero() {
-                return Ok(self.clone());
-            }
-        }
-        let self_affine = self.to_affine()?;
-        let (x, y, infinity) = (self_affine.x, self_affine.y, self_affine.infinity);
-        // We first handle the non-zero case, and then later will conditionally select
-        // zero if `self` was zero. However, we also want to make sure that generated
-        // constraints are satisfiable in both cases.
-        //
-        // In particular, using non-sensible values for `x` and `y` in zero-case may cause
-        // `unchecked` operations to generate constraints that can never be satisfied, depending
-        // on the curve equation coefficients.
-        //
-        // The safest approach is to use coordinates of some point from the curve, thus not
-        // violating assumptions of `NonZeroAffine`. For instance, generator point.
-        let x = infinity.select(&F::constant(P::GENERATOR.x), &x)?;
-        let y = infinity.select(&F::constant(P::GENERATOR.y), &y)?;
-        let non_zero_self = NonZeroAffineVar::new(x, y);
+    // #[tracing::instrument(target = "r1cs", skip(bits))]
+    // fn scalar_mul_le<'a>(
+    //     &self,
+    //     bits: impl Iterator<Item = &'a Boolean<CF>>,
+    // ) -> Result<Self, SynthesisError> {
+    //     if self.is_constant() {
+    //         if self.value().unwrap().is_zero() {
+    //             return Ok(self.clone());
+    //         }
+    //     }
+    //     let self_affine = self.to_affine()?;
+    //     let (x, y, infinity) = (self_affine.x, self_affine.y, self_affine.infinity);
+    //     // We first handle the non-zero case, and then later will conditionally select
+    //     // zero if `self` was zero. However, we also want to make sure that generated
+    //     // constraints are satisfiable in both cases.
+    //     //
+    //     // In particular, using non-sensible values for `x` and `y` in zero-case may cause
+    //     // `unchecked` operations to generate constraints that can never be satisfied, depending
+    //     // on the curve equation coefficients.
+    //     //
+    //     // The safest approach is to use coordinates of some point from the curve, thus not
+    //     // violating assumptions of `NonZeroAffine`. For instance, generator point.
+    //     let x = infinity.select(&F::constant(P::GENERATOR.x), &x)?;
+    //     let y = infinity.select(&F::constant(P::GENERATOR.y), &y)?;
+    //     let non_zero_self = NonZeroAffineVar::new(x, y);
 
-        let mut bits = bits.collect::<Vec<_>>();
-        if bits.len() == 0 {
-            return Ok(Self::zero());
-        }
-        // Remove unnecessary constant zeros in the most-significant positions.
-        bits = bits
-            .into_iter()
-            // We iterate from the MSB down.
-            .rev()
-            // Skip leading zeros, if they are constants.
-            .skip_while(|b| b.is_constant() && (b.value().unwrap() == false))
-            .collect();
-        // After collecting we are in big-endian form; we have to reverse to get back to
-        // little-endian.
-        bits.reverse();
+    //     let mut bits = bits.collect::<Vec<_>>();
+    //     if bits.len() == 0 {
+    //         return Ok(Self::zero());
+    //     }
+    //     // Remove unnecessary constant zeros in the most-significant positions.
+    //     bits = bits
+    //         .into_iter()
+    //         // We iterate from the MSB down.
+    //         .rev()
+    //         // Skip leading zeros, if they are constants.
+    //         .skip_while(|b| b.is_constant() && (b.value().unwrap() == false))
+    //         .collect();
+    //     // After collecting we are in big-endian form; we have to reverse to get back to
+    //     // little-endian.
+    //     bits.reverse();
 
-        let scalar_modulus_bits = <P::ScalarField as PrimeField>::MODULUS_BIT_SIZE;
-        let mut mul_result = Self::zero();
-        let mut power_of_two_times_self = non_zero_self;
-        // We chunk up `bits` into `p`-sized chunks.
-        for bits in bits.chunks(scalar_modulus_bits as usize) {
-            self.fixed_scalar_mul_le(&mut mul_result, &mut power_of_two_times_self, bits)?;
-        }
+    //     let scalar_modulus_bits = <P::ScalarField as PrimeField>::MODULUS_BIT_SIZE;
+    //     let mut mul_result = Self::zero();
+    //     let mut power_of_two_times_self = non_zero_self;
+    //     // We chunk up `bits` into `p`-sized chunks.
+    //     for bits in bits.chunks(scalar_modulus_bits as usize) {
+    //         self.fixed_scalar_mul_le(&mut mul_result, &mut power_of_two_times_self, bits)?;
+    //     }
 
-        // The foregoing algorithm relies on incomplete addition, and so does not
-        // work when the input (`self`) is zero. We hence have to perform
-        // a check to ensure that if the input is zero, then so is the output.
-        // The cost of this check should be less than the benefit of using
-        // mixed addition in almost all cases.
-        infinity.select(&Self::zero(), &mul_result)
-    }
+    //     // The foregoing algorithm relies on incomplete addition, and so does not
+    //     // work when the input (`self`) is zero. We hence have to perform
+    //     // a check to ensure that if the input is zero, then so is the output.
+    //     // The cost of this check should be less than the benefit of using
+    //     // mixed addition in almost all cases.
+    //     infinity.select(&Self::zero(), &mul_result)
+    // }
 
     #[tracing::instrument(target = "r1cs", skip(scalar_bits_with_bases))]
     fn precomputed_base_scalar_mul_le<'a, I, B>(

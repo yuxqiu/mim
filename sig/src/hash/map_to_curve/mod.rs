@@ -3,7 +3,7 @@ mod norm;
 mod sqrt;
 mod swu;
 mod to_base_field;
-mod wb;
+pub mod wb;
 
 use ark_ec::{short_weierstrass::SWCurveConfig, CurveGroup};
 use ark_ff::PrimeField;

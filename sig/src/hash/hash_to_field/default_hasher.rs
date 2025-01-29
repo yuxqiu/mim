@@ -17,7 +17,7 @@ use ark_relations::r1cs::SynthesisError;
 /// - Recursively construct target field element based on a vector of corresponding
 ///   `BasePrimeFieldVar` elements (the method to construct them from bits is defined in
 ///   `FromBaseFieldGadget` trait))
-struct DefaultFieldHasherGadget<
+pub struct DefaultFieldHasherGadget<
     H: PRFGadget<CF> + Default,
     TF: Field,
     CF: PrimeField,

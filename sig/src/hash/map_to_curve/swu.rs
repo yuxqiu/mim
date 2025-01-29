@@ -184,7 +184,7 @@ mod test {
     use ark_ff::{Fp2, Fp3, UniformRand};
     use ark_r1cs_std::{
         alloc::AllocVar,
-        fields::{fp::FpVar, fp2::Fp2Var, fp3::Fp3Var, FieldVar},
+        fields::{emulated_fp::EmulatedFpVar, fp::FpVar, fp2::Fp2Var, fp3::Fp3Var, FieldVar},
         R1CSVar,
     };
     use ark_relations::r1cs::ConstraintSystem;
@@ -368,6 +368,13 @@ mod test {
         test_swu_map_fp,
         Fq,
         FpVar<Fq>,
+        <ark_bls12_381::g1::Config as WBConfig>::IsogenousCurve
+    );
+
+    generate_swu_map_tests!(
+        test_swu_map_fp_emu,
+        Fq,
+        EmulatedFpVar<Fq, Fr>,
         <ark_bls12_381::g1::Config as WBConfig>::IsogenousCurve
     );
 

@@ -1,41 +1,43 @@
-use ark_ff::PrimeField;
+use core::marker::PhantomData;
+
+use ark_ff::{Field, PrimeField};
 use ark_relations::r1cs::SynthesisError;
 
-use crate::fields::{fp::FpVar, FieldVar};
+use crate::fields::FieldVar;
 use ark_std::vec::Vec;
 
 /// Stores a polynomial in coefficient form, where coeffcient is represented by
-/// a list of `Fpvar<F>`.
-pub struct DensePolynomialVar<F: PrimeField> {
+/// a list of `FieldVar<F: Field, CF: PrimeField>`.
+pub struct DensePolynomialVar<FP: FieldVar<F, CF>, F: Field, CF: PrimeField> {
     /// The coefficient of `x^i` is stored at location `i` in `self.coeffs`.
-    pub coeffs: Vec<FpVar<F>>,
+    pub coeffs: Vec<FP>,
+    _params: PhantomData<(F, CF)>,
 }
 
-impl<F: PrimeField> DensePolynomialVar<F> {
+impl<FP: FieldVar<F, CF>, F: Field, CF: PrimeField> DensePolynomialVar<FP, F, CF> {
     /// Constructs a new polynomial from a list of coefficients.
-    pub fn from_coefficients_slice(coeffs: &[FpVar<F>]) -> Self {
+    pub fn from_coefficients_slice(coeffs: &[FP]) -> Self {
         Self::from_coefficients_vec(coeffs.to_vec())
     }
 
     /// Constructs a new polynomial from a list of coefficients.
-    pub fn from_coefficients_vec(coeffs: Vec<FpVar<F>>) -> Self {
-        Self { coeffs }
+    pub fn from_coefficients_vec(coeffs: Vec<FP>) -> Self {
+        Self {
+            coeffs,
+            _params: PhantomData,
+        }
     }
 
     /// Evaluates `self` at the given `point` and just gives you the gadget for
     /// the result. Caution for use in holographic lincheck: The output has
     /// 2 entries in one matrix
-    pub fn evaluate(&self, point: &FpVar<F>) -> Result<FpVar<F>, SynthesisError> {
-        let mut result: FpVar<F> = FpVar::zero();
-        // current power of point
-        let mut curr_pow_x: FpVar<F> = FpVar::one();
-        for i in 0..self.coeffs.len() {
-            let term = &curr_pow_x * &self.coeffs[i];
-            result += &term;
-            curr_pow_x *= point;
-        }
-
-        Ok(result)
+    pub fn evaluate(&self, point: &FP) -> Result<FP, SynthesisError> {
+        // Horner's Method
+        Ok(self
+            .coeffs
+            .iter()
+            .rfold(FP::zero(), move |acc, coeff| acc * point + coeff))
+        // Unfortunately, we cannot use parallelization here as FP is not Sync
     }
 }
 
