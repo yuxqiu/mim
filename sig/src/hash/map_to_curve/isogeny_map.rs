@@ -18,7 +18,7 @@ type Domain<P> = <P as WBConfig>::IsogenousCurve;
 type CoDomain<P> = P;
 type DomainBaseField<P> = <Domain<P> as CurveConfig>::BaseField;
 
-/// Trait for mapping a point in Domain -> CoDomain
+/// Trait for mapping a point in `Domain` -> `CoDomain`
 pub struct IsogenyMapGadget<
     P: WBConfig,
     FpDomainCoDomain: FieldVar<DomainBaseField<P>, CF>, // enforcing the same base field and variable for domain and codomain

@@ -40,7 +40,7 @@ where
 {
     fn new(domain: &[UInt8<CF>]) -> Self {
         Self {
-            field_hasher: H2F::new(&domain),
+            field_hasher: H2F::new(domain),
             _phantom: PhantomData,
         }
     }

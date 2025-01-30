@@ -9,7 +9,7 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-/// Trait for clearing cofactor. When implementing this trait for different CurveGroup,
+/// Trait for clearing cofactor. When implementing this trait for different `CurveGroup`,
 /// remember to check how they specialize in clearing the cofactor. Here, the trait provides
 /// a default implementation by simply multiplying the given point by the cofactor. But sometimes,
 /// faster method exists.

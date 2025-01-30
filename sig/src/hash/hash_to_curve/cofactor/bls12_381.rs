@@ -130,8 +130,8 @@ where
 /// the referenced type.
 ///
 /// More on coherence check:
-/// - https://stackoverflow.com/questions/73782573/why-do-blanket-implementations-for-two-different-traits-conflict
-/// - https://rust-lang.github.io/chalk/book/clauses/coherence.html
+/// - <https://stackoverflow.com/questions/73782573/why-do-blanket-implementations-for-two-different-traits-conflict>
+/// - <https://rust-lang.github.io/chalk/book/clauses/coherence.html>
 impl<
         FP: FieldVar<<Fp2ConfigWrapper<Fq2Config> as QuadExtConfig>::BaseField, CF>,
         CF: PrimeField,
