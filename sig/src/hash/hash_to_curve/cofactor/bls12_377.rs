@@ -1,4 +1,5 @@
-use ark_bls12_381::{Fq, Fq2, Fq2Config, FqConfig, G2Projective};
+use ark_bls12_377::g2::G2Projective;
+use ark_bls12_377::{Fq, Fq2, Fq2Config};
 use ark_ec::bls12::Bls12Config;
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ec::CurveGroup;
@@ -16,30 +17,29 @@ use ark_relations::r1cs::SynthesisError;
 
 use super::CofactorGadget;
 
-type CurveConfig = ark_bls12_381::Config;
+type CurveConfig = ark_bls12_377::Config;
 type G2CurveConfig = <CurveConfig as Bls12Config>::G2Config;
 
-// PSI_X = 1/(u+1)^((p-1)/3)
+// PSI_X = u^((p-1)/3)
 const P_POWER_ENDOMORPHISM_COEFF_0 : Fq2 = Fq2::new(
+    MontFp!(
+            "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
+        ),
         Fq::ZERO,
-        MontFp!(
-                "4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437"
-            )
-        );
+    );
 
-// PSI_Y = 1/(u+1)^((p-1)/2)
+// PSI_Y = u^((p-1)/2)
 const P_POWER_ENDOMORPHISM_COEFF_1: Fq2 = Fq2::new(
-        MontFp!(
-            "2973677408986561043442465346520108879172042883009249989176415018091420807192182638567116318576472649347015917690530"),
-        MontFp!(
-            "1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257")
-        );
+    MontFp!(
+        "216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499"),
+        Fq::ZERO,
+    );
 
-// PSI_2_X = (u+1)^((1-p^2)/3)
+// PSI_2_X = u^((p^2 - 1)/3)
 const DOUBLE_P_POWER_ENDOMORPHISM_COEFF_0: Fq2 = Fq2::new(
-            MontFp!("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436"),
-            Fq::ZERO
-        );
+        MontFp!("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"),
+        Fq::ZERO
+    );
 
 // psi(x,y) is the untwist-Frobenius-twist endomorhism on E'(Fq2)
 // FP must be a var that operates on QuadExt field that G2 operates on
@@ -63,7 +63,7 @@ pub fn p_power_endomorphism_var<
 where
     for<'a> &'a FP: ark_r1cs_std::fields::FieldOpsBounds<
         'a,
-        ark_ff::Fp<MontBackend<ark_bls12_381::FqConfig, 6>, 6>,
+        ark_ff::Fp<MontBackend<ark_bls12_377::FqConfig, 6>, 6>,
         FP,
     >,
 {
@@ -85,9 +85,7 @@ where
     res.x.frobenius_map_in_place(1)?;
     res.y.frobenius_map_in_place(1)?;
 
-    let tmp_x = res.x.clone();
-    res.x.c0 = &tmp_x.c1 * -P_POWER_ENDOMORPHISM_COEFF_0.c1;
-    res.x.c1 = &tmp_x.c0 * P_POWER_ENDOMORPHISM_COEFF_0.c1;
+    res.x *= P_POWER_ENDOMORPHISM_COEFF_0;
     res.y *= P_POWER_ENDOMORPHISM_COEFF_1;
 
     // the result is infinity only when the input (aka `res`) is infinity
@@ -113,7 +111,7 @@ pub fn double_p_power_endomorphism_var<
 ) -> Result<ProjectiveVar<<G2Projective as CurveGroup>::Config, FP, CF>, SynthesisError>
 where
     for<'a> &'a FP:
-        FieldOpsBounds<'a, QuadExtField<Fp2ConfigWrapper<ark_bls12_381::Fq2Config>>, FP>,
+        FieldOpsBounds<'a, QuadExtField<Fp2ConfigWrapper<ark_bls12_377::Fq2Config>>, FP>,
 {
     // p_power_endomorphism(&p_power_endomorphism(&p.into_affine())).into()
     let mut res = p.clone();
@@ -124,17 +122,6 @@ where
     Ok(res)
 }
 
-/// Have to use `for Projective<ark_bls12_381::g2::Config>` here to bypass trait coherence check
-/// (specifically overlap check). This check reports conflicting implementation of `CofactorGadget`
-/// when we implement `CofactorGadget` for more than one `Projective<Config>` even if the `Config`
-/// is different.
-///
-/// This might be a bug in Rust's compiler implementation, which prevents it from seeing through
-/// the referenced type.
-///
-/// More on coherence check:
-/// - <https://stackoverflow.com/questions/73782573/why-do-blanket-implementations-for-two-different-traits-conflict>
-/// - <https://rust-lang.github.io/chalk/book/clauses/coherence.html>
 impl<
         FP: FieldVar<<Fp2ConfigWrapper<Fq2Config> as QuadExtConfig>::BaseField, CF>,
         CF: PrimeField,
@@ -142,7 +129,7 @@ impl<
     for Projective<G2CurveConfig>
 where
     <Self as CurveGroup>::Config: SWCurveConfig,
-    for<'b> &'b FP: FieldOpsBounds<'b, ark_ff::Fp<MontBackend<FqConfig, 6>, 6>, FP>,
+    for<'b> &'b FP: FieldOpsBounds<'b, ark_ff::Fp<MontBackend<ark_bls12_377::FqConfig, 6>, 6>, FP>,
 {
     fn clear_cofactor_var(
         p: &ProjectiveVar<Self::Config, QuadExtVar<FP, Fp2ConfigWrapper<Fq2Config>, CF>, CF>,
@@ -172,7 +159,7 @@ where
 
         // [x]P
         // let x_p = Config::mul_affine(p, &x).neg();
-        let x_p = p.scalar_mul_le_unchecked(x.iter())?.negate()?;
+        let x_p = p.scalar_mul_le_unchecked(x.iter())?;
 
         // ψ(P)
         let psi_p = p_power_endomorphism_var(p)?;
@@ -185,7 +172,7 @@ where
 
         // tmp2 = [x^2]P + [x]ψ(P)
         let mut tmp2 = tmp;
-        tmp2 = tmp2.scalar_mul_le_unchecked(x.iter())?.negate()?;
+        tmp2 = tmp2.scalar_mul_le_unchecked(x.iter())?;
 
         // add up all the terms
         psi2_p2 = psi2_p2.add_unchecked(&tmp2);
@@ -199,7 +186,7 @@ where
 mod test {
     use std::ops::Neg;
 
-    use ark_bls12_381::{g2::Config, Fq, Fq2, Fq2Config};
+    use ark_bls12_377::{g2::Config, Fq, Fq2, Fq2Config};
     use ark_ec::{
         short_weierstrass::{Affine, Projective},
         AffineRepr,
@@ -211,71 +198,70 @@ mod test {
     };
     use rand::Rng;
 
-    use crate::hash::hash_to_curve::cofactor::bls12_381::{
+    use crate::hash::hash_to_curve::cofactor::bls12_377::{
         double_p_power_endomorphism_var, p_power_endomorphism_var,
     };
 
-    // PSI_X = 1/(u+1)^((p-1)/3)
+    // PSI_X = u^((p-1)/3)
     const P_POWER_ENDOMORPHISM_COEFF_0 : Fq2 = Fq2::new(
-    Fq::ZERO,
     MontFp!(
-                "4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437"
-        )
+            "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
+        ),
+        Fq::ZERO,
     );
 
-    // PSI_Y = 1/(u+1)^((p-1)/2)
+    // PSI_Y = u^((p-1)/2)
     const P_POWER_ENDOMORPHISM_COEFF_1: Fq2 = Fq2::new(
     MontFp!(
-                "2973677408986561043442465346520108879172042883009249989176415018091420807192182638567116318576472649347015917690530"),
-    MontFp!(
-       "1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257")
+        "216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499"),
+        Fq::ZERO,
     );
 
-    // PSI_2_X = (u+1)^((1-p^2)/3)
+    // PSI_2_X = u^((p^2 - 1)/3)
     const DOUBLE_P_POWER_ENDOMORPHISM_COEFF_0: Fq2 = Fq2::new(
-        MontFp!("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436"),
+        MontFp!("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"),
         Fq::ZERO
     );
 
-    /// psi(P) is the untwist-Frobenius-twist endomorphism on E'(Fq2)
-    pub fn p_power_endomorphism(p: &Affine<Config>) -> Affine<Config> {
+    /// psi(x,y) is the untwist-Frobenius-twist endomorhism on E'(Fq2)
+    fn p_power_endomorphism(p: &Affine<Config>) -> Affine<Config> {
         // The p-power endomorphism for G2 is defined as follows:
-        // 1. Note that G2 is defined on curve E': y^2 = x^3 + 4(u+1).
+        // 1. Note that G2 is defined on curve E': y^2 = x^3 + 1/u.
         //    To map a point (x, y) in E' to (s, t) in E,
-        //    set s = x / ((u+1) ^ (1/3)), t = y / ((u+1) ^ (1/2)),
-        //    because E: y^2 = x^3 + 4.
+        //    one set s = x * (u ^ (1/3)), t = y * (u ^ (1/2)),
+        //    because E: y^2 = x^3 + 1.
         // 2. Apply the Frobenius endomorphism (s, t) => (s', t'),
         //    another point on curve E, where s' = s^p, t' = t^p.
         // 3. Map the point from E back to E'; that is,
-        //    set x' = s' * ((u+1) ^ (1/3)), y' = t' * ((u+1) ^ (1/2)).
+        //    one set x' = s' / ((u) ^ (1/3)), y' = t' / ((u) ^ (1/2)).
         //
         // To sum up, it maps
-        // (x,y) -> (x^p / ((u+1)^((p-1)/3)), y^p / ((u+1)^((p-1)/2)))
+        // (x,y) -> (x^p * (u ^ ((p-1)/3)), y^p * (u ^ ((p-1)/2)))
         // as implemented in the code as follows.
 
         let mut res = *p;
         res.x.frobenius_map_in_place(1);
         res.y.frobenius_map_in_place(1);
 
-        let tmp_x = res.x.clone();
-        res.x.c0 = -P_POWER_ENDOMORPHISM_COEFF_0.c1 * &tmp_x.c1;
-        res.x.c1 = P_POWER_ENDOMORPHISM_COEFF_0.c1 * &tmp_x.c0;
+        res.x *= P_POWER_ENDOMORPHISM_COEFF_0;
         res.y *= P_POWER_ENDOMORPHISM_COEFF_1;
 
         res
     }
 
     /// For a p-power endomorphism psi(P), compute psi(psi(P))
-    pub fn double_p_power_endomorphism(p: &Projective<Config>) -> Projective<Config> {
+    fn double_p_power_endomorphism(p: &Projective<Config>) -> Projective<Config> {
+        // p_power_endomorphism(&p_power_endomorphism(&p.into_affine())).into()
         let mut res = *p;
 
         res.x *= DOUBLE_P_POWER_ENDOMORPHISM_COEFF_0;
+        // u^((p^2 - 1)/2) == -1
         res.y = res.y.neg();
 
         res
     }
 
-    fn sample_unchecked() -> Affine<ark_bls12_381::g2::Config> {
+    fn sample_unchecked() -> Affine<Config> {
         let mut rng = ark_std::test_rng();
 
         loop {

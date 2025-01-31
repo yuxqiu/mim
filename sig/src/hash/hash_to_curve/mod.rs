@@ -265,4 +265,10 @@ mod test {
         Fp2Var<ark_bls12_381::Fq2Config>,
         ark_bls12_381::G2Projective
     );
+
+    generate_hash_to_curve_tests!(
+        test_hash_to_curve_bls12_377_g2,
+        Fp2Var<ark_bls12_377::Fq2Config>,
+        ark_bls12_377::G2Projective
+    );
 }
