@@ -1,7 +1,9 @@
 use core::borrow::Borrow;
 
+use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
 use ark_ec::bls12::Bls12;
 use ark_ec::pairing::Pairing;
+use ark_ec::{CurveConfig, CurveGroup};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::groups::CurveVar;
@@ -9,7 +11,7 @@ use ark_r1cs_std::pairing::bls12;
 use ark_r1cs_std::prelude::{Boolean, PairingVar};
 use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::One;
 
 // Assuming BLS-specific types
@@ -19,22 +21,26 @@ use ark_bls12_381::{
 };
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
 
+use crate::bls::{HashCurveGroup, HashCurveVar};
+use crate::hash::hash_to_curve::MapToCurveBasedHasherGadget;
+use crate::hash::hash_to_field::default_hasher::DefaultFieldHasherGadget;
+use crate::hash::map_to_curve::wb::WBMapGadget;
+
 use super::params::BaseField;
-use super::{Parameters, PublicKey, Signature, TargetField};
+use super::{BLSSigCurveConfig, Parameters, PublicKey, Signature, TargetField};
 
 macro_rules! fp_var {
     // For experimentation: checking whether R1CS circuit is satisfied
-    // ($type_a:ty, $type_b:ty) => {
-    //     ark_r1cs_std::fields::fp::FpVarFpVar::<$type_a>
-    // };
+    ($type_a:ty, $type_b:ty) => {
+        ark_r1cs_std::fields::fp::FpVar::<$type_a>
+    };
     ($type_a:ty, $type_b:ty) => {
         ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
     };
 }
 
-type CurveConfig = ark_bls12_381::Config;
-type G1Gadget = G1Var<CurveConfig, fp_var!(TargetField, BaseField), BaseField>;
-type G2Gadget = G2Var<CurveConfig, fp_var!(TargetField, BaseField), BaseField>;
+type G1Gadget = G1Var<BLSSigCurveConfig, fp_var!(TargetField, BaseField), BaseField>;
+type G2Gadget = G2Var<BLSSigCurveConfig, fp_var!(TargetField, BaseField), BaseField>;
 
 #[derive(Clone)]
 pub struct ParametersVar {
@@ -64,19 +70,19 @@ impl BLSAggregateSignatureVerifyGadget {
         let cs = parameters.g1_generator.cs();
 
         // Hash the message into the curve point (this requires using a hash-to-curve function)
-        let hash_to_curve = Self::hash_to_curve(cs.clone(), message, &parameters.g2_generator)?;
+        let hash_to_curve = Self::hash_to_curve(message)?;
 
         // an optimised way to check two pairings are equal
         let prod =
             bls12::PairingVar::product_of_pairings(
                 &[
                     G1PreparedVar::<
-                        CurveConfig,
+                        BLSSigCurveConfig,
                         fp_var!(TargetField, BaseField),
                         BaseField,
                     >::from_group_var(&parameters.g1_generator.negate()?)?,
                     G1PreparedVar::<
-                        CurveConfig,
+                        BLSSigCurveConfig,
                         fp_var!(TargetField, BaseField),
                         BaseField,
                     >::from_group_var(&pk.pub_key)?,
@@ -88,12 +94,12 @@ impl BLSAggregateSignatureVerifyGadget {
             )?;
 
         prod.is_eq(&<bls12::PairingVar<
-            CurveConfig,
+            BLSSigCurveConfig,
             fp_var!(TargetField, BaseField),
             BaseField,
-        > as PairingVar<Bls12<CurveConfig>, BaseField>>::GTVar::new_constant(
+        > as PairingVar<Bls12<BLSSigCurveConfig>, BaseField>>::GTVar::new_constant(
             cs,
-            <Bls12<CurveConfig> as Pairing>::TargetField::one(),
+            <Bls12<BLSSigCurveConfig> as Pairing>::TargetField::one(),
         )?)?
         .enforce_equal(&Boolean::TRUE)?;
 
@@ -106,16 +112,14 @@ impl BLSAggregateSignatureVerifyGadget {
         message: &[UInt8<BaseField>],
         signature: &SignatureVar,
     ) -> Result<(), SynthesisError> {
-        let cs = parameters.g1_generator.cs();
-
-        // Hash the message into the curve point (this requires using a hash-to-curve function)
-        let hash_to_curve = Self::hash_to_curve(cs, message, &parameters.g2_generator)?;
+        // Hash the message into the curve point
+        let hash_to_curve = Self::hash_to_curve(message)?;
 
         // Verify e(signature, G) == e(aggregated_pk, H(m))
         let signature_paired =
             bls12::PairingVar::pairing(
                 G1PreparedVar::<
-                    CurveConfig,
+                    BLSSigCurveConfig,
                     fp_var!(TargetField, BaseField),
                     BaseField,
                 >::from_group_var(&parameters.g1_generator)?,
@@ -124,7 +128,7 @@ impl BLSAggregateSignatureVerifyGadget {
         let aggregated_pk_paired =
             bls12::PairingVar::pairing(
                 G1PreparedVar::<
-                    CurveConfig,
+                    BLSSigCurveConfig,
                     fp_var!(TargetField, BaseField),
                     BaseField,
                 >::from_group_var(&pk.pub_key)?,
@@ -161,18 +165,28 @@ impl BLSAggregateSignatureVerifyGadget {
         Self::verify(parameters, &aggregated_pk, message, signature)
     }
 
-    fn hash_to_curve(
-        cs: ConstraintSystemRef<BaseField>,
-        _: &[UInt8<BaseField>],
-        _: &G2Gadget,
-    ) -> Result<G2Gadget, SynthesisError> {
-        // TODO: this is a placeholder for a valid hash-to-curve implementation such as BLS-specific hashing defined in the IETF spec.
-        let hash = G2Gadget::new_variable(
-            cs,
-            || Ok(G2Affine::new(G2_GENERATOR_X, G2_GENERATOR_Y)),
-            AllocationMode::Witness,
-        )?;
-        Ok(hash)
+    fn hash_to_curve(msg: &[UInt8<BaseField>]) -> Result<G2Gadget, SynthesisError> {
+        type HashGroupBaseField =
+            <<HashCurveGroup as CurveGroup>::Config as CurveConfig>::BaseField;
+
+        type FieldHasherGadget = DefaultFieldHasherGadget<
+            Blake2sGadget<BaseField>,
+            HashGroupBaseField,
+            BaseField,
+            HashCurveVar<fp_var!(TargetField, BaseField), BaseField>,
+            128,
+        >;
+        type CurveMapGadget = WBMapGadget<<HashCurveGroup as CurveGroup>::Config>;
+        type HasherGadget = MapToCurveBasedHasherGadget<
+            HashCurveGroup,
+            FieldHasherGadget,
+            CurveMapGadget,
+            BaseField,
+            HashCurveVar<fp_var!(TargetField, BaseField), BaseField>,
+        >;
+
+        let hasher_gadget = HasherGadget::new(&[]);
+        hasher_gadget.hash(&msg)
     }
 }
 

@@ -4,7 +4,7 @@ use ark_ec::{short_weierstrass::SWCurveConfig, CurveGroup};
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
     fields::{FieldOpsBounds, FieldVar},
-    groups::curves::short_weierstrass::{AffineVar, ProjectiveVar},
+    groups::curves::short_weierstrass::ProjectiveVar,
     uint8::UInt8,
 };
 use ark_relations::r1cs::SynthesisError;
@@ -38,7 +38,7 @@ where
     for<'a> &'a FP: FieldOpsBounds<'a, <T as CurveGroup>::BaseField, FP>,
     <T as CurveGroup>::Config: SWCurveConfig,
 {
-    fn new(domain: &[UInt8<CF>]) -> Self {
+    pub fn new(domain: &[UInt8<CF>]) -> Self {
         Self {
             field_hasher: H2F::new(domain),
             _phantom: PhantomData,
@@ -49,7 +49,10 @@ where
     /// traits. This uses the IETF hash to curve's specification for Random
     /// oracle encoding (hash_to_curve) defined by combining these components.
     /// See <https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-09#section-3>
-    fn hash(&self, msg: &[UInt8<CF>]) -> Result<AffineVar<T::Config, FP, CF>, SynthesisError>
+    pub fn hash(
+        &self,
+        msg: &[UInt8<CF>],
+    ) -> Result<ProjectiveVar<T::Config, FP, CF>, SynthesisError>
     where
         <T as CurveGroup>::Config: SWCurveConfig,
         for<'a> &'a FP: FieldOpsBounds<'a, <T as CurveGroup>::BaseField, FP>,
@@ -93,9 +96,7 @@ where
         // `ark-bls12-381-0.5.0/src/curves/g2.rs`.
         //
         // rand_subgroup_elem.clear_cofactor()
-        let rand_subgroup_elem = T::clear_cofactor_var(&rand_curve_elem)?;
-
-        rand_subgroup_elem.to_affine()
+        T::clear_cofactor_var(&rand_curve_elem)
     }
 }
 
@@ -107,12 +108,7 @@ mod test {
         CurveConfig, CurveGroup,
     };
     use ark_ff::{field_hashers::DefaultFieldHasher, Field};
-    use ark_r1cs_std::{
-        alloc::AllocVar,
-        fields::{fp::FpVar, fp2::Fp2Var},
-        uint8::UInt8,
-        R1CSVar,
-    };
+    use ark_r1cs_std::{alloc::AllocVar, fields::fp2::Fp2Var, uint8::UInt8, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
     use blake2::Blake2s256;
     use rand::{thread_rng, RngCore};

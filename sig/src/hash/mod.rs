@@ -1,3 +1,3 @@
-mod hash_to_curve;
-mod hash_to_field;
-mod map_to_curve;
+pub mod hash_to_curve;
+pub mod hash_to_field;
+pub mod map_to_curve;

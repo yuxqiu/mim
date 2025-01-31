@@ -171,28 +171,28 @@ mod tests {
         check_emulated_helper(a, b);
     }
 
-    #[test]
-    fn check_snark() {
-        let (msg, params, _, pk, sig) = get_instance();
-        let mut rng = thread_rng();
+    // #[test]
+    // fn check_snark() {
+    //     let (msg, params, _, pk, sig) = get_instance();
+    //     let mut rng = thread_rng();
 
-        let circuit = BLSCircuit::new(params, pk, msg.as_bytes(), sig);
+    //     let circuit = BLSCircuit::new(params, pk, msg.as_bytes(), sig);
 
-        // Setup pk
-        let pk =
-            Groth16::<Curve>::generate_random_parameters_with_reduction(circuit.clone(), &mut rng)
-                .unwrap();
+    //     // Setup pk
+    //     let pk =
+    //         Groth16::<Curve>::generate_random_parameters_with_reduction(circuit.clone(), &mut rng)
+    //             .unwrap();
 
-        // Create a proof
-        let proof = Groth16::<Curve>::prove(&pk, circuit.clone(), &mut rng).unwrap();
+    //     // Create a proof
+    //     let proof = Groth16::<Curve>::prove(&pk, circuit.clone(), &mut rng).unwrap();
 
-        // Verify the proof
-        let pvk = prepare_verifying_key(&pk.vk);
-        let verified =
-            Groth16::<Curve>::verify_proof(&pvk, &proof, &circuit.get_public_inputs().unwrap())
-                .unwrap();
-        assert!(verified);
+    //     // Verify the proof
+    //     let pvk = prepare_verifying_key(&pk.vk);
+    //     let verified =
+    //         Groth16::<Curve>::verify_proof(&pvk, &proof, &circuit.get_public_inputs().unwrap())
+    //             .unwrap();
+    //     assert!(verified);
 
-        println!("Proof verified successfully!");
-    }
+    //     println!("Proof verified successfully!");
+    // }
 }

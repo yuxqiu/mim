@@ -8,7 +8,7 @@ use ark_std::vec::Vec;
 pub trait PRFGadget<F: Field> {
     type OutputVar: EqGadget<F> + ToBytesGadget<F> + Clone + Debug;
 
-    // total output size in bytes
+    // output size of the hash function in bytes
     const OUTPUT_SIZE: usize;
 
     fn update(&mut self, input: &[UInt8<F>]) -> Result<(), SynthesisError>;

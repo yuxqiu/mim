@@ -74,12 +74,7 @@ impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
                 .collect::<Vec<_>>(),
         )?;
         hasher.update(msg)?;
-        hasher.update(
-            &lib_str
-                .iter()
-                .map(|b| UInt8::constant(*b))
-                .collect::<Vec<_>>(),
-        )?;
+        hasher.update(&lib_str.map(|b| UInt8::constant(b)))?;
         hasher.update(&[UInt8::constant(0u8)])?;
         hasher.update(&dst_prime_data)?;
         let b0 = hasher.finalize()?.to_bytes_le()?;

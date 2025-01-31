@@ -3,7 +3,7 @@ use core::ops::Mul;
 use ark_bls12_381::{
     g1::{G1_GENERATOR_X, G1_GENERATOR_Y},
     g2::{G2_GENERATOR_X, G2_GENERATOR_Y},
-    Fr, G1Affine, G1Projective, G2Affine, G2Projective,
+    Fr, G1Affine, G2Affine,
 };
 use ark_ec::{
     bls12,
@@ -14,8 +14,9 @@ use ark_ff::{field_hashers::DefaultFieldHasher, AdditiveGroup, UniformRand};
 use ark_std::rand::Rng;
 use blake2::Blake2s256;
 
-type G1 = G1Projective;
-type G2 = G2Projective;
+use crate::bls::{HashCurveConfig, HashCurveGroup};
+
+use super::{G1, G2};
 
 #[derive(Clone)]
 pub struct Parameters {
@@ -39,7 +40,8 @@ pub struct Signature {
 }
 
 impl Parameters {
-    #[must_use] pub fn setup() -> Self {
+    #[must_use]
+    pub fn setup() -> Self {
         Self {
             g1_generator: G1Affine::new_unchecked(G1_GENERATOR_X, G1_GENERATOR_Y).into(),
             g2_generator: G2Affine::new_unchecked(G2_GENERATOR_X, G2_GENERATOR_Y).into(),
@@ -48,7 +50,8 @@ impl Parameters {
 }
 
 impl PublicKey {
-    #[must_use] pub fn new(secret_key: &SecretKey, params: &Parameters) -> Self {
+    #[must_use]
+    pub fn new(secret_key: &SecretKey, params: &Parameters) -> Self {
         let pub_key = params.g1_generator.mul(secret_key.secret_key);
         Self { pub_key }
     }
@@ -65,24 +68,23 @@ impl Signature {
     fn hash_to_curve(message: &[u8]) -> G2 {
         // safety
         type FieldHasher = DefaultFieldHasher<Blake2s256, 128>;
-        type CurveMap = WBMap<ark_bls12_381::g2::Config>;
-        let hasher: MapToCurveBasedHasher<G2Projective, FieldHasher, CurveMap> =
+        type CurveMap = WBMap<HashCurveConfig>;
+        let hasher: MapToCurveBasedHasher<HashCurveGroup, FieldHasher, CurveMap> =
             MapToCurveBasedHasher::new(&[]).unwrap();
-        let _hashed_message: G2Affine = hasher.hash(message).unwrap();
+        let hashed_message = hasher.hash(message).unwrap();
 
-        // hashed_message.into()
-
-        // For Testing Purpose
-        G2Affine::new(G2_GENERATOR_X, G2_GENERATOR_Y).into()
+        hashed_message.into()
     }
 
-    #[must_use] pub fn sign(message: &[u8], secret_key: &SecretKey, _: &Parameters) -> Self {
+    #[must_use]
+    pub fn sign(message: &[u8], secret_key: &SecretKey, _: &Parameters) -> Self {
         let hashed_message = Self::hash_to_curve(message);
         let signature = hashed_message.mul(secret_key.secret_key);
         Self { signature }
     }
 
-    #[must_use] pub fn aggregate_sign(
+    #[must_use]
+    pub fn aggregate_sign(
         message: &[u8],
         secret_keys: &[SecretKey],
         params: &Parameters,
@@ -105,9 +107,7 @@ impl Signature {
         Some(Signature::sign(message, &sk, params))
         */
 
-        let mut sigs = secret_keys
-            .iter()
-            .map(|sk| Self::sign(message, sk, params));
+        let mut sigs = secret_keys.iter().map(|sk| Self::sign(message, sk, params));
         let first_sig = sigs.next()?;
 
         Some(sigs.fold(first_sig, |acc, new_sig| Self {
@@ -115,7 +115,8 @@ impl Signature {
         }))
     }
 
-    #[must_use] pub fn verify_slow(
+    #[must_use]
+    pub fn verify_slow(
         message: &[u8],
         signature: &Self,
         public_key: &PublicKey,
@@ -136,7 +137,8 @@ impl Signature {
         pairing_1 == pairing_2
     }
 
-    #[must_use] pub fn verify(
+    #[must_use]
+    pub fn verify(
         message: &[u8],
         signature: &Self,
         public_key: &PublicKey,
@@ -157,7 +159,8 @@ impl Signature {
         prod == PairingOutput::ZERO
     }
 
-    #[must_use] pub fn aggregate_verify(
+    #[must_use]
+    pub fn aggregate_verify(
         message: &[u8],
         aggregate_signature: &Self,
         public_keys: &[PublicKey],
@@ -174,11 +177,6 @@ impl Signature {
                 pub_key: acc.pub_key + new_pk.pub_key,
             });
 
-        Some(Self::verify_slow(
-            message,
-            aggregate_signature,
-            &pk,
-            params,
-        ))
+        Some(Self::verify_slow(message, aggregate_signature, &pk, params))
     }
 }
