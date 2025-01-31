@@ -31,9 +31,9 @@ use super::{BLSSigCurveConfig, Parameters, PublicKey, Signature, TargetField};
 
 macro_rules! fp_var {
     // For experimentation: checking whether R1CS circuit is satisfied
-    ($type_a:ty, $type_b:ty) => {
-        ark_r1cs_std::fields::fp::FpVar::<$type_a>
-    };
+    // ($type_a:ty, $type_b:ty) => {
+    //     ark_r1cs_std::fields::fp::FpVar::<$type_a>
+    // };
     ($type_a:ty, $type_b:ty) => {
         ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
     };

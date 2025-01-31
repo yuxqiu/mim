@@ -38,7 +38,7 @@ where
     for<'a> &'a FP: FieldOpsBounds<'a, <T as CurveGroup>::BaseField, FP>,
     <T as CurveGroup>::Config: SWCurveConfig,
 {
-    pub fn new(domain: &[UInt8<CF>]) -> Self {
+    #[must_use] pub fn new(domain: &[UInt8<CF>]) -> Self {
         Self {
             field_hasher: H2F::new(domain),
             _phantom: PhantomData,
