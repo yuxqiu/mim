@@ -4,6 +4,7 @@ use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
 use ark_ec::bls12::Bls12;
 use ark_ec::pairing::Pairing;
 use ark_ec::{CurveConfig, CurveGroup};
+use ark_ff::Field;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::groups::CurveVar;
@@ -12,7 +13,6 @@ use ark_r1cs_std::prelude::{Boolean, PairingVar};
 use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
-use ark_std::One;
 
 // Assuming BLS-specific types
 use ark_bls12_381::{
@@ -99,7 +99,7 @@ impl BLSAggregateSignatureVerifyGadget {
             BaseField,
         > as PairingVar<Bls12<BLSSigCurveConfig>, BaseField>>::GTVar::new_constant(
             cs,
-            <Bls12<BLSSigCurveConfig> as Pairing>::TargetField::one(),
+            <<Bls12<BLSSigCurveConfig> as Pairing>::TargetField as Field>::ONE,
         )?)?
         .enforce_equal(&Boolean::TRUE)?;
 

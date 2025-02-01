@@ -209,7 +209,7 @@ mod test {
         fields::{fp::FpVar, quadratic_extension::QuadExtVar},
         groups::{curves::short_weierstrass::ProjectiveVar, CurveVar},
     };
-    use rand::Rng;
+    use rand::{thread_rng, Rng};
 
     use crate::hash::hash_to_curve::cofactor::bls12_381::{
         double_p_power_endomorphism_var, p_power_endomorphism_var,
@@ -276,7 +276,7 @@ mod test {
     }
 
     fn sample_unchecked() -> Affine<ark_bls12_381::g2::Config> {
-        let mut rng = ark_std::test_rng();
+        let mut rng = thread_rng();
 
         loop {
             let x1 = Fq::rand(&mut rng);

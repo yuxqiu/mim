@@ -1,5 +1,7 @@
 mod cofactor;
 
+use std::marker::PhantomData;
+
 use ark_ec::{short_weierstrass::SWCurveConfig, CurveGroup};
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
@@ -8,7 +10,6 @@ use ark_r1cs_std::{
     uint8::UInt8,
 };
 use ark_relations::r1cs::SynthesisError;
-use ark_std::marker::PhantomData;
 
 use super::{hash_to_field::HashToFieldGadget, map_to_curve::MapToCurveGadget};
 use cofactor::CofactorGadget;
@@ -38,7 +39,8 @@ where
     for<'a> &'a FP: FieldOpsBounds<'a, <T as CurveGroup>::BaseField, FP>,
     <T as CurveGroup>::Config: SWCurveConfig,
 {
-    #[must_use] pub fn new(domain: &[UInt8<CF>]) -> Self {
+    #[must_use]
+    pub fn new(domain: &[UInt8<CF>]) -> Self {
         Self {
             field_hasher: H2F::new(domain),
             _phantom: PhantomData,

@@ -165,15 +165,13 @@ where
 mod test {
     use ark_bls12_381::{Fq2Config, Fr};
     use ark_bw6_761::Fq3Config;
-    use ark_ff::{Field, Fp2, Fp3, UniformRand};
+    use ark_ff::{Field, Fp2, Fp3, UniformRand, Zero};
     use ark_r1cs_std::{
         alloc::AllocVar,
         fields::{fp::FpVar, fp2::Fp2Var, fp3::Fp3Var, FieldVar},
         R1CSVar,
     };
     use ark_relations::r1cs::ConstraintSystem;
-    use ark_std::One;
-    use ark_std::Zero;
     use rand::thread_rng;
 
     use super::SqrtGadget;
@@ -187,10 +185,10 @@ mod test {
 
                     {
                         // test zero
-                        let zero = <$field>::zero();
+                        let zero = <$field as Zero>::zero();
                         let zero_var = <$field_var>::constant(zero);
                         let legendre = zero.legendre().is_qr();
-                        let sqrt_zero = zero.sqrt().unwrap_or(<$field>::zero());
+                        let sqrt_zero = zero.sqrt().unwrap_or(<$field as Zero>::zero());
                         let (legendre_var, sqrt_zero_var) = zero_var.sqrt().unwrap();
                         assert_eq!(legendre_var.value().unwrap(), legendre);
                         assert!(legendre_var.is_constant());
@@ -200,10 +198,10 @@ mod test {
 
                     {
                         // test one
-                        let one = <$field>::one();
+                        let one = <$field as Field>::ONE;
                         let one_var = <$field_var>::constant(one);
                         let legendre = one.legendre().is_qr();
-                        let sqrt_one = one.sqrt().unwrap_or(<$field>::zero());
+                        let sqrt_one = one.sqrt().unwrap_or(<$field as Zero>::zero());
                         let (legendre_var, sqrt_one_var) = one_var.sqrt().unwrap();
                         assert_eq!(legendre_var.value().unwrap(), legendre);
                         assert!(legendre_var.is_constant());
@@ -216,7 +214,7 @@ mod test {
                         let r = <$field>::rand(&mut rng);
                         let r_var = <$field_var>::constant(r);
                         let legendre = r.legendre().is_qr();
-                        let sqrt_one = r.sqrt().unwrap_or(<$field>::zero());
+                        let sqrt_one = r.sqrt().unwrap_or(<$field as Zero>::zero());
                         let (legendre_var, sqrt_one_var) = r_var.sqrt().unwrap();
                         assert_eq!(legendre_var.value().unwrap(), legendre);
                         assert!(legendre_var.is_constant());
@@ -231,10 +229,10 @@ mod test {
                     {
                         // test zero
                         let cs = ConstraintSystem::new_ref();
-                        let zero = <$field>::zero();
+                        let zero = <$field as Zero>::zero();
                         let zero_var = <$field_var>::new_input(cs.clone(), || Ok(zero)).unwrap();
                         let legendre = zero.legendre().is_qr();
-                        let sqrt_zero = zero.sqrt().unwrap_or(<$field>::zero());
+                        let sqrt_zero = zero.sqrt().unwrap_or(<$field as Zero>::zero());
                         let (legendre_var, sqrt_zero_var) = zero_var.sqrt().unwrap();
                         assert_eq!(legendre_var.value().unwrap(), legendre);
                         assert_eq!(sqrt_zero_var.value().unwrap(), sqrt_zero);
@@ -244,10 +242,10 @@ mod test {
                     {
                         // test one
                         let cs = ConstraintSystem::new_ref();
-                        let one = <$field>::one();
+                        let one = <$field as Field>::ONE;
                         let one_var = <$field_var>::new_input(cs.clone(), || Ok(one)).unwrap();
                         let legendre = one.legendre().is_qr();
-                        let sqrt_one = one.sqrt().unwrap_or(<$field>::zero());
+                        let sqrt_one = one.sqrt().unwrap_or(<$field as Zero>::zero());
                         let (legendre_var, sqrt_one_var) = one_var.sqrt().unwrap();
                         assert_eq!(legendre_var.value().unwrap(), legendre);
                         assert_eq!(sqrt_one_var.value().unwrap(), sqrt_one);
@@ -260,7 +258,7 @@ mod test {
                         let r = <$field>::rand(&mut rng);
                         let r_var = <$field_var>::new_input(cs.clone(), || Ok(r)).unwrap();
                         let legendre = r.legendre().is_qr();
-                        let sqrt_one = r.sqrt().unwrap_or(<$field>::zero());
+                        let sqrt_one = r.sqrt().unwrap_or(<$field as Zero>::zero());
                         let (legendre_var, sqrt_one_var) = r_var.sqrt().unwrap();
                         assert_eq!(legendre_var.value().unwrap(), legendre);
                         assert_eq!(sqrt_one_var.value().unwrap(), sqrt_one);

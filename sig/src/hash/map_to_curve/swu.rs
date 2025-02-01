@@ -181,15 +181,13 @@ mod test {
         curve_maps::{parity, swu::SWUMap, wb::WBConfig},
         map_to_curve_hasher::MapToCurve,
     };
-    use ark_ff::{Fp2, Fp3, UniformRand};
+    use ark_ff::{Field, Fp2, Fp3, UniformRand, Zero};
     use ark_r1cs_std::{
         alloc::AllocVar,
         fields::{emulated_fp::EmulatedFpVar, fp::FpVar, fp2::Fp2Var, fp3::Fp3Var, FieldVar},
         R1CSVar,
     };
     use ark_relations::r1cs::ConstraintSystem;
-    use ark_std::One;
-    use ark_std::Zero;
     use rand::thread_rng;
 
     use crate::hash::map_to_curve::{swu::SWUMapGadget, MapToCurveGadget};
@@ -205,7 +203,7 @@ mod test {
 
                     {
                         // test zero
-                        let zero = <$field>::zero();
+                        let zero = <$field as Zero>::zero();
                         let zero_var = <$field_var>::constant(zero);
                         let parity_zero = parity(&zero);
                         let parity_zero_var = parity_var(&zero_var).unwrap();
@@ -215,7 +213,7 @@ mod test {
 
                     {
                         // test one
-                        let one = <$field>::one();
+                        let one = <$field as Field>::ONE;
                         let one_var = <$field_var>::constant(one);
                         let parity_one = parity(&one);
                         let parity_one_var = parity_var(&one_var).unwrap();
@@ -239,7 +237,7 @@ mod test {
                     {
                         // test zero
                         let cs = ConstraintSystem::new_ref();
-                        let zero = <$field>::zero();
+                        let zero = <$field as Zero>::zero();
                         let zero_var = <$field_var>::new_input(cs.clone(), || Ok(zero)).unwrap();
                         let parity_zero = parity(&zero);
                         let parity_zero_var = parity_var(&zero_var).unwrap();
@@ -250,7 +248,7 @@ mod test {
                     {
                         // test one
                         let cs = ConstraintSystem::new_ref();
-                        let one = <$field>::one();
+                        let one = <$field as Field>::ONE;
                         let one_var = <$field_var>::new_input(cs.clone(), || Ok(one)).unwrap();
                         let parity_one = parity(&one);
                         let parity_one_var = parity_var(&one_var).unwrap();
@@ -289,7 +287,7 @@ mod test {
 
                     {
                         // test zero
-                        let zero = <$field>::zero();
+                        let zero = <$field as Zero>::zero();
                         let zero_var = <$field_var>::constant(zero);
                         let swu_zero = SWUMap::<$curve>::map_to_curve(zero).unwrap();
                         let swu_zero_var = SWUMapGadget::<$curve>::map_to_curve(zero_var).unwrap();
@@ -300,7 +298,7 @@ mod test {
 
                     {
                         // test one
-                        let one = <$field>::one();
+                        let one = <$field as Field>::ONE;
                         let one_var = <$field_var>::constant(one);
                         let swu_one = SWUMap::<$curve>::map_to_curve(one).unwrap();
                         let swu_one_var = SWUMapGadget::<$curve>::map_to_curve(one_var).unwrap();
@@ -327,7 +325,7 @@ mod test {
                     {
                         // test zero
                         let cs = ConstraintSystem::new_ref();
-                        let zero = <$field>::zero();
+                        let zero = <$field as Zero>::zero();
                         let zero_var = <$field_var>::new_input(cs.clone(), || Ok(zero)).unwrap();
                         let swu_zero = SWUMap::<$curve>::map_to_curve(zero).unwrap();
                         let swu_zero_var = SWUMapGadget::<$curve>::map_to_curve(zero_var).unwrap();
@@ -338,7 +336,7 @@ mod test {
                     {
                         // test one
                         let cs = ConstraintSystem::new_ref();
-                        let one = <$field>::one();
+                        let one = <$field as Field>::ONE;
                         let one_var = <$field_var>::new_input(cs.clone(), || Ok(one)).unwrap();
                         let swu_one = SWUMap::<$curve>::map_to_curve(one).unwrap();
                         let swu_one_var = SWUMapGadget::<$curve>::map_to_curve(one_var).unwrap();
