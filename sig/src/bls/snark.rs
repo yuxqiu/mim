@@ -4,7 +4,7 @@ use ark_relations::r1cs::{
 };
 
 use super::{
-    BLSAggregateSignatureVerifyGadget, BaseField, Parameters, ParametersVar, PublicKey,
+    BLSAggregateSignatureVerifyGadget, BaseSNARKField, Parameters, ParametersVar, PublicKey,
     PublicKeyVar, Signature, SignatureVar,
 };
 
@@ -27,11 +27,11 @@ impl<'a> BLSCircuit<'a> {
         }
     }
 
-    pub fn get_public_inputs(&self) -> Result<Vec<BaseField>, SynthesisError> {
+    pub fn get_public_inputs(&self) -> Result<Vec<BaseSNARKField>, SynthesisError> {
         // inefficient as we recomputed public input here
         let cs = ConstraintSystem::new_ref();
 
-        let _: Vec<UInt8<BaseField>> = self
+        let _: Vec<UInt8<BaseSNARKField>> = self
             .msg
             .iter()
             .map(|b| UInt8::new_input(cs.clone(), || Ok(b)))
@@ -48,12 +48,12 @@ impl<'a> BLSCircuit<'a> {
 }
 
 // impl this trait so that SNARK can operate on this circuit
-impl<'a> ConstraintSynthesizer<BaseField> for BLSCircuit<'a> {
+impl<'a> ConstraintSynthesizer<BaseSNARKField> for BLSCircuit<'a> {
     fn generate_constraints(
         self,
-        cs: ConstraintSystemRef<BaseField>,
+        cs: ConstraintSystemRef<BaseSNARKField>,
     ) -> Result<(), SynthesisError> {
-        let msg_var: Vec<UInt8<BaseField>> = self
+        let msg_var: Vec<UInt8<BaseSNARKField>> = self
             .msg
             .iter()
             .map(|b| UInt8::new_input(cs.clone(), || Ok(b)).unwrap())

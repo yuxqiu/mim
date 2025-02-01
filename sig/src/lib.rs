@@ -21,8 +21,8 @@ mod tests {
     use ark_relations::r1cs::ConstraintSystem;
     use ark_snark::SNARK;
     use bls::{
-        BLSAggregateSignatureVerifyGadget, BLSCircuit, BaseField, Parameters, ParametersVar,
-        PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar, TargetField,
+        BLSAggregateSignatureVerifyGadget, BLSCircuit, BaseSNARKField, Parameters, ParametersVar,
+        PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar, BaseSigCurveField,
     };
     use rand::{thread_rng, Rng};
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
@@ -103,7 +103,7 @@ mod tests {
         let cs = ConstraintSystem::new_ref();
         let (msg, params, _, pk, sig) = get_instance();
 
-        let msg_var: Vec<UInt8<BaseField>> = msg
+        let msg_var: Vec<UInt8<BaseSNARKField>> = msg
             .as_bytes()
             .iter()
             .map(|b| UInt8::new_input(cs.clone(), || Ok(b)).unwrap())
@@ -125,7 +125,7 @@ mod tests {
     fn check_emulated_helper(a: [u64; 6], b: [u64; 6]) {
         let cs = ConstraintSystem::new_ref();
 
-        let av: FpVar<TargetField> =
+        let av: FpVar<BaseSigCurveField> =
             FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(a))).unwrap();
         let bv = FpVar::new_constant(cs, Fp::new(BigInt::new(b))).unwrap();
         let cv = av * bv;
@@ -135,13 +135,13 @@ mod tests {
         let a = BigInt::new(a);
         let b = BigInt::new(b);
 
-        let v1: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+        let v1: EmulatedFpVar<BaseSigCurveField, BaseSNARKField> = EmulatedFpVar::Var(
             AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(a))).unwrap(),
         );
-        let v2: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+        let v2: EmulatedFpVar<BaseSigCurveField, BaseSNARKField> = EmulatedFpVar::Var(
             AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(b))).unwrap(),
         );
-        let v3: EmulatedFpVar<TargetField, BaseField> = EmulatedFpVar::Var(
+        let v3: EmulatedFpVar<BaseSigCurveField, BaseSNARKField> = EmulatedFpVar::Var(
             AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(c))).unwrap(),
         );
 
@@ -232,7 +232,7 @@ mod tests {
         let cs = ConstraintSystem::new_ref();
         let (msg, params, _, pk, sig) = get_instance();
 
-        let msg_var: Vec<UInt8<BaseField>> = msg
+        let msg_var: Vec<UInt8<BaseSNARKField>> = msg
             .as_bytes()
             .iter()
             .map(|b| UInt8::new_input(cs.clone(), || Ok(b)).unwrap())

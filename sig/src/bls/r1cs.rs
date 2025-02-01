@@ -14,11 +14,7 @@ use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 
-// Assuming BLS-specific types
-use ark_bls12_381::{
-    g1::G1_GENERATOR_X, g1::G1_GENERATOR_Y, g2::G2_GENERATOR_X, g2::G2_GENERATOR_Y, G1Affine,
-    G2Affine,
-};
+// Assuming the sig is running on BLS12 family of curves
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
 
 use crate::bls::{HashCurveGroup, HashCurveVar};
@@ -27,11 +23,13 @@ use crate::hash::hash_to_curve::MapToCurveBasedHasherGadget;
 use crate::hash::hash_to_field::default_hasher::DefaultFieldHasherGadget;
 use crate::hash::map_to_curve::wb::WBMapGadget;
 
-use super::params::BaseField;
-use super::{BLSSigCurveConfig, Parameters, PublicKey, Signature, TargetField};
+use super::params::BaseSNARKField;
+use super::{BLSSigCurveConfig, BaseSigCurveField, Parameters, PublicKey, Signature};
 
-type G1Gadget = G1Var<BLSSigCurveConfig, fp_var!(TargetField, BaseField), BaseField>;
-type G2Gadget = G2Var<BLSSigCurveConfig, fp_var!(TargetField, BaseField), BaseField>;
+type G1Gadget =
+    G1Var<BLSSigCurveConfig, fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>;
+type G2Gadget =
+    G2Var<BLSSigCurveConfig, fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>;
 
 #[derive(Clone)]
 pub struct ParametersVar {
@@ -56,7 +54,7 @@ impl BLSAggregateSignatureVerifyGadget {
     pub fn verify(
         parameters: &ParametersVar,
         pk: &PublicKeyVar,
-        message: &[UInt8<BaseField>],
+        message: &[UInt8<BaseSNARKField>],
         signature: &SignatureVar,
     ) -> Result<(), SynthesisError> {
         let cs = parameters.g1_generator.cs();
@@ -67,34 +65,35 @@ impl BLSAggregateSignatureVerifyGadget {
         let hash_to_curve = Self::hash_to_curve(message)?;
 
         // an optimised way to check two pairings are equal
-        let prod =
-            bls12::PairingVar::product_of_pairings(
-                &[
-                    G1PreparedVar::<
-                        BLSSigCurveConfig,
-                        fp_var!(TargetField, BaseField),
-                        BaseField,
-                    >::from_group_var(&parameters.g1_generator.negate()?)?,
-                    G1PreparedVar::<
-                        BLSSigCurveConfig,
-                        fp_var!(TargetField, BaseField),
-                        BaseField,
-                    >::from_group_var(&pk.pub_key)?,
-                ],
-                &[
-                    G2PreparedVar::from_group_var(&signature.signature)?,
-                    G2PreparedVar::from_group_var(&hash_to_curve)?,
-                ],
-            )?;
+        let prod = bls12::PairingVar::product_of_pairings(
+            &[
+                G1PreparedVar::<
+                    BLSSigCurveConfig,
+                    fp_var!(BaseSigCurveField, BaseSNARKField),
+                    BaseSNARKField,
+                >::from_group_var(&parameters.g1_generator.negate()?)?,
+                G1PreparedVar::<
+                    BLSSigCurveConfig,
+                    fp_var!(BaseSigCurveField, BaseSNARKField),
+                    BaseSNARKField,
+                >::from_group_var(&pk.pub_key)?,
+            ],
+            &[
+                G2PreparedVar::from_group_var(&signature.signature)?,
+                G2PreparedVar::from_group_var(&hash_to_curve)?,
+            ],
+        )?;
 
-        prod.is_eq(&<bls12::PairingVar<
-            BLSSigCurveConfig,
-            fp_var!(TargetField, BaseField),
-            BaseField,
-        > as PairingVar<Bls12<BLSSigCurveConfig>, BaseField>>::GTVar::new_constant(
-            cs.clone(),
-            <<Bls12<BLSSigCurveConfig> as Pairing>::TargetField as Field>::ONE,
-        )?)?
+        prod.is_eq(
+            &<bls12::PairingVar<
+                BLSSigCurveConfig,
+                fp_var!(BaseSigCurveField, BaseSNARKField),
+                BaseSNARKField,
+            > as PairingVar<Bls12<BLSSigCurveConfig>, BaseSNARKField>>::GTVar::new_constant(
+                cs.clone(),
+                <<Bls12<BLSSigCurveConfig> as Pairing>::TargetField as Field>::ONE,
+            )?,
+        )?
         .enforce_equal(&Boolean::TRUE)?;
 
         tracing::info!(num_constraints = cs.num_constraints());
@@ -105,31 +104,29 @@ impl BLSAggregateSignatureVerifyGadget {
     pub fn verify_slow(
         parameters: &ParametersVar,
         pk: &PublicKeyVar,
-        message: &[UInt8<BaseField>],
+        message: &[UInt8<BaseSNARKField>],
         signature: &SignatureVar,
     ) -> Result<(), SynthesisError> {
         // Hash the message into the curve point
         let hash_to_curve = Self::hash_to_curve(message)?;
 
         // Verify e(signature, G) == e(aggregated_pk, H(m))
-        let signature_paired =
-            bls12::PairingVar::pairing(
-                G1PreparedVar::<
-                    BLSSigCurveConfig,
-                    fp_var!(TargetField, BaseField),
-                    BaseField,
-                >::from_group_var(&parameters.g1_generator)?,
-                G2PreparedVar::from_group_var(&signature.signature)?,
-            )?;
-        let aggregated_pk_paired =
-            bls12::PairingVar::pairing(
-                G1PreparedVar::<
-                    BLSSigCurveConfig,
-                    fp_var!(TargetField, BaseField),
-                    BaseField,
-                >::from_group_var(&pk.pub_key)?,
-                G2PreparedVar::from_group_var(&hash_to_curve)?,
-            )?;
+        let signature_paired = bls12::PairingVar::pairing(
+            G1PreparedVar::<
+                BLSSigCurveConfig,
+                fp_var!(BaseSigCurveField, BaseSNARKField),
+                BaseSNARKField,
+            >::from_group_var(&parameters.g1_generator)?,
+            G2PreparedVar::from_group_var(&signature.signature)?,
+        )?;
+        let aggregated_pk_paired = bls12::PairingVar::pairing(
+            G1PreparedVar::<
+                BLSSigCurveConfig,
+                fp_var!(BaseSigCurveField, BaseSNARKField),
+                BaseSNARKField,
+            >::from_group_var(&pk.pub_key)?,
+            G2PreparedVar::from_group_var(&hash_to_curve)?,
+        )?;
 
         signature_paired
             .is_eq(&aggregated_pk_paired)?
@@ -145,7 +142,7 @@ impl BLSAggregateSignatureVerifyGadget {
     pub fn aggregate_verify(
         parameters: &ParametersVar,
         public_keys: &[PublicKeyVar],
-        message: &[UInt8<BaseField>],
+        message: &[UInt8<BaseSNARKField>],
         signature: &SignatureVar,
     ) -> Result<(), SynthesisError> {
         // Aggregate all public keys
@@ -162,15 +159,15 @@ impl BLSAggregateSignatureVerifyGadget {
     }
 
     #[tracing::instrument(skip_all)]
-    fn hash_to_curve(msg: &[UInt8<BaseField>]) -> Result<G2Gadget, SynthesisError> {
+    fn hash_to_curve(msg: &[UInt8<BaseSNARKField>]) -> Result<G2Gadget, SynthesisError> {
         type HashGroupBaseField =
             <<HashCurveGroup as CurveGroup>::Config as CurveConfig>::BaseField;
 
         type FieldHasherGadget = DefaultFieldHasherGadget<
-            Blake2sGadget<BaseField>,
+            Blake2sGadget<BaseSNARKField>,
             HashGroupBaseField,
-            BaseField,
-            HashCurveVar<fp_var!(TargetField, BaseField), BaseField>,
+            BaseSNARKField,
+            HashCurveVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
             128,
         >;
         type CurveMapGadget = WBMapGadget<<HashCurveGroup as CurveGroup>::Config>;
@@ -178,8 +175,8 @@ impl BLSAggregateSignatureVerifyGadget {
             HashCurveGroup,
             FieldHasherGadget,
             CurveMapGadget,
-            BaseField,
-            HashCurveVar<fp_var!(TargetField, BaseField), BaseField>,
+            BaseSNARKField,
+            HashCurveVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
         >;
 
         let cs = msg.cs();
@@ -194,9 +191,9 @@ impl BLSAggregateSignatureVerifyGadget {
     }
 }
 
-impl AllocVar<Signature, BaseField> for SignatureVar {
+impl AllocVar<Signature, BaseSNARKField> for SignatureVar {
     fn new_variable<T: Borrow<Signature>>(
-        cs: impl Into<Namespace<BaseField>>,
+        cs: impl Into<Namespace<BaseSNARKField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -207,9 +204,9 @@ impl AllocVar<Signature, BaseField> for SignatureVar {
     }
 }
 
-impl AllocVar<PublicKey, BaseField> for PublicKeyVar {
+impl AllocVar<PublicKey, BaseSNARKField> for PublicKeyVar {
     fn new_variable<T: Borrow<PublicKey>>(
-        cs: impl Into<Namespace<BaseField>>,
+        cs: impl Into<Namespace<BaseSNARKField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -220,23 +217,22 @@ impl AllocVar<PublicKey, BaseField> for PublicKeyVar {
     }
 }
 
-impl AllocVar<Parameters, BaseField> for ParametersVar {
+impl AllocVar<Parameters, BaseSNARKField> for ParametersVar {
     fn new_variable<T: Borrow<Parameters>>(
-        cs: impl Into<Namespace<BaseField>>,
+        cs: impl Into<Namespace<BaseSNARKField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let cs = cs.into();
-        let default_param = Parameters {
-            g1_generator: G1Affine::new_unchecked(G1_GENERATOR_X, G1_GENERATOR_Y).into(),
-            g2_generator: G2Affine::new_unchecked(G2_GENERATOR_X, G2_GENERATOR_Y).into(),
-        };
-        let value = f();
-        let param = value.as_ref().map(Borrow::borrow).unwrap_or(&default_param);
+        let value = f()?;
 
         Ok(Self {
-            g1_generator: G1Gadget::new_variable(cs.clone(), || Ok(param.g1_generator), mode)?,
-            g2_generator: G2Gadget::new_variable(cs, || Ok(param.g2_generator), mode)?,
+            g1_generator: G1Gadget::new_variable(
+                cs.clone(),
+                || Ok(value.borrow().g1_generator),
+                mode,
+            )?,
+            g2_generator: G2Gadget::new_variable(cs, || Ok(value.borrow().g2_generator), mode)?,
         })
     }
 }

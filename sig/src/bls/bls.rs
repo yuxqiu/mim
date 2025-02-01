@@ -1,12 +1,7 @@
 use core::ops::Mul;
 
-use ark_bls12_381::{
-    g1::{G1_GENERATOR_X, G1_GENERATOR_Y},
-    g2::{G2_GENERATOR_X, G2_GENERATOR_Y},
-    Fr, G1Affine, G2Affine,
-};
 use ark_ec::{
-    bls12,
+    bls12::{self},
     hashing::{curve_maps::wb::WBMap, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
     pairing::{Pairing, PairingOutput},
 };
@@ -16,7 +11,7 @@ use rand::Rng;
 
 use crate::bls::{HashCurveConfig, HashCurveGroup};
 
-use super::{G1, G2};
+use super::{BLSSigCurveConfig, SecretKeyScalarField, G1, G1_GENERATOR, G2, G2_GENERATOR};
 
 #[derive(Clone)]
 pub struct Parameters {
@@ -31,7 +26,7 @@ pub struct PublicKey {
 
 #[derive(Clone)]
 pub struct SecretKey {
-    pub secret_key: Fr,
+    pub secret_key: SecretKeyScalarField,
 }
 
 #[derive(Clone)]
@@ -43,8 +38,8 @@ impl Parameters {
     #[must_use]
     pub fn setup() -> Self {
         Self {
-            g1_generator: G1Affine::new_unchecked(G1_GENERATOR_X, G1_GENERATOR_Y).into(),
-            g2_generator: G2Affine::new_unchecked(G2_GENERATOR_X, G2_GENERATOR_Y).into(),
+            g1_generator: G1_GENERATOR,
+            g2_generator: G2_GENERATOR,
         }
     }
 }
@@ -59,7 +54,7 @@ impl PublicKey {
 
 impl SecretKey {
     pub fn new<R: Rng>(rng: &mut R) -> Self {
-        let secret_key = Fr::rand(rng);
+        let secret_key = SecretKeyScalarField::rand(rng);
         Self { secret_key }
     }
 }
@@ -125,14 +120,10 @@ impl Signature {
         let hashed_message = Self::hash_to_curve(message);
 
         // a naive way to check pairing equation: e(g1, sig) == e(pk, H(msg))
-        let pairing_1 = bls12::Bls12::<ark_bls12_381::Config>::pairing(
-            params.g1_generator,
-            signature.signature,
-        );
-        let pairing_2 = ark_ec::bls12::Bls12::<ark_bls12_381::Config>::pairing(
-            public_key.pub_key,
-            hashed_message,
-        );
+        let pairing_1 =
+            bls12::Bls12::<BLSSigCurveConfig>::pairing(params.g1_generator, signature.signature);
+        let pairing_2 =
+            ark_ec::bls12::Bls12::<BLSSigCurveConfig>::pairing(public_key.pub_key, hashed_message);
 
         pairing_1 == pairing_2
     }
@@ -151,7 +142,7 @@ impl Signature {
         // e'(g1, sig)^x == e'(pk, H(msg))^x (do miller loop for two sides without final exponentiation)
         // <=> check e'(g1, sig)^-x * e'(pk, H(msg))^x = 1
         // <=> check e'(-g1, sig)^x * e'(pk, H(msg))^x = 1
-        let prod = ark_ec::bls12::Bls12::<ark_bls12_381::Config>::multi_pairing(
+        let prod = ark_ec::bls12::Bls12::<BLSSigCurveConfig>::multi_pairing(
             [-params.g1_generator, public_key.pub_key],
             [signature.signature, hashed_message],
         );

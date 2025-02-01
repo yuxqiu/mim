@@ -1,12 +1,53 @@
-use ark_ec::{bls12::Bls12Config, short_weierstrass::Projective, CurveGroup};
+use ark_ec::{bls12::Bls12Config, short_weierstrass::Projective, CurveConfig, CurveGroup};
+use ark_ff::Field;
 use ark_r1cs_std::fields::fp2::Fp2Var;
 
-// which curve is underlying sig
-pub type BLSSigCurveConfig = ark_bls12_381::Config;
+/* ====================Signature Related==================== */
+// we can easily switch between `ark_bls12_377` and `ark_bls12_381`
+// all we need to do is to replace the following crate name accordingly
 
-// which type we run our SNARK on
-pub type BaseField = ark_bw6_761::Fr;
-// pub type BaseField = TargetField; // experimentation only
+use ark_bls12_381::{
+    g1::{G1_GENERATOR_X, G1_GENERATOR_Y},
+    g2::{G2_GENERATOR_X, G2_GENERATOR_Y},
+    Config, G1Projective, G2Projective,
+};
+
+// which curve the sig scheme runs on
+pub type BLSSigCurveConfig = Config;
+
+// which field the secret key uses
+pub type SecretKeyScalarField =
+    <<BLSSigCurveConfig as Bls12Config>::G1Config as CurveConfig>::ScalarField;
+
+// which base prime field the curve uses
+pub type BaseSigCurveField = <BLSSigCurveConfig as Bls12Config>::Fp;
+
+// G1 and G2 curve group
+pub type G1 = Projective<<BLSSigCurveConfig as Bls12Config>::G1Config>;
+pub type G2 = Projective<<BLSSigCurveConfig as Bls12Config>::G2Config>;
+
+// which curve and config that hash to curve runs on
+pub type HashCurveGroup = G2;
+pub type HashCurveConfig = <HashCurveGroup as CurveGroup>::Config;
+pub type HashCurveVar<F, CF> = Fp2Var<<BLSSigCurveConfig as Bls12Config>::Fp2Config, F, CF>;
+
+// curve generators
+pub static G1_GENERATOR: G1Projective = G1Projective::new_unchecked(
+    G1_GENERATOR_X,
+    G1_GENERATOR_Y,
+    <<G1 as CurveGroup>::BaseField as Field>::ONE,
+);
+pub static G2_GENERATOR: G2Projective = G2Projective::new_unchecked(
+    G2_GENERATOR_X,
+    G2_GENERATOR_Y,
+    <<G2 as CurveGroup>::BaseField as Field>::ONE,
+);
+/* ====================Signature Related==================== */
+
+/* ====================SNARK Related==================== */
+// which scalar field we run our SNARK on
+pub type BaseSNARKField = ark_bw6_761::Fr;
+// pub type BaseSNARKField = BaseSigCurveField; // experimentation only
 
 // which underlying FieldVar we use
 #[macro_export]
@@ -19,15 +60,4 @@ macro_rules! fp_var {
         ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
     };
 }
-
-// which base prime field the curve is running on
-pub type TargetField = <BLSSigCurveConfig as Bls12Config>::Fp;
-
-// G1 and G2 curve group
-pub type G1 = Projective<<BLSSigCurveConfig as Bls12Config>::G1Config>;
-pub type G2 = Projective<<BLSSigCurveConfig as Bls12Config>::G2Config>;
-
-// which curve and config that hash to curve operates on
-pub type HashCurveGroup = G2;
-pub type HashCurveConfig = <HashCurveGroup as CurveGroup>::Config;
-pub type HashCurveVar<F, CF> = Fp2Var<<BLSSigCurveConfig as Bls12Config>::Fp2Config, F, CF>;
+/* ====================SNARK Related==================== */
