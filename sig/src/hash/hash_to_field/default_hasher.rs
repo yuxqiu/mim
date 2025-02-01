@@ -6,7 +6,7 @@ use super::{
 };
 use ark_crypto_primitives::prf::PRFGadget;
 use ark_ff::{field_hashers::get_len_per_elem, Field, PrimeField};
-use ark_r1cs_std::{fields::FieldVar, prelude::ToBitsGadget, uint8::UInt8};
+use ark_r1cs_std::{fields::FieldVar, prelude::ToBitsGadget, uint8::UInt8, R1CSVar};
 use ark_relations::r1cs::SynthesisError;
 
 /// This struct implements R1CS equivalent of `DefaultFieldHasher`. It works as follow
@@ -55,7 +55,11 @@ impl<
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn hash_to_field<const N: usize>(&self, msg: &[UInt8<CF>]) -> Result<[FP; N], SynthesisError> {
+        let cs = msg.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         let m = usize::try_from(TF::extension_degree())
             .expect("extension degree should be able to store in usize");
 
@@ -80,7 +84,11 @@ impl<
 
         // can replace this with `array::try_from` once it becomes stable
         let f = |_| FP::from_base_prime_field_var(&mut base_field_var_iter);
-        array_util::try_from_fn::<Result<FP, SynthesisError>, N, _>(f)
+        let array = array_util::try_from_fn::<Result<FP, SynthesisError>, N, _>(f);
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        array
     }
 }
 

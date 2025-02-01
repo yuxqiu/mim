@@ -33,15 +33,23 @@ where
     /// Map random field point to a random curve point
     /// inspired from
     /// <https://github.com/zcash/pasta_curves/blob/main/src/hashtocurve.rs>
+    #[tracing::instrument(skip_all)]
     fn map_to_curve(
         element: FP,
     ) -> Result<AffineVar<<Projective<P> as CurveGroup>::Config, FP, CF>, SynthesisError> {
+        let cs = element.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         // first we need to map the field point to the isogenous curve
         let point_on_isogenious_curve =
             SWUMapGadget::<P::IsogenousCurve>::map_to_curve(element).unwrap();
 
         // P::ISOGENY_MAP.apply(point_on_isogenious_curve)
-        IsogenyMapGadget::apply(point_on_isogenious_curve)
+        let ret = IsogenyMapGadget::apply(point_on_isogenious_curve);
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        ret
     }
 }
 

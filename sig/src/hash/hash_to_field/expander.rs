@@ -3,7 +3,7 @@ use ark_ff::{
     field_hashers::expander::{LONG_DST_PREFIX, MAX_DST_LENGTH, Z_PAD},
     PrimeField,
 };
-use ark_r1cs_std::{prelude::ToBytesGadget, uint8::UInt8};
+use ark_r1cs_std::{prelude::ToBytesGadget, uint8::UInt8, R1CSVar};
 use ark_relations::r1cs::SynthesisError;
 use arrayvec::ArrayVec;
 use core::{marker::PhantomData, ops::BitXor};
@@ -11,7 +11,11 @@ use core::{marker::PhantomData, ops::BitXor};
 struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
 
 impl<F: PrimeField> DSTGadget<F> {
+    #[tracing::instrument(skip_all)]
     pub fn new_xmd<H: PRFGadget<F> + Default>(dst: &[UInt8<F>]) -> Result<Self, SynthesisError> {
+        let cs = dst.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         let array = if dst.len() > MAX_DST_LENGTH {
             let mut hasher = H::default();
             let long_dst_prefix = LONG_DST_PREFIX.map(|value| UInt8::constant(value));
@@ -26,6 +30,8 @@ impl<F: PrimeField> DSTGadget<F> {
                 "supplied hash function should produce an output with length smaller than 255",
             )
         };
+
+        tracing::info!(num_constraints = cs.num_constraints());
 
         Ok(Self(array))
     }
@@ -48,7 +54,11 @@ pub struct ExpanderXmdGadget<H: PRFGadget<F> + Default, F: PrimeField> {
 }
 
 impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
+    #[tracing::instrument(skip_all)]
     pub fn expand(&self, msg: &[UInt8<F>], n: usize) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        let cs = msg.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         // output size of the hash function, e.g. 32 bytes = 256 bits for sha2::Sha256
         let b_len = H::OUTPUT_SIZE;
         let ell = (n + (b_len - 1)) / b_len;
@@ -105,6 +115,9 @@ impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
         }
 
         uniform_bytes.truncate(n);
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
         Ok(uniform_bytes)
     }
 }

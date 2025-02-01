@@ -8,6 +8,7 @@ use ark_r1cs_std::{
     fields::{FieldOpsBounds, FieldVar},
     groups::curves::short_weierstrass::ProjectiveVar,
     uint8::UInt8,
+    R1CSVar,
 };
 use ark_relations::r1cs::SynthesisError;
 
@@ -51,6 +52,7 @@ where
     /// traits. This uses the IETF hash to curve's specification for Random
     /// oracle encoding (hash_to_curve) defined by combining these components.
     /// See <https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-09#section-3>
+    #[tracing::instrument(skip_all)]
     pub fn hash(
         &self,
         msg: &[UInt8<CF>],
@@ -67,6 +69,9 @@ where
         // 4. R = Q0 + Q1              # Point addition
         // 5. P = clear_cofactor(R)
         // 6. return P
+
+        let cs = msg.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
 
         let rand_field_elems = self.field_hasher.hash_to_field::<2>(msg)?;
 
@@ -98,7 +103,11 @@ where
         // `ark-bls12-381-0.5.0/src/curves/g2.rs`.
         //
         // rand_subgroup_elem.clear_cofactor()
-        T::clear_cofactor_var(&rand_curve_elem)
+        let curve_elem = T::clear_cofactor_var(&rand_curve_elem);
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        curve_elem
     }
 }
 

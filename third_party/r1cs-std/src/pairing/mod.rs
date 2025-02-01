@@ -48,7 +48,7 @@ pub trait PairingVar<E: Pairing, CF: PrimeField = BasePrimeField<E>> {
     fn final_exponentiation(p: &Self::GTVar) -> Result<Self::GTVar, SynthesisError>;
 
     /// Computes a pairing over `p` and `q`.
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn pairing(
         p: Self::G1PreparedVar,
         q: Self::G2PreparedVar,
@@ -59,7 +59,7 @@ pub trait PairingVar<E: Pairing, CF: PrimeField = BasePrimeField<E>> {
 
     /// Computes a product of pairings over the elements in `p` and `q`.
     #[must_use]
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn product_of_pairings(
         p: &[Self::G1PreparedVar],
         q: &[Self::G2PreparedVar],

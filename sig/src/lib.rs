@@ -25,6 +25,7 @@ mod tests {
         PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar, TargetField,
     };
     use rand::{thread_rng, Rng};
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
     type Curve = ark_bw6_761::BW6_761;
 
@@ -195,5 +196,58 @@ mod tests {
         assert!(verified);
 
         println!("Proof verified successfully!");
+    }
+
+    #[test]
+    fn tracing_num_constraints() {
+        let file_appender = tracing_appender::rolling::hourly("./", "constraints.log");
+        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::fmt::layer()
+                    // treat span enter/exit as an event
+                    .with_span_events(
+                        tracing_subscriber::fmt::format::FmtSpan::EXIT
+                            | tracing_subscriber::fmt::format::FmtSpan::ENTER,
+                    )
+                    // write to a log file
+                    .with_ansi(false)
+                    .with_writer(non_blocking)
+                    // log functions inside our crate + pairing
+                    .with_filter(tracing_subscriber::filter::FilterFn::new(|metadata| {
+                        // 1. target filtering
+                        metadata.target().contains("sig")
+                            // 2. name filtering
+                            || ["miller_loop", "final_exponentiation"]
+                                .into_iter()
+                                .any(|s| metadata.name().contains(s))
+                            // 3. event filtering
+                            // - event from spans that do not match either of the above two rules will not be considered
+                            || metadata.is_event()
+                    })),
+            )
+            .init();
+
+        let cs = ConstraintSystem::new_ref();
+        let (msg, params, _, pk, sig) = get_instance();
+
+        let msg_var: Vec<UInt8<BaseField>> = msg
+            .as_bytes()
+            .iter()
+            .map(|b| UInt8::new_input(cs.clone(), || Ok(b)).unwrap())
+            .collect();
+        let params_var = ParametersVar::new_input(cs.clone(), || Ok(params)).unwrap();
+        let pk_var = PublicKeyVar::new_input(cs.clone(), || Ok(pk)).unwrap();
+        let sig_var = SignatureVar::new_input(cs.clone(), || Ok(sig)).unwrap();
+
+        BLSAggregateSignatureVerifyGadget::verify(&params_var, &pk_var, &msg_var, &sig_var)
+            .unwrap();
+
+        let num_constraints = cs.num_constraints();
+        tracing::info!("Number of constraints: {}", num_constraints);
+        assert!(cs.is_satisfied().unwrap());
+
+        tracing::info!("R1CS is satisfied!");
     }
 }

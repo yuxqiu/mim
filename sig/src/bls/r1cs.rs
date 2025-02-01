@@ -22,22 +22,13 @@ use ark_bls12_381::{
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
 
 use crate::bls::{HashCurveGroup, HashCurveVar};
+use crate::fp_var;
 use crate::hash::hash_to_curve::MapToCurveBasedHasherGadget;
 use crate::hash::hash_to_field::default_hasher::DefaultFieldHasherGadget;
 use crate::hash::map_to_curve::wb::WBMapGadget;
 
 use super::params::BaseField;
 use super::{BLSSigCurveConfig, Parameters, PublicKey, Signature, TargetField};
-
-macro_rules! fp_var {
-    // For experimentation: checking whether R1CS circuit is satisfied
-    // ($type_a:ty, $type_b:ty) => {
-    //     ark_r1cs_std::fields::fp::FpVar::<$type_a>
-    // };
-    ($type_a:ty, $type_b:ty) => {
-        ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
-    };
-}
 
 type G1Gadget = G1Var<BLSSigCurveConfig, fp_var!(TargetField, BaseField), BaseField>;
 type G2Gadget = G2Var<BLSSigCurveConfig, fp_var!(TargetField, BaseField), BaseField>;
@@ -61,6 +52,7 @@ pub struct SignatureVar {
 pub struct BLSAggregateSignatureVerifyGadget;
 
 impl BLSAggregateSignatureVerifyGadget {
+    #[tracing::instrument(skip_all)]
     pub fn verify(
         parameters: &ParametersVar,
         pk: &PublicKeyVar,
@@ -68,6 +60,8 @@ impl BLSAggregateSignatureVerifyGadget {
         signature: &SignatureVar,
     ) -> Result<(), SynthesisError> {
         let cs = parameters.g1_generator.cs();
+
+        tracing::info!(num_constraints = cs.num_constraints());
 
         // Hash the message into the curve point (this requires using a hash-to-curve function)
         let hash_to_curve = Self::hash_to_curve(message)?;
@@ -98,10 +92,12 @@ impl BLSAggregateSignatureVerifyGadget {
             fp_var!(TargetField, BaseField),
             BaseField,
         > as PairingVar<Bls12<BLSSigCurveConfig>, BaseField>>::GTVar::new_constant(
-            cs,
+            cs.clone(),
             <<Bls12<BLSSigCurveConfig> as Pairing>::TargetField as Field>::ONE,
         )?)?
         .enforce_equal(&Boolean::TRUE)?;
+
+        tracing::info!(num_constraints = cs.num_constraints());
 
         Ok(())
     }
@@ -165,6 +161,7 @@ impl BLSAggregateSignatureVerifyGadget {
         Self::verify(parameters, &aggregated_pk, message, signature)
     }
 
+    #[tracing::instrument(skip_all)]
     fn hash_to_curve(msg: &[UInt8<BaseField>]) -> Result<G2Gadget, SynthesisError> {
         type HashGroupBaseField =
             <<HashCurveGroup as CurveGroup>::Config as CurveConfig>::BaseField;
@@ -185,8 +182,15 @@ impl BLSAggregateSignatureVerifyGadget {
             HashCurveVar<fp_var!(TargetField, BaseField), BaseField>,
         >;
 
+        let cs = msg.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         let hasher_gadget = HasherGadget::new(&[]);
-        hasher_gadget.hash(&msg)
+        let hash = hasher_gadget.hash(&msg);
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        hash
     }
 }
 

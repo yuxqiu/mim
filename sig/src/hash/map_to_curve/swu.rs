@@ -27,6 +27,7 @@ impl<
             + SqrtGadget<P::BaseField, CF>,
     > MapToCurveGadget<Projective<P>, CF, FP> for SWUMapGadget<P>
 {
+    #[tracing::instrument(skip_all)]
     fn map_to_curve(
         point: FP,
     ) -> Result<AffineVar<<Projective<P> as CurveGroup>::Config, FP, CF>, SynthesisError>
@@ -34,6 +35,9 @@ impl<
         <Projective<P> as CurveGroup>::Config: SWCurveConfig,
         for<'a> &'a FP: FieldOpsBounds<'a, <Projective<P> as CurveGroup>::BaseField, FP>,
     {
+        let cs = point.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         // 1. tv1 = inv0(Z^2 * u^4 + Z * u^2)
         // 2. x1 = (-B / A) * (1 + tv1)
         // 3. If tv1 == 0, set x1 = B / (Z * A)
@@ -147,6 +151,8 @@ impl<
 
         // let point_on_curve = Affine::<P>::new_unchecked(x_affine, y_affine);
         let point_on_curve = AffineVar::new(x_affine, y_affine, Boolean::constant(false));
+
+        tracing::info!(num_constraints = cs.num_constraints());
 
         Ok(point_on_curve)
     }

@@ -5,6 +5,7 @@ use super::{FieldOpsBounds, PairingVar as PG};
 use crate::{
     fields::{fp12::Fp12Var, fp2::Fp2Var, FieldVar},
     groups::bls12::{G1AffineVar, G1PreparedVar, G1Var, G2PreparedVar, G2Var},
+    R1CSVar,
 };
 use ark_ec::bls12::{Bls12, Bls12Config, TwistType};
 use ark_ff::{BitIteratorBE, PrimeField};
@@ -20,7 +21,7 @@ where
     for<'a> &'a F: FieldOpsBounds<'a, <P as Bls12Config>::Fp, F>,
 {
     // Evaluate the line function at point p.
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn ell(
         f: &mut Fp12Var<P::Fp12Config, F, CF>,
         coeffs: &(Fp2V<P, F, CF>, Fp2V<P, F, CF>),
@@ -52,7 +53,7 @@ where
         }
     }
 
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn exp_by_x(
         f: &Fp12Var<P::Fp12Config, F, CF>,
     ) -> Result<Fp12Var<P::Fp12Config, F, CF>, SynthesisError> {
@@ -75,11 +76,17 @@ where
     type G2PreparedVar = G2PreparedVar<P, F, CF>;
     type GTVar = Fp12Var<P::Fp12Config, F, CF>;
 
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn miller_loop(
         ps: &[Self::G1PreparedVar],
         qs: &[Self::G2PreparedVar],
     ) -> Result<Self::GTVar, SynthesisError> {
+        // for convenience, just read 0
+        if let Some(p) = ps.get(0) {
+            let cs = p.0.x.cs();
+            tracing::info!(num_constraints = cs.num_constraints());
+        }
+
         let mut pairs = vec![];
         for (p, q) in ps.iter().zip(qs.iter()) {
             pairs.push((p, q.ell_coeffs.iter()));
@@ -104,11 +111,20 @@ where
             f = f.unitary_inverse()?;
         }
 
+        // for convenience, just read 0
+        if let Some(p) = ps.get(0) {
+            let cs = p.0.x.cs();
+            tracing::info!(num_constraints = cs.num_constraints());
+        }
+
         Ok(f)
     }
 
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn final_exponentiation(f: &Self::GTVar) -> Result<Self::GTVar, SynthesisError> {
+        let cs = f.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         // Computing the final exponentation following
         // https://eprint.iacr.org/2016/130.pdf.
         // We don't use their "faster" formula because it is difficult to make
@@ -160,16 +176,19 @@ where
             y5 *= &y0;
             y5 *= &y4;
             y5 *= &y1;
+
+            tracing::info!(num_constraints = cs.num_constraints());
+
             Ok(y5)
         })
     }
 
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn prepare_g1(p: &Self::G1Var) -> Result<Self::G1PreparedVar, SynthesisError> {
         Self::G1PreparedVar::from_group_var(p)
     }
 
-    #[tracing::instrument(target = "r1cs")]
+    #[tracing::instrument(target = "r1cs", skip_all)]
     fn prepare_g2(q: &Self::G2Var) -> Result<Self::G2PreparedVar, SynthesisError> {
         Self::G2PreparedVar::from_group_var(q)
     }

@@ -8,6 +8,7 @@ use ark_ff::{
 };
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::prelude::Boolean;
+use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{
     fields::{quadratic_extension::QuadExtVar, FieldOpsBounds, FieldVar},
     groups::curves::short_weierstrass::ProjectiveVar,
@@ -144,12 +145,16 @@ where
     <Self as CurveGroup>::Config: SWCurveConfig,
     for<'b> &'b FP: FieldOpsBounds<'b, ark_ff::Fp<MontBackend<FqConfig, 6>, 6>, FP>,
 {
+    #[tracing::instrument(skip_all)]
     fn clear_cofactor_var(
         p: &ProjectiveVar<Self::Config, QuadExtVar<FP, Fp2ConfigWrapper<Fq2Config>, CF>, CF>,
     ) -> Result<
         ProjectiveVar<Self::Config, QuadExtVar<FP, Fp2ConfigWrapper<Fq2Config>, CF>, CF>,
         SynthesisError,
     > {
+        let cs = p.cs();
+        tracing::info!(num_constraints = cs.num_constraints());
+
         // Based on Section 4.1 of https://eprint.iacr.org/2017/419.pdf
         // [h(ψ)]P = [x^2 − x − 1]P + [x − 1]ψ(P) + (ψ^2)(2P)
 
@@ -191,7 +196,11 @@ where
         psi2_p2 = psi2_p2.add_unchecked(&tmp2);
         psi2_p2 = psi2_p2.add_unchecked(&x_p.negate()?);
         psi2_p2 = psi2_p2.add_unchecked(&psi_p.negate()?);
-        Ok(psi2_p2.add_unchecked(&p.negate()?))
+        let ret = Ok(psi2_p2.add_unchecked(&p.negate()?));
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        ret
     }
 }
 
