@@ -61,7 +61,6 @@ impl BLSAggregateSignatureVerifyGadget {
 
         tracing::info!(num_constraints = cs.num_constraints());
 
-        // Hash the message into the curve point (this requires using a hash-to-curve function)
         let hash_to_curve = Self::hash_to_curve(message)?;
 
         // an optimised way to check two pairings are equal
@@ -107,7 +106,6 @@ impl BLSAggregateSignatureVerifyGadget {
         message: &[UInt8<BaseSNARKField>],
         signature: &SignatureVar,
     ) -> Result<(), SynthesisError> {
-        // Hash the message into the curve point
         let hash_to_curve = Self::hash_to_curve(message)?;
 
         // Verify e(signature, G) == e(aggregated_pk, H(m))
