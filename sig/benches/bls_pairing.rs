@@ -15,7 +15,7 @@ fn get_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature)
     (msg, params, sk, pk, sig)
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+fn bls_verify_bench(c: &mut Criterion) {
     let (msg, params, _, pk, sig) = get_instance();
     let mut group = c.benchmark_group("BLS Signature");
 
@@ -28,5 +28,5 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group!(benches, bls_verify_bench);
 criterion_main!(benches);

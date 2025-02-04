@@ -6,7 +6,6 @@ pub mod hash;
 #[cfg(test)]
 mod tests {
     use ark_ff::{BigInt, Fp, PrimeField};
-    use ark_groth16::{prepare_verifying_key, Groth16};
     use ark_r1cs_std::{
         alloc::AllocVar,
         eq::EqGadget,
@@ -19,15 +18,12 @@ mod tests {
         R1CSVar,
     };
     use ark_relations::r1cs::ConstraintSystem;
-    use ark_snark::SNARK;
     use bls::{
-        BLSAggregateSignatureVerifyGadget, BLSCircuit, BaseSNARKField, Parameters, ParametersVar,
-        PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar, BaseSigCurveField,
+        BLSAggregateSignatureVerifyGadget, BaseSNARKField, BaseSigCurveField, Parameters,
+        ParametersVar, PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar,
     };
     use rand::{thread_rng, Rng};
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
-
-    type Curve = ark_bw6_761::BW6_761;
 
     use super::*;
 
@@ -171,31 +167,6 @@ mod tests {
         rng.fill(&mut a[..]);
         rng.fill(&mut b[..]);
         check_emulated_helper(a, b);
-    }
-
-    #[test]
-    fn check_snark() {
-        let (msg, params, _, pk, sig) = get_instance();
-        let mut rng = thread_rng();
-
-        let circuit = BLSCircuit::new(params, pk, msg.as_bytes(), sig);
-
-        // Setup pk
-        let pk =
-            Groth16::<Curve>::generate_random_parameters_with_reduction(circuit.clone(), &mut rng)
-                .unwrap();
-
-        // Create a proof
-        let proof = Groth16::<Curve>::prove(&pk, circuit.clone(), &mut rng).unwrap();
-
-        // Verify the proof
-        let pvk = prepare_verifying_key(&pk.vk);
-        let verified =
-            Groth16::<Curve>::verify_proof(&pvk, &proof, &circuit.get_public_inputs().unwrap())
-                .unwrap();
-        assert!(verified);
-
-        println!("Proof verified successfully!");
     }
 
     #[test]

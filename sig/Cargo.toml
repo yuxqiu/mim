@@ -30,3 +30,7 @@ tracing-subscriber = "0.3.19"
 [[bench]]
 name = "bls_pairing"
 harness = false
+
+[[bench]]
+name = "groth16"
+harness = false

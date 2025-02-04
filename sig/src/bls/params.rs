@@ -1,4 +1,6 @@
-use ark_ec::{bls12::Bls12Config, short_weierstrass::Projective, CurveConfig, CurveGroup};
+use ark_ec::{
+    bls12::Bls12Config, pairing::Pairing, short_weierstrass::Projective, CurveConfig, CurveGroup,
+};
 use ark_ff::Field;
 use ark_r1cs_std::fields::fp2::Fp2Var;
 
@@ -6,7 +8,7 @@ use ark_r1cs_std::fields::fp2::Fp2Var;
 // we can easily switch between `ark_bls12_377` and `ark_bls12_381`
 // all we need to do is to replace the following crate name accordingly
 
-use ark_bls12_381::{
+use ark_bls12_377::{
     g1::{G1_GENERATOR_X, G1_GENERATOR_Y},
     g2::{G2_GENERATOR_X, G2_GENERATOR_Y},
     Config, G1Projective, G2Projective,
@@ -45,19 +47,20 @@ pub static G2_GENERATOR: G2Projective = G2Projective::new_unchecked(
 /* ====================Signature Related==================== */
 
 /* ====================SNARK Related==================== */
+pub type SNARKCurve = ark_bw6_761::BW6_761;
+
 // which scalar field we run our SNARK on
-pub type BaseSNARKField = ark_bw6_761::Fr;
+pub type BaseSNARKField = <SNARKCurve as Pairing>::ScalarField;
 // pub type BaseSNARKField = BaseSigCurveField; // experimentation only
 
 // which underlying FieldVar we use
 #[macro_export]
 macro_rules! fp_var {
     // experimentation only: checking whether R1CS is satisfied
-    // ($type_a:ty, $type_b:ty) => {
-    //     ark_r1cs_std::fields::fp::FpVar::<$type_a>
-    // };
     ($type_a:ty, $type_b:ty) => {
-        ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
-    };
+        ark_r1cs_std::fields::fp::FpVar::<$type_a>
+    }; // ($type_a:ty, $type_b:ty) => {
+       //     ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
+       // };
 }
 /* ====================SNARK Related==================== */
