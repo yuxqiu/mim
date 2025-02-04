@@ -38,8 +38,10 @@ impl<F: PrimeField> SqrtGadget<F, F> for FpVar<F> {
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self.value()?.sqrt().unwrap_or_else(F::zero);
-            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
+            let sqrt_var = Self::new_witness(self.cs(), || {
+                self.value()
+                    .map(|value| value.sqrt().unwrap_or_else(F::zero))
+            })?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
@@ -68,8 +70,10 @@ impl<F: PrimeField, CF: PrimeField> SqrtGadget<F, CF> for EmulatedFpVar<F, CF> {
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self.value()?.sqrt().unwrap_or_else(F::zero);
-            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
+            let sqrt_var = Self::new_witness(self.cs(), || {
+                self.value()
+                    .map(|value| value.sqrt().unwrap_or_else(F::zero))
+            })?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
@@ -105,8 +109,14 @@ where
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self.value()?.sqrt().unwrap_or_else(QuadExtField::<P>::zero);
-            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
+            // need to get the `value` inside the function to propogate it down to the AllocVar's implementation
+            // the `ConstraintSystem` will decide how to handle the error
+            // - for example, in setup mode, we don't need to generate assignment. So, the function (that returns an error)
+            // will not even be called.
+            let sqrt_var = Self::new_witness(self.cs(), || {
+                self.value()
+                    .map(|value| value.sqrt().unwrap_or_else(QuadExtField::zero))
+            })?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
@@ -142,11 +152,10 @@ where
         } else {
             let legendre = self.legendre_qr()?;
 
-            let sqrt = self
-                .value()?
-                .sqrt()
-                .unwrap_or_else(CubicExtField::<P>::zero);
-            let sqrt_var = Self::new_witness(self.cs(), || Ok(sqrt))?;
+            let sqrt_var = Self::new_witness(self.cs(), || {
+                self.value()
+                    .map(|value| value.sqrt().unwrap_or_else(CubicExtField::zero))
+            })?;
             let sqrt_square = sqrt_var.square()?;
 
             sqrt_square.conditional_enforce_equal(self, &legendre)?;
