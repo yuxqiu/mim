@@ -195,9 +195,12 @@ impl AllocVar<Signature, BaseSNARKField> for SignatureVar {
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
-        let sig = f()?;
         Ok(Self {
-            signature: G2Gadget::new_variable(cs, || Ok(sig.borrow().signature), mode)?,
+            signature: G2Gadget::new_variable(
+                cs,
+                || f().map(|value| value.borrow().signature),
+                mode,
+            )?,
         })
     }
 }
@@ -208,9 +211,8 @@ impl AllocVar<PublicKey, BaseSNARKField> for PublicKeyVar {
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
-        let public_key = f()?;
         Ok(Self {
-            pub_key: G1Gadget::new_variable(cs, || Ok(public_key.borrow().pub_key), mode)?,
+            pub_key: G1Gadget::new_variable(cs, || f().map(|value| value.borrow().pub_key), mode)?,
         })
     }
 }
@@ -222,15 +224,29 @@ impl AllocVar<Parameters, BaseSNARKField> for ParametersVar {
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         let cs = cs.into();
-        let value = f()?;
+        let value = f();
 
         Ok(Self {
             g1_generator: G1Gadget::new_variable(
                 cs.clone(),
-                || Ok(value.borrow().g1_generator),
+                || {
+                    value
+                        .as_ref()
+                        .map(|value| value.borrow().g1_generator)
+                        .map_err(SynthesisError::clone)
+                },
                 mode,
             )?,
-            g2_generator: G2Gadget::new_variable(cs, || Ok(value.borrow().g2_generator), mode)?,
+            g2_generator: G2Gadget::new_variable(
+                cs,
+                || {
+                    value
+                        .as_ref()
+                        .map(|value| value.borrow().g2_generator)
+                        .map_err(SynthesisError::clone)
+                },
+                mode,
+            )?,
         })
     }
 }

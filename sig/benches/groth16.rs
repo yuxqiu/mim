@@ -1,5 +1,5 @@
-use ark_groth16::{prepare_verifying_key, Groth16};
-use ark_snark::SNARK;
+use ark_groth16::Groth16;
+use ark_snark::{CircuitSpecificSetupSNARK, SNARK};
 use rand::thread_rng;
 use sig::bls::{BLSCircuit, Parameters, PublicKey, SNARKCurve, SecretKey, Signature};
 
@@ -30,14 +30,13 @@ fn bench_groth16() {
     let circuit = BLSCircuit::new(Some(params), Some(pk), &msg, Some(sig));
 
     // Setup pk and vk
-    let pk = {
+    let (pk, vk) = {
         // in setup node, we don't need to provide assignment
         let msg = vec![None; msg.len()];
         let circuit = BLSCircuit::new(None, None, &msg, None);
-        Groth16::<SNARKCurve>::generate_random_parameters_with_reduction(circuit.clone(), &mut rng)
-            .unwrap()
+        Groth16::<SNARKCurve>::setup(circuit.clone(), &mut rng).unwrap()
     };
-    let pvk = prepare_verifying_key(&pk.vk);
+    let pvk = Groth16::<SNARKCurve>::process_vk(&vk).unwrap();
 
     // Get public inputs
     let public_inputs = circuit.get_public_inputs().unwrap();
@@ -46,7 +45,8 @@ fn bench_groth16() {
     let proof = Groth16::<SNARKCurve>::prove(&pk, circuit.clone(), &mut rng).unwrap();
 
     // Verify the proof
-    let verified = Groth16::<SNARKCurve>::verify_proof(&pvk, &proof, &public_inputs).unwrap();
+    let verified =
+        Groth16::<SNARKCurve>::verify_with_processed_vk(&pvk, &public_inputs, &proof).unwrap();
 
     assert!(verified);
     println!("Proof verified successfully!");
