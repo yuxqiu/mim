@@ -26,8 +26,7 @@ pub trait SqrtGadget<F: Field, CF: PrimeField>: Sized + FieldVar<F, CF> {
 
 impl<F: PrimeField> SqrtGadget<F, F> for FpVar<F> {
     fn sqrt(&self) -> Result<(Boolean<F>, Self), SynthesisError> {
-        let cs = self.cs();
-        let should_construct_value = (!cs.is_in_setup_mode()) || self.is_constant();
+        let should_construct_value = self.is_constant();
 
         if should_construct_value {
             let value = self.value()?;
@@ -58,8 +57,7 @@ impl<F: PrimeField> SqrtGadget<F, F> for FpVar<F> {
 
 impl<F: PrimeField, CF: PrimeField> SqrtGadget<F, CF> for EmulatedFpVar<F, CF> {
     fn sqrt(&self) -> Result<(Boolean<CF>, Self), SynthesisError> {
-        let cs = self.cs();
-        let should_construct_value = (!cs.is_in_setup_mode()) || self.is_constant();
+        let should_construct_value = self.is_constant();
 
         if should_construct_value {
             let value = self.value()?;
@@ -97,8 +95,7 @@ where
     for<'a> &'a BF: FieldOpsBounds<'a, <P as QuadExtConfig>::BaseField, BF>,
 {
     fn sqrt(&self) -> Result<(Boolean<CF>, Self), SynthesisError> {
-        let cs = self.cs();
-        let should_construct_value = (!cs.is_in_setup_mode()) || self.is_constant();
+        let should_construct_value = self.is_constant();
 
         if should_construct_value {
             let value = self.value()?;
@@ -140,8 +137,7 @@ where
     for<'a> &'a BF: FieldOpsBounds<'a, <P as CubicExtConfig>::BaseField, BF>,
 {
     fn sqrt(&self) -> Result<(Boolean<CF>, Self), SynthesisError> {
-        let cs = self.cs();
-        let should_construct_value = (!cs.is_in_setup_mode()) || self.is_constant();
+        let should_construct_value = self.is_constant();
 
         if should_construct_value {
             let value = self.value()?;

@@ -16,13 +16,8 @@ pub trait FromBitsGadget<CF: PrimeField>: Sized {
 
 impl<CF: PrimeField> FromBitsGadget<CF> for FpVar<CF> {
     fn from_le_bits(bits: &[Boolean<CF>]) -> Self {
-        // Compute the value of the `FpVar` variable via double-and-add.
-        let mut value = None;
-        let cs = bits.cs();
-
-        // Assign a value only when `cs` is in setup mode, or if we are constructing
-        // a constant.
-        let should_construct_value = (!cs.is_in_setup_mode()) || bits.is_constant();
+        // Assign a value only when we are constructing a constant.
+        let should_construct_value = bits.is_constant();
         if should_construct_value {
             let bits = bits.iter().map(|b| b.value().unwrap()).collect::<Vec<_>>();
             let bytes = bits
@@ -35,11 +30,8 @@ impl<CF: PrimeField> FromBitsGadget<CF> for FpVar<CF> {
                     value
                 })
                 .collect::<Vec<_>>();
-            value = Some(CF::from_le_bytes_mod_order(&bytes));
-        }
 
-        if bits.is_constant() {
-            Self::constant(value.unwrap())
+            Self::constant(CF::from_le_bytes_mod_order(&bytes))
         } else {
             let mut power = CF::one();
             // Compute a linear combination for the new field variable, again
@@ -62,13 +54,8 @@ impl<CF: PrimeField> FromBitsGadget<CF> for FpVar<CF> {
 
 impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> {
     fn from_le_bits(bits: &[Boolean<CF>]) -> Self {
-        // Compute the value of the `EmulatedFpVar` variable via double-and-add.
-        let mut value = None;
-        let cs = bits.cs();
-
-        // Assign a value only when `cs` is in setup mode, or if we are constructing
-        // a constant.
-        let should_construct_value = (!cs.is_in_setup_mode()) || bits.is_constant();
+        // Assign a value only when we are constructing a constant.
+        let should_construct_value = bits.is_constant();
         if should_construct_value {
             let bits = bits.iter().map(|b| b.value().unwrap()).collect::<Vec<_>>();
             let bytes = bits
@@ -81,11 +68,7 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
                     value
                 })
                 .collect::<Vec<_>>();
-            value = Some(F::from_le_bytes_mod_order(&bytes));
-        }
-
-        if bits.is_constant() {
-            Self::constant(value.unwrap())
+            Self::constant(F::from_le_bytes_mod_order(&bytes))
         } else {
             let mut power = F::one();
             // Compute a linear combination for the new field variable, again
