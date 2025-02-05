@@ -55,15 +55,7 @@ fn bench_groth16(c: &mut Criterion) {
         .map(Option::Some)
         .collect::<Vec<_>>();
 
-    let circuit_gen = || BLSCircuit::new(Some(params), Some(pk_bls), &msg, Some(sig));
-
-    {
-        c.bench_function("circuit generation", |b| {
-            b.iter(|| circuit_gen.clone()());
-        });
-    }
-
-    let circuit = circuit_gen();
+    let circuit = BLSCircuit::new(Some(params), Some(pk_bls), &msg, Some(sig));
 
     // ===============Get public inputs===============
     let public_inputs = circuit.get_public_inputs().unwrap();
