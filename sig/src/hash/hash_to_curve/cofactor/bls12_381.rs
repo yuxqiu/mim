@@ -1,6 +1,6 @@
 use ark_bls12_381::{Fq, Fq2, Fq2Config, FqConfig, G2Projective};
 use ark_ec::bls12::Bls12Config;
-use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
+use ark_ec::short_weierstrass::SWCurveConfig;
 use ark_ec::CurveGroup;
 use ark_ff::{
     AdditiveGroup, BigInteger, BigInteger64, Fp2ConfigWrapper, MontBackend, MontFp, PrimeField,
@@ -18,7 +18,6 @@ use ark_relations::r1cs::SynthesisError;
 use super::CofactorGadget;
 
 type CurveConfig = ark_bls12_381::Config;
-type G2CurveConfig = <CurveConfig as Bls12Config>::G2Config;
 
 // PSI_X = 1/(u+1)^((p-1)/3)
 const P_POWER_ENDOMORPHISM_COEFF_0 : Fq2 = Fq2::new(
@@ -125,22 +124,10 @@ where
     Ok(res)
 }
 
-/// Have to use `for Projective<ark_bls12_381::g2::Config>` here to bypass trait coherence check
-/// (specifically overlap check). This check reports conflicting implementation of `CofactorGadget`
-/// when we implement `CofactorGadget` for more than one `Projective<Config>` even if the `Config`
-/// is different.
-///
-/// This might be a bug in Rust's compiler implementation, which prevents it from seeing through
-/// the referenced type.
-///
-/// More on coherence check:
-/// - <https://stackoverflow.com/questions/73782573/why-do-blanket-implementations-for-two-different-traits-conflict>
-/// - <https://rust-lang.github.io/chalk/book/clauses/coherence.html>
 impl<
         FP: FieldVar<<Fp2ConfigWrapper<Fq2Config> as QuadExtConfig>::BaseField, CF>,
         CF: PrimeField,
-    > CofactorGadget<QuadExtVar<FP, Fp2ConfigWrapper<Fq2Config>, CF>, CF>
-    for Projective<G2CurveConfig>
+    > CofactorGadget<QuadExtVar<FP, Fp2ConfigWrapper<Fq2Config>, CF>, CF> for G2Projective
 where
     <Self as CurveGroup>::Config: SWCurveConfig,
     for<'b> &'b FP: FieldOpsBounds<'b, ark_ff::Fp<MontBackend<FqConfig, 6>, 6>, FP>,
