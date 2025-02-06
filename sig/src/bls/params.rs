@@ -1,18 +1,16 @@
 use ark_ec::{
-    bls12::Bls12Config, pairing::Pairing, short_weierstrass::Projective, CurveConfig, CurveGroup,
+    bls12::Bls12Config,
+    pairing::Pairing,
+    short_weierstrass::{Projective, SWCurveConfig},
+    CurveConfig, CurveGroup,
 };
-use ark_ff::Field;
 use ark_r1cs_std::fields::fp2::Fp2Var;
 
 /* ====================Signature Related==================== */
 // we can easily switch between `ark_bls12_377` and `ark_bls12_381`
 // all we need to do is to replace the following crate name accordingly
 
-use ark_bls12_377::{
-    g1::{G1_GENERATOR_X, G1_GENERATOR_Y},
-    g2::{G2_GENERATOR_X, G2_GENERATOR_Y},
-    Config, G1Projective, G2Projective,
-};
+use ark_bls12_377::{Config, G1Affine, G2Affine};
 
 // which curve the sig scheme runs on
 pub type BLSSigCurveConfig = Config;
@@ -34,16 +32,8 @@ pub type HashCurveConfig = <HashCurveGroup as CurveGroup>::Config;
 pub type HashCurveVar<F, CF> = Fp2Var<<BLSSigCurveConfig as Bls12Config>::Fp2Config, F, CF>;
 
 // curve generators
-pub static G1_GENERATOR: G1Projective = G1Projective::new_unchecked(
-    G1_GENERATOR_X,
-    G1_GENERATOR_Y,
-    <<G1 as CurveGroup>::BaseField as Field>::ONE,
-);
-pub static G2_GENERATOR: G2Projective = G2Projective::new_unchecked(
-    G2_GENERATOR_X,
-    G2_GENERATOR_Y,
-    <<G2 as CurveGroup>::BaseField as Field>::ONE,
-);
+pub const G1_GENERATOR: G1Affine = <<Config as Bls12Config>::G1Config as SWCurveConfig>::GENERATOR;
+pub const G2_GENERATOR: G2Affine = <<Config as Bls12Config>::G2Config as SWCurveConfig>::GENERATOR;
 /* ====================Signature Related==================== */
 
 /* ====================SNARK Related==================== */

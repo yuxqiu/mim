@@ -38,8 +38,8 @@ impl Parameters {
     #[must_use]
     pub fn setup() -> Self {
         Self {
-            g1_generator: G1_GENERATOR,
-            g2_generator: G2_GENERATOR,
+            g1_generator: G1_GENERATOR.into(),
+            g2_generator: G2_GENERATOR.into(),
         }
     }
 }
