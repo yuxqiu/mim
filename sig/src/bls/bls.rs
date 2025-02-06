@@ -6,6 +6,7 @@ use ark_ec::{
     pairing::{Pairing, PairingOutput},
 };
 use ark_ff::{field_hashers::DefaultFieldHasher, AdditiveGroup, UniformRand};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blake2::Blake2s256;
 use rand::Rng;
 
@@ -13,23 +14,23 @@ use crate::bls::{HashCurveConfig, HashCurveGroup};
 
 use super::{BLSSigCurveConfig, SecretKeyScalarField, G1, G1_GENERATOR, G2, G2_GENERATOR};
 
-#[derive(Clone)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Parameters {
     pub g1_generator: G1,
     pub g2_generator: G2,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct PublicKey {
     pub pub_key: G1,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SecretKey {
     pub secret_key: SecretKeyScalarField,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Default, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Signature {
     pub signature: G2,
 }
