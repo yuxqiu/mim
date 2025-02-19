@@ -7,25 +7,25 @@ pub mod hash;
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::{BigInt, Fp, PrimeField};
     use ark_r1cs_std::{
         alloc::AllocVar,
-        eq::EqGadget,
-        fields::{
-            emulated_fp::{AllocatedEmulatedFpVar, EmulatedFpVar},
-            fp::FpVar,
+        groups::{
+            bls12::{G1PreparedVar, G2PreparedVar},
+            CurveVar,
         },
-        prelude::Boolean,
+        pairing::bls12,
+        prelude::PairingVar,
         uint8::UInt8,
-        R1CSVar,
     };
     use ark_relations::r1cs::ConstraintSystem;
     use bls::{
         BLSAggregateSignatureVerifyGadget, BaseSNARKField, BaseSigCurveField, Parameters,
         ParametersVar, PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar,
     };
-    use rand::{thread_rng, Rng};
+    use rand::thread_rng;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+
+    use crate::bls::BLSSigCurveConfig;
 
     use super::*;
 
@@ -119,56 +119,39 @@ mod tests {
         println!("RC1S is satisfied!");
     }
 
-    #[test_fuzz::test_fuzz]
-    fn check_emulated_helper(a: [u64; 6], b: [u64; 6]) {
-        let cs = ConstraintSystem::new_ref();
-
-        let av: FpVar<BaseSigCurveField> =
-            FpVar::new_constant(cs.clone(), Fp::new(BigInt::new(a))).unwrap();
-        let bv = FpVar::new_constant(cs, Fp::new(BigInt::new(b))).unwrap();
-        let cv = av * bv;
-        let c = cv.value().unwrap().into_bigint();
-
-        let cs = ConstraintSystem::new_ref();
-        let a = BigInt::new(a);
-        let b = BigInt::new(b);
-
-        let v1: EmulatedFpVar<BaseSigCurveField, BaseSNARKField> = EmulatedFpVar::Var(
-            AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(a))).unwrap(),
-        );
-        let v2: EmulatedFpVar<BaseSigCurveField, BaseSNARKField> = EmulatedFpVar::Var(
-            AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(b))).unwrap(),
-        );
-        let v3: EmulatedFpVar<BaseSigCurveField, BaseSNARKField> = EmulatedFpVar::Var(
-            AllocatedEmulatedFpVar::new_input(cs.clone(), || Ok(Fp::new(c))).unwrap(),
-        );
-
-        let v1v2 = v1 * v2;
-        let v1v2v = v1v2.value().unwrap().into_bigint();
-        (v1v2)
-            .is_eq(&v3)
-            .unwrap()
-            .enforce_equal(&Boolean::TRUE)
-            .unwrap();
-
-        assert!(
-            cs.is_satisfied().unwrap(),
-            "{:?} x {:?} = {:?} (got {})",
-            a,
-            b,
-            c,
-            v1v2v
-        );
-    }
-
     #[test]
-    fn check_emulated() {
-        let mut rng = thread_rng();
-        let mut a: [u64; 6] = [0; 6];
-        let mut b: [u64; 6] = [0; 6];
-        rng.fill(&mut a[..]);
-        rng.fill(&mut b[..]);
-        check_emulated_helper(a, b);
+    fn check_emulated_helper() {
+        let cs = ConstraintSystem::new_ref();
+        let (_, params, _, pk, sig) = get_instance();
+
+        let params_var = ParametersVar::new_constant(cs.clone(), params).unwrap();
+        let pk_var = PublicKeyVar::new_constant(cs.clone(), pk).unwrap();
+        let sig_var = SignatureVar::new_constant(cs.clone(), sig).unwrap();
+
+        // we don't check any equality here, so it's ok to use `params_var.g2_generator` as placeholder
+        let _ = bls12::PairingVar::product_of_pairings(
+            &[
+                G1PreparedVar::<
+                    BLSSigCurveConfig,
+                    fp_var!(BaseSigCurveField, BaseSNARKField),
+                    BaseSNARKField,
+                >::from_group_var(&params_var.g1_generator.negate().unwrap())
+                .unwrap(),
+                G1PreparedVar::<
+                    BLSSigCurveConfig,
+                    fp_var!(BaseSigCurveField, BaseSNARKField),
+                    BaseSNARKField,
+                >::from_group_var(&pk_var.pub_key)
+                .unwrap(),
+            ],
+            &[
+                G2PreparedVar::from_group_var(&sig_var.signature).unwrap(),
+                G2PreparedVar::from_group_var(&params_var.g2_generator).unwrap(),
+            ],
+        );
+
+        // then, we ensure during the computation, there are no unsatisfiable constraints generated
+        assert!(cs.is_satisfied().unwrap());
     }
 
     #[test]

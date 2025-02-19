@@ -27,7 +27,6 @@ tracing = "0.1.41"
 [dev-dependencies]
 ark-snark = "0.5.1"
 criterion = { version = "0.5.1", features = ["html_reports"] }
-test-fuzz = "*"
 tracing-appender = "0.2.3"
 tracing-subscriber = "0.3.19"
 

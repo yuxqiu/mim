@@ -1,0 +1,11 @@
+{
+    "rust-analyzer.procMacro.ignored": {
+        "ark_ff": [
+            "MontFp",
+        ],
+        "ark_ff_macros": [
+            "to_sign_and_limbs"
+        ]
+    },
+    "arena.maxOutputLines": 100
+}

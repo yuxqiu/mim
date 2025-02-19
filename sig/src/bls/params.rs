@@ -10,7 +10,7 @@ use ark_r1cs_std::fields::fp2::Fp2Var;
 // we can easily switch between `ark_bls12_377` and `ark_bls12_381`
 // all we need to do is to replace the following crate name accordingly
 
-use ark_bls12_377::{Config, G1Affine, G2Affine};
+use ark_bls12_381::{Config, G1Affine, G2Affine};
 
 // which curve the sig scheme runs on
 pub type BLSSigCurveConfig = Config;
@@ -47,10 +47,11 @@ pub type BaseSNARKField = <SNARKCurve as Pairing>::ScalarField;
 #[macro_export]
 macro_rules! fp_var {
     // experimentation only: checking whether R1CS is satisfied
+    // ($type_a:ty, $type_b:ty) => {
+    //     ark_r1cs_std::fields::fp::FpVar::<$type_a>
+    // };
     ($type_a:ty, $type_b:ty) => {
-        ark_r1cs_std::fields::fp::FpVar::<$type_a>
-    }; // ($type_a:ty, $type_b:ty) => {
-       //     ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
-       // };
+        ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
+    };
 }
 /* ====================SNARK Related==================== */
