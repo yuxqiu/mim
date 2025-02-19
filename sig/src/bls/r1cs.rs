@@ -157,7 +157,7 @@ impl BLSAggregateSignatureVerifyGadget {
     }
 
     #[tracing::instrument(skip_all)]
-    fn hash_to_curve(msg: &[UInt8<BaseSNARKField>]) -> Result<G2Gadget, SynthesisError> {
+    pub fn hash_to_curve(msg: &[UInt8<BaseSNARKField>]) -> Result<G2Gadget, SynthesisError> {
         type HashGroupBaseField =
             <<HashCurveGroup as CurveGroup>::Config as CurveConfig>::BaseField;
 

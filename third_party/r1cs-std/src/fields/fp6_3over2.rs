@@ -1,4 +1,7 @@
-use crate::fields::{cubic_extension::*, fp2::*};
+use crate::{
+    fields::{cubic_extension::*, fp2::*},
+    R1CSVar,
+};
 use ark_ff::{
     fields::{fp6_3over2::*, Fp2},
     CubicExtConfig, Fp2Config, PrimeField,
@@ -75,6 +78,8 @@ where
         c0: &Fp2Var<P::Fp2Config, F, CF>,
         c1: &Fp2Var<P::Fp2Config, F, CF>,
     ) -> Result<Self, SynthesisError> {
+        let cs = [c0, c1].cs();
+
         let v0 = &self.c0 * c0;
         let v1 = &self.c1 * c1;
         // v2 = 0.
@@ -89,8 +94,31 @@ where
 
         let c0 = (&a1_plus_a2 * &b1_plus_b2 - &v1) * P::NONRESIDUE + &v0;
 
-        let c1 = a0_plus_a1 * &b0_plus_b1 - &v0 - &v1;
+        // DEBUG: remove println
+        println!(
+            "cs.satisfied = {} at {} in {}",
+            cs.is_satisfied().unwrap(),
+            line!(),
+            file!()
+        );
 
+        // 3083817
+        let cons = cs.num_constraints();
+        println!("{}", cons);
+
+        let c1 = a0_plus_a1 * b0_plus_b1;
+        // let c1 = a0_plus_a1 * b0_plus_b1 - &v0 - &v1;
+
+        println!(
+            "cs.satisfied = {} at {} in {}",
+            cs.is_satisfied().unwrap(),
+            line!(),
+            file!()
+        );
+
+        // DEBUG: remove this
+        let c1 = c1 - &v0 - &v1;
+     
         let c2 = a0_plus_a2 * &b0_plus_b2 - &v0 + &v1;
 
         Ok(Self::new(c0, c1, c2))

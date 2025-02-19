@@ -10,3 +10,10 @@ members = [
 ark-r1cs-std = { path = "./third_party/r1cs-std" }
 ark-crypto-primitives = { path = "./third_party/crypto-primitives" }
 ark-ff = { path = "./third_party/ark-ff" }
+
+[profile.release-debug]
+inherits = "release"
+debug = true
+lto = "thin"
+codegen-units = 1
+strip = "none"

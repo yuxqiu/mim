@@ -21,8 +21,9 @@ where
     for<'a> &'a F: FieldOpsBounds<'a, <P as Bls12Config>::Fp, F>,
 {
     // Evaluate the line function at point p.
+    // DEBUG: remove pub
     #[tracing::instrument(target = "r1cs", skip_all)]
-    fn ell(
+    pub fn ell(
         f: &mut Fp12Var<P::Fp12Config, F, CF>,
         coeffs: &(Fp2V<P, F, CF>, Fp2V<P, F, CF>),
         p: &G1AffineVar<P, F, CF>,

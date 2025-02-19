@@ -358,15 +358,42 @@ impl_bounded_ops!(
         // Reference:
         // "Multiplication and Squaring on Pairing-Friendly Fields"
         // Devegili, OhEigeartaigh, Scott, Dahab
+        
+        // DEBUG: remove assertions
+        let cs = [this, other].cs();
+
         let mut result = this.clone();
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
+
         let v0 = &this.c0 * &other.c0;
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
+
         let v1 = &this.c1 * &other.c1;
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
 
         result.c1 += &this.c0;
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
+
         result.c1 *= &other.c0 + &other.c1;
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
+
         result.c1 -= &v0;
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
+
         result.c1 -= &v1;
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
+
         result.c0 = v0 + &QuadExtVar::<BF, P, CF>::mul_base_field_by_nonresidue(&v1).unwrap();
+        let is_satisfied = cs.is_satisfied().unwrap_or(true);
+        assert!(is_satisfied);
+
         result
     },
     |this: &'a QuadExtVar<BF, P, CF>, other: QuadExtField<P>| {
