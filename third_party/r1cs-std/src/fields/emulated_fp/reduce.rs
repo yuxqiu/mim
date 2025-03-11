@@ -304,6 +304,18 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
                 * BaseF::from(2u64).pow(&[(shift_per_limb * num_limb_in_this_group) as u64])
                 + remainder_limb;
 
+            // DEBUG: remove later
+            if cs.num_constraints() == 3085722 {
+                // this is right before the unsat constraint is added
+                assert!(cs.is_satisfied().unwrap());
+                println!(
+                    "{}, {}",
+                    eqn_left.value().unwrap(),
+                    eqn_right.value().unwrap()
+                );
+            }
+            // 23252872595569798916603490018121983261169516409351989185471321936430228531624039882909318699407103270056525561855
+            // 23252872595439065348059082123193723220894689263884242676051508218077876654384480135773347350432660641585800675328
             eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseF>::TRUE)?;
 
             accumulated_extra = new_accumulated_extra;

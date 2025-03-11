@@ -179,11 +179,20 @@ mod tests {
                 line!()
             );
 
-            assert!(cs.is_satisfied().unwrap());
+            let unsat = cs.which_is_unsatisfied().unwrap();
+            if let Some(s) = unsat {
+                println!("{}", s);
+                assert!(false);
+            }
             println!();
         }
         // */
         // -> Fp12Var::mul_by_014 -> directly copying values pass the assertion
+
+        /* Debug Story Part 2
+        - After finding the input that triggers the error with the above code, I tried to directly construct error-triggering
+        input and then run the code that triggers the error. But this time, test passes. This possibly suggests that the bug is
+        only going to happen after doing some computations on the Emulated FpVar.
 
         // let s: CubicExtField<Fp6ConfigWrapper<<BLSSigCurveConfig as Bls12Config>::Fp6Config>> = CubicExtField { c0: QuadExtField { c0: BaseSigCurveField::new(BigInt!("1396647618126876491551238897028281182182662946814742239452658799494849612884112015940766337389283670758378407669858")), c1: BaseSigCurveField::new(BigInt!("489300199753474263487139255028045766852234638962321376174587026474133093607716596781998693009932963140607730310874")) }, c1: QuadExtField { c0: BaseSigCurveField::new(BigInt!("2076779849093790960004645082128074049749284347384508349411906451297833786449525588244671694689239114308470534722")), c1: BaseSigCurveField::new(BigInt!("3429111531654932568292424302827161866150960261911970054523238888922579513273636064340952974092751506611613309106989")) }, c2: QuadExtField { c0: BaseSigCurveField::new(BigInt!("3105552301778060130939400582219924301640386073897117038804000010537014450986416157402674422832457578419365373540100")), c1: BaseSigCurveField::new(BigInt!("3876225650084791655496417842379490798548983675921971746960092311091188678494876118677610567726216270877190335329985")) } };
         // let c0 = QuadExtField { c0: BaseSigCurveField::new(BigInt!("3793885288740742725797458173051012191755498788871183885026428963711034866571316645935841285200271690995591479553459")), c1: BaseSigCurveField::new(BigInt!("2996901763584276916617790377778099338968936475300200779862307371169240467862390136884092754318251205909929343510514")) };
@@ -198,7 +207,31 @@ mod tests {
         // > = Fp2Var::new_input(cs.clone(), || Ok(c1)).unwrap();
         // let _ = sv.mul_by_c0_c1_0(&c0v, &c1v).unwrap();
         //
-        // -> Fp6_3over2::mul_by_c0_c1_0 -> Fp6_3over2 (`let c1 = a0_plus_a1 * b0_plus_b1;`)
+        
+        As the above doesn't work, I decided to go deeper to find the exact line of code that triggers the error.
+        It goes a few more levels deeper and find this:
+
+        // -> Fp6_3over2::mul_by_c0_c1_0 -> Fp6_3over2 (`let c1 = a0_plus_a1 * b0_plus_b1;`) -> QuadExtVar::Mul
+        */
+
+        /* Debug Story Part 3
+        After finding the above trigger, I am a little bit lost in the debug process, as it's hard to instrument Mul
+        to find the line that triggers the error. So, I decided to
+        - Find the index of the unsat constraint
+        - Hook enforce_constraint function to capture and print a backtrace
+        - Examine the function where the constraint is enforced and print out some critical values.
+
+        The problem turns out to be at `ucl-fyp-poc/third_party/r1cs-std/src/fields/emulated_fp/reduce.rs:317:13`
+        where `eqn_left != eqn_right`. Here are their values:
+
+        // 23252872595569798916603490018121983261169516409351989185471321936430228531624039882909318699407103270056525561855
+        // 23252872595439065348059082123193723220894689263884242676051508218077876654384480135773347350432660641585800675328
+        eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseF>::TRUE)?;
+        
+        Sidenote: I used this strategy and examined this function before, and I believed it is implemented correctly.
+        But, I will take a closer look later.
+        - The benefit of Debug Story 1 and 2 is they speed up the process of triggering the bug (no need to wait for 10+ mins). 
+        */
 
         // then, we ensure during the computation, there are no unsatisfiable constraints generated
         println!("{}", cs.num_constraints());
