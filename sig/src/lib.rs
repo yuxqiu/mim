@@ -7,11 +7,14 @@ pub mod hash;
 
 #[cfg(test)]
 mod tests {
+    use ark_bls12_377::Bls12_377;
     use ark_bls12_381::Fq;
     use ark_ec::bls12::{Bls12, Bls12Config};
+    use ark_ec::pairing::Pairing;
     use ark_ff::{
         BigInt, BitIteratorBE, CubicExtField, Fp2ConfigWrapper, Fp6ConfigWrapper, QuadExtField,
     };
+    use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::fp2::Fp2Var;
     use ark_r1cs_std::fields::fp6_3over2::Fp6Var;
     use ark_r1cs_std::fields::quadratic_extension::QuadExtVar;
@@ -207,7 +210,7 @@ mod tests {
         // > = Fp2Var::new_input(cs.clone(), || Ok(c1)).unwrap();
         // let _ = sv.mul_by_c0_c1_0(&c0v, &c1v).unwrap();
         //
-        
+
         As the above doesn't work, I decided to go deeper to find the exact line of code that triggers the error.
         It goes a few more levels deeper and find this:
 
@@ -218,7 +221,7 @@ mod tests {
         After finding the above trigger, I am a little bit lost in the debug process, as it's hard to instrument Mul
         to find the line that triggers the error. So, I decided to
         - Find the index of the unsat constraint
-        - Hook enforce_constraint function to capture and print a backtrace
+        - Hook `enforce_constraint` function to capture and print a backtrace
         - Examine the function where the constraint is enforced and print out some critical values.
 
         The problem turns out to be at `ucl-fyp-poc/third_party/r1cs-std/src/fields/emulated_fp/reduce.rs:317:13`
@@ -227,10 +230,40 @@ mod tests {
         // 23252872595569798916603490018121983261169516409351989185471321936430228531624039882909318699407103270056525561855
         // 23252872595439065348059082123193723220894689263884242676051508218077876654384480135773347350432660641585800675328
         eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseF>::TRUE)?;
-        
+
         Sidenote: I used this strategy and examined this function before, and I believed it is implemented correctly.
         But, I will take a closer look later.
-        - The benefit of Debug Story 1 and 2 is they speed up the process of triggering the bug (no need to wait for 10+ mins). 
+        - The benefit of Debug Story 1 and 2 is they speed up the process of triggering the bug (no need to wait for 10+ mins).
+        */
+
+        /* Debug Story Part 4
+        After part 3, I was stuck again, struggling to understand how parameters across the emulated field var are selected, and
+        how the whole limb representation work. So, I spent a couple of hours reading xJsnark paper, read the source code for
+        converting from limb representations to TargetF and the other way around, addition, multiplication (and verify reduction),
+        and took a look at `bellman-bignat`: https://github.com/alex-ozdemir/bellman-bignat/blob/master/src/mp/bignat.rs#L567.
+        
+        ---
+        Some I thought might be helpful for the debug later:
+        - https://github.com/FindoraNetwork/zei/blob/ea475a4996f4949987610945299effb9896b6597/crypto/src/field_simulation.rs#L372
+        - https://github.com/grandchildrice/sonobe/blob/aa324450f58894d2621af9aabe2a5cf6bac63c12/folding-schemes/src/folding/circuits/nonnative/uint.rs#L172
+          (has many doc)
+        ---
+
+        I'm not confident to say I understand all of them, but I am more confident in the whole idea of emulate TargetF in BaseF.
+        Then, I looked at the code again. The parameter is still confusing, but once I examined the reduce function, I think it might
+        be a good idea to examine if in TargetF, the `left` and `right` limbs are equal. If so, we are sure multiplication is correct
+        and the problem can only be `group_and_check_equality` function.
+
+        So, I did exactly as described above and found that they are equal in TargetF, which confirms that the error is in the
+        `group_and_check_equality` function. Also, due to the good properties of the `group_and_check_equality` function, I was
+        able to extract the input and generate a minimal reproducible example which triggers the bug.
+        - However, this example should still be understood in context. It's important that this example comes from real-world trace.
+        If it's from some arbitrary input, the function might not have the responsibility to handle it as it may not satisfy its
+        assumption about the input.
+
+        Next Step
+        - Read carefully how `group_and_check_equality` is done in xJsnark
+        - Cross-check the aforementioned projects to see where the bug is
         */
 
         // then, we ensure during the computation, there are no unsatisfiable constraints generated
@@ -289,5 +322,161 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
 
         tracing::info!("R1CS is satisfied!");
+    }
+
+    #[test]
+    fn reproduce_group_eq_bug() {
+        type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
+        type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
+
+        let surfeit = 21;
+        let bits_per_limb = 24;
+        let shift_per_limb = 12;
+
+        let left_values: [u64; 63] = [
+            129410767216,
+            2075840248660,
+            10403129570704,
+            18764948178537,
+            27213278409763,
+            35562717630959,
+            44036390619894,
+            52375955652803,
+            60722815166490,
+            69122694311624,
+            77533499121850,
+            85974405797933,
+            94296007809726,
+            102671589634548,
+            111038473268502,
+            119355530780295,
+            127710681129162,
+            136083154768644,
+            144377956898378,
+            152783249147778,
+            161111108373433,
+            169546451341817,
+            177892810059304,
+            186217268910472,
+            194718817568611,
+            203182905136755,
+            211666392940570,
+            220177866551358,
+            228580151841862,
+            237071607047150,
+            245574511655287,
+            254023832138519,
+            260327142606188,
+            252004525521166,
+            243655480404237,
+            235189479423937,
+            226861171593286,
+            218367010039002,
+            210028810242923,
+            201690082076814,
+            193289528653902,
+            184885540799773,
+            176427906363312,
+            168113154567590,
+            159738634252399,
+            151362910955285,
+            143052183616062,
+            134699904354642,
+            126313757896651,
+            118037629565957,
+            109617996506502,
+            101307367454699,
+            92860357183171,
+            84508492902296,
+            76209509966064,
+            67701934848959,
+            59239976203938,
+            50763903660272,
+            42232978240434,
+            33846629872878,
+            25355882147808,
+            16845770327940,
+            8387997358140,
+        ];
+        let right_values: [u64; 63] = [
+            129897302912,
+            85245290156,
+            1170013615889,
+            759090886420,
+            1151914243214,
+            822806923957,
+            138047743365,
+            616421044441,
+            336020525129,
+            933048683093,
+            1076060153062,
+            356947313349,
+            377253983723,
+            395682269951,
+            664852527727,
+            219573413087,
+            515600954676,
+            65643193970,
+            804126873768,
+            534661799965,
+            1229734874162,
+            329199387212,
+            859087987775,
+            1278443053660,
+            885957778337,
+            319538190894,
+            1277536707289,
+            798844786112,
+            1278784810139,
+            1278781150970,
+            1277255994052,
+            852892420810,
+            140785863,
+            142663642,
+            137471300,
+            128367684,
+            120241194,
+            123436087,
+            114575426,
+            105405111,
+            111121083,
+            105559843,
+            92198050,
+            93796558,
+            83577074,
+            86711565,
+            80617958,
+            67069019,
+            51041680,
+            52527683,
+            48621577,
+            51823996,
+            46746948,
+            42407960,
+            44318692,
+            34857868,
+            35436402,
+            34979111,
+            25593965,
+            18306025,
+            9731423,
+            6278714,
+            3078204,
+        ];
+
+        let cs = ConstraintSystem::new_ref();
+        let left =
+            left_values.map(|v| FpVar::new_witness(cs.clone(), || Ok(BaseF::from(v))).unwrap());
+        let right =
+            right_values.map(|v| FpVar::new_witness(cs.clone(), || Ok(BaseF::from(v))).unwrap());
+        ark_r1cs_std::fields::emulated_fp::reduce::Reducer::<TargetF, BaseF>::group_and_check_equality(
+            surfeit,
+            bits_per_limb,
+            shift_per_limb,
+            &left,
+            &right,
+        ).unwrap();
+
+        assert!(cs.is_satisfied().unwrap());
     }
 }

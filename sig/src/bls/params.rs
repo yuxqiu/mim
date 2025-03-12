@@ -37,7 +37,7 @@ pub const G2_GENERATOR: G2Affine = <<Config as Bls12Config>::G2Config as SWCurve
 /* ====================Signature Related==================== */
 
 /* ====================SNARK Related==================== */
-pub type SNARKCurve = ark_bw6_761::BW6_761;
+pub type SNARKCurve = ark_bls12_377::Bls12_377;
 
 // which scalar field we run our SNARK on
 pub type BaseSNARKField = <SNARKCurve as Pairing>::ScalarField;

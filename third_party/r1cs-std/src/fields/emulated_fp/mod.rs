@@ -144,7 +144,8 @@ use ark_std::fmt::Debug;
 /// - `bits_per_limb`:          the size of the limbs
 pub mod params;
 /// How are non-native elements reduced?
-pub(crate) mod reduce;
+// Debug: remove this
+pub mod reduce;
 
 /// a macro for computing ceil(log2(x)) for a field element x
 macro_rules! overhead {

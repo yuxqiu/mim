@@ -215,6 +215,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedMulResultVar<TargetF, Base
             kp_plus_r_gadget.limbs[kp_plus_r_limbs_len - 1 - i] += limb;
         }
 
+        // See xJsnark's equality checking
         Reducer::<TargetF, BaseF>::group_and_check_equality(
             surfeit,
             2 * params.bits_per_limb,

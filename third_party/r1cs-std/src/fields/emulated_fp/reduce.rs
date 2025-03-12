@@ -305,17 +305,62 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
                 + remainder_limb;
 
             // DEBUG: remove later
-            if cs.num_constraints() == 3085722 {
+            if cs.num_constraints() == 2803209 {
                 // this is right before the unsat constraint is added
                 assert!(cs.is_satisfied().unwrap());
+                // println!(
+                //     "{}, {}",
+                //     eqn_left.value().unwrap(),
+                //     eqn_right.value().unwrap()
+                // );
+
+                // print left values and right values
+                // - these are limb values -> they are not necessarily equal
+                // - so, we need to check TargetField repr
+                //   - if they are equal, bug is in this code
+                //   - if they are not, bug starts from prev code
+                let left_values: Vec<_> = left.iter().map(|fv| fv.value().unwrap()).collect();
+                let right_values: Vec<_> = right.iter().map(|fv| fv.value().unwrap()).collect();
+                println!("Reproducing Info");
                 println!(
-                    "{}, {}",
-                    eqn_left.value().unwrap(),
-                    eqn_right.value().unwrap()
+                    "surfeit: {},
+bits_per_limb: {},
+shift_per_limb: {},
+left_values: {:?},
+right_values: {:?}",
+                    surfeit, bits_per_limb, shift_per_limb, left_values, right_values
                 );
+                let left_value = AllocatedEmulatedFpVar::<TargetF, BaseF>::limbs_to_value(
+                    left_values,
+                    match cs.optimization_goal() {
+                        ark_relations::r1cs::OptimizationGoal::None => {
+                            crate::fields::emulated_fp::params::OptimizationType::Constraints
+                        },
+                        ark_relations::r1cs::OptimizationGoal::Constraints => {
+                            crate::fields::emulated_fp::params::OptimizationType::Constraints
+                        },
+                        ark_relations::r1cs::OptimizationGoal::Weight => {
+                            crate::fields::emulated_fp::params::OptimizationType::Weight
+                        },
+                    },
+                );
+                let right_value = AllocatedEmulatedFpVar::<TargetF, BaseF>::limbs_to_value(
+                    right_values,
+                    match cs.optimization_goal() {
+                        ark_relations::r1cs::OptimizationGoal::None => {
+                            crate::fields::emulated_fp::params::OptimizationType::Constraints
+                        },
+                        ark_relations::r1cs::OptimizationGoal::Constraints => {
+                            crate::fields::emulated_fp::params::OptimizationType::Constraints
+                        },
+                        ark_relations::r1cs::OptimizationGoal::Weight => {
+                            crate::fields::emulated_fp::params::OptimizationType::Weight
+                        },
+                    },
+                );
+                println!("\nExpected Result in TargetF\nLeft: {}\nRight: {}", left_value, right_value);
             }
-            // 23252872595569798916603490018121983261169516409351989185471321936430228531624039882909318699407103270056525561855
-            // 23252872595439065348059082123193723220894689263884242676051508218077876654384480135773347350432660641585800675328
+
             eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseF>::TRUE)?;
 
             accumulated_extra = new_accumulated_extra;
