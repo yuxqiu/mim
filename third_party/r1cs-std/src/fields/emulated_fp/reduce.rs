@@ -162,17 +162,23 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
         }
 
         loop {
+            // not sure if this also needs to be changed, as we modify `prod_of_num_of_additions` of MulResult
+            // - if we fail to reduce enough, we will have a surfeit that is too large
+            // 
+            // right now, I have adjusted it.
             let prod_of_num_of_additions = (elem.num_of_additions_over_normal_form + BaseF::one())
                 * (elem_other.num_of_additions_over_normal_form + BaseF::one());
-            let overhead_limb = overhead!(prod_of_num_of_additions.mul(
-                &BaseF::from_bigint(<BaseF as PrimeField>::BigInt::from(
-                    (params.num_limbs) as u64
+                let overhead_limb = overhead!(prod_of_num_of_additions.mul(
+                    &BaseF::from_bigint(<BaseF as PrimeField>::BigInt::from(
+                    (params.num_limbs / 2) as u64
                 ))
                 .unwrap()
             ));
-            let bits_per_mulresult_limb = 2 * (params.bits_per_limb + 1) + overhead_limb;
 
-            if bits_per_mulresult_limb < BaseF::MODULUS_BIT_SIZE as usize {
+            let bits_per_mulresult_limb = 2 * params.bits_per_limb + overhead_limb;
+            
+            // -2 because we want bits_per_mulresult_limb smaller than MODULUS_BIT_SIZE - 2 (which is for padding)
+            if bits_per_mulresult_limb < (BaseF::MODULUS_BIT_SIZE - 2) as usize {
                 break;
             }
 
