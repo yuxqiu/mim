@@ -341,7 +341,7 @@ mod tests {
         let bits_per_limb = 24;
         let shift_per_limb = 12;
         // this should be a safe surfeit
-        let surfeit = 21 + shift_per_limb + (32 as f64 / 2.).log2().ceil() as usize;
+        let surfeit = 21 + (32 as f64 / 2.).log2().ceil() as usize;
         // println!("{}", <TargetF as ark_ff::PrimeField>::MODULUS_BIT_SIZE / 12 + 1);
 
         let left_values: [u64; 63] = [

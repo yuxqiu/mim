@@ -228,11 +228,15 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
         // - left_total_limb_value + carry_in_value + pad_limb < pad_limb == true
         // let num_limb_in_a_group = 1;
 
-        let _left_values: Vec<_> = left.iter().map(|fv| fv.value().unwrap()).collect();
-        let _right_values: Vec<_> = right.iter().map(|fv| fv.value().unwrap()).collect();
-        dbg!(surfeit);
-        dbg!(BaseF::MODULUS_BIT_SIZE);
-        dbg!(num_limb_in_a_group, bits_per_limb, num_limb_in_a_group * (bits_per_limb - shift_per_limb) + shift_per_limb);
+        // let _left_values: Vec<_> = left.iter().map(|fv| fv.value().unwrap()).collect();
+        // let _right_values: Vec<_> = right.iter().map(|fv| fv.value().unwrap()).collect();
+        // dbg!(surfeit);
+        // dbg!(BaseF::MODULUS_BIT_SIZE);
+        // dbg!(
+        //     num_limb_in_a_group,
+        //     bits_per_limb,
+        //     num_limb_in_a_group * shift_per_limb + (bits_per_limb - shift_per_limb) + surfeit
+        // );
         // dbg!(&left_values, &right_values);
 
         // let left_value = AllocatedEmulatedFpVar::<TargetF, BaseF>::limbs_to_value(
@@ -326,8 +330,9 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             //     this might cause serious problem when left is smaller than right as then it's possible that
             //     `left_total_limb_value + carry_in_value + pad_limb - right_total_limb_value` is negative and then wrap around.
             //
-            // Then, I suspect that it's because surfeit is not calculated correctly. As only in that case, the highest word will
+            // Then, I suspect that it's because `surfeit` is not calculated correctly. As only in that case, the highest word will
             // have a value large than the pad_limb (surfeit is a upper bound for every word - see below).
+            // - Why only this will happen when `surfeit` is not calculated correct is addressed below.
             // - Currently, for mul, `surfeit = ceil(log(prod of add_over_normal + 1)) + 1 + 1`
             //
             // Before diving into my calculation, I want to explain what surfeit is for:
@@ -339,14 +344,19 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             // - m/2 comes from the fact that m/2 pairs of multiplication of 2 words will be added together at most
             //
             // So, we know the total bit size will be 2*bits_per_limb + log(ab) + log(m/2). Then, by definition,
-            // surfeit will be bits_per_limb + log(ab) + log(m/2). With the correct surfeit, we can have padding that satisfies
-            // the constraint.
+            // surfeit will be log(ab) + log(m/2) (because `bits_per_limb` of this func is 2*bits_per_limb).
+            // With the correct surfeit, we can have padding that satisfies the constraint.
+            //
+            // With the above knowledge. We can also deduce why we need such a `num_limb_in_a_group` variable, we know
+            // final length of the number will be upper bounded by:
+            // - num_limb_in_a_group * shift_per_limb + (bits_per_limb - shift_per_limb) + true_surfeit
+            // - This provides another perspective about why it's crucial to have a correct surfeit, or otherwise,
+            //   when you expand the above formula, it will potentially be >= pad_limb's bit size.
             pad_limb_repr <<= (surfeit
                 + (bits_per_limb - shift_per_limb)
                 + shift_per_limb * num_limb_in_this_group
                 + 1
-                + 1
-            ) as u32;
+                + 1) as u32;
             let pad_limb = BaseF::from_bigint(pad_limb_repr).unwrap();
 
             let left_total_limb_value = left_total_limb.value().unwrap_or_default();
