@@ -267,6 +267,12 @@ mod tests {
         Next Step
         - Read carefully how `group_and_check_equality` is done in xJsnark
         - Cross-check the aforementioned projects to see where the bug is
+
+        ---
+
+        What I actually did
+        - Play around with add to understand more about surfeit, equality check, num_limbs_in_a_group, pad_limb, group_size
+        - Play around with mul to spot the bug for pad_limb
         */
 
         // then, we ensure during the computation, there are no unsatisfiable constraints generated
@@ -331,11 +337,12 @@ mod tests {
     fn reproduce_group_eq_bug() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
         type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
-        // type BaseF = <ark_bls12_377::Config as Bls12Config>::Fp;
 
-        let surfeit = 21;
         let bits_per_limb = 24;
         let shift_per_limb = 12;
+        // this should be a safe surfeit
+        let surfeit = 21 + shift_per_limb + (32 as f64 / 2.).log2().ceil() as usize;
+        // println!("{}", <TargetF as ark_ff::PrimeField>::MODULUS_BIT_SIZE / 12 + 1);
 
         let left_values: [u64; 63] = [
             129410767216,
@@ -485,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn reproduce_add_bug() {
+    fn experiment_add() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
         type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
 
@@ -511,7 +518,7 @@ mod tests {
             // will be capped on that. So, when
             // - target >= 2^{bits_per_limbs}: it can only add itself to achieve the fastest growth, but doing so causes
             // surfeit to +1. It's worth noting `surfeit` is an over estimation.
-            // - target < 2^{bits_per_limbs}:
+            // - target < 2^{bits_per_limbs}: ... This turns out not to be a good way to understand this. See below.
             //
             // A good way to think about surfeit is it represents the number of times numbers with value < 2^{bits_per_limbs}
             // are added together. It can give us an upper bound of the target value.
@@ -519,12 +526,16 @@ mod tests {
             // a * 2^bits_per_limb < BaseF::MODULUS
             // <=> bits_per_limb + log(a) < log(BaseF::MODULUS)
             //
+            // You can see that `surfeit` appears as `log(a)` (with a caveat as noted below).
+            //
             // In practice, this seems to be a safe choice
             // <=> bits_per_limb + ceil(log(a)) < BaseF::MODULUS_BIT_SIZE - 1
             //
-            // But in arkworks, surfeit is computed as 2 * bits_per_limb + ceil(log(a + 1)) + 1 + 1.
-            // Do note that the above is just an analysis for `add`. In practice,
-            // this bound is chosen so that all operations are safe to do.
+            // But in arkworks, the condition is computed as 2 * bits_per_limb + ceil(log(a + 1)) + 1 + 1.
+            // - the `surfeit` it computes is `ceil(log(a + 1)) + 1`, which is slightly larger than our calculation.
+            //
+            // My best guess is the above is just an analysis for `add`. In practice, this bound is chosen so that all
+            // operations are safe to do.
             target += target.clone();
             target_value += target_value;
 

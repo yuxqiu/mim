@@ -221,11 +221,49 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             / shift_per_limb;
 
         // 1 temporary fixes this, but is very slow and generates many constraints
+        //
+        // - 17/18 is the boundary of the MRE, and the above calc gives 18
+        //
+        // 18 potentially causes overflow as one grouped pair overflows based on the test
+        // - left_total_limb_value + carry_in_value + pad_limb < pad_limb == true
         // let num_limb_in_a_group = 1;
 
+        let _left_values: Vec<_> = left.iter().map(|fv| fv.value().unwrap()).collect();
+        let _right_values: Vec<_> = right.iter().map(|fv| fv.value().unwrap()).collect();
         dbg!(surfeit);
         dbg!(BaseF::MODULUS_BIT_SIZE);
-        dbg!(num_limb_in_a_group * bits_per_limb);
+        dbg!(num_limb_in_a_group, bits_per_limb, num_limb_in_a_group * (bits_per_limb - shift_per_limb) + shift_per_limb);
+        // dbg!(&left_values, &right_values);
+
+        // let left_value = AllocatedEmulatedFpVar::<TargetF, BaseF>::limbs_to_value(
+        //     left_values,
+        //     match cs.optimization_goal() {
+        //         ark_relations::r1cs::OptimizationGoal::None => {
+        //             crate::fields::emulated_fp::params::OptimizationType::Constraints
+        //         },
+        //         ark_relations::r1cs::OptimizationGoal::Constraints => {
+        //             crate::fields::emulated_fp::params::OptimizationType::Constraints
+        //         },
+        //         ark_relations::r1cs::OptimizationGoal::Weight => {
+        //             crate::fields::emulated_fp::params::OptimizationType::Weight
+        //         },
+        //     },
+        // );
+        // let right_value = AllocatedEmulatedFpVar::<TargetF, BaseF>::limbs_to_value(
+        //     right_values,
+        //     match cs.optimization_goal() {
+        //         ark_relations::r1cs::OptimizationGoal::None => {
+        //             crate::fields::emulated_fp::params::OptimizationType::Constraints
+        //         },
+        //         ark_relations::r1cs::OptimizationGoal::Constraints => {
+        //             crate::fields::emulated_fp::params::OptimizationType::Constraints
+        //         },
+        //         ark_relations::r1cs::OptimizationGoal::Weight => {
+        //             crate::fields::emulated_fp::params::OptimizationType::Weight
+        //         },
+        //     },
+        // );
+        // dbg!(left_value, right_value);
 
         let shift_array = {
             let mut array = Vec::new();
@@ -275,11 +313,40 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             let mut pad_limb_repr = BaseF::ONE.into_bigint();
 
             // calculate max_word?
+            //
+            // Problem
+            // - I observed that sometimes eqn_left wraps around, which should not happen
+            //
+            // Reasoning
+            // - we should keep the size <= MODULUS_SIZE - 1
+            // - pad_limb_repr len can be BaseF::MODULUS_BIT_SIZE - 2 (expand shift_per_limb * num_limb_in_this_group)
+            //   - if it is greater than left/right values, adding left_total_limb_value + carry_in_value + pad_limb shouldn't cause
+            //     any problem
+            //   - however, then I observed a more serious problem, pad_limb_repr is not guaranteed to be larger than left/right.
+            //     this might cause serious problem when left is smaller than right as then it's possible that
+            //     `left_total_limb_value + carry_in_value + pad_limb - right_total_limb_value` is negative and then wrap around.
+            //
+            // Then, I suspect that it's because surfeit is not calculated correctly. As only in that case, the highest word will
+            // have a value large than the pad_limb (surfeit is a upper bound for every word - see below).
+            // - Currently, for mul, `surfeit = ceil(log(prod of add_over_normal + 1)) + 1 + 1`
+            //
+            // Before diving into my calculation, I want to explain what surfeit is for:
+            // - We can treat it as an estimation of the maximum bits of all words. In other word, it is max(max(word in bit, ignore
+            // leading 0) for word in words). We want this to be <= BaseF::MODULUS_BIT_SIZE - 1. So that we don't lose info.
+            //
+            // Then, we can derive, given `x`` and `y`` that has `a` and `b` as `add_over_norm`. Let z = xy. We know we can bound
+            // the value of all words by a*2^{bits_per_limb} * b*2^{bits_per_limb} * m/2
+            // - m/2 comes from the fact that m/2 pairs of multiplication of 2 words will be added together at most
+            //
+            // So, we know the total bit size will be 2*bits_per_limb + log(ab) + log(m/2). Then, by definition,
+            // surfeit will be bits_per_limb + log(ab) + log(m/2). With the correct surfeit, we can have padding that satisfies
+            // the constraint.
             pad_limb_repr <<= (surfeit
                 + (bits_per_limb - shift_per_limb)
                 + shift_per_limb * num_limb_in_this_group
                 + 1
-                + 1) as u32;
+                + 1
+            ) as u32;
             let pad_limb = BaseF::from_bigint(pad_limb_repr).unwrap();
 
             let left_total_limb_value = left_total_limb.value().unwrap_or_default();
@@ -302,75 +369,36 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             );
             let remainder_limb = bigint_to_basefield::<BaseF>(&remainder);
 
+            // println!("");
+            // dbg!(accumulated_extra);
+            // dbg!(shift_per_limb * num_limb_in_this_group);
+            // dbg!(left_total_limb_value < pad_limb);
+            // dbg!(carry_in_value < pad_limb);
+            // dbg!(left_total_limb_value + carry_in_value + pad_limb < left_total_limb_value);
+            // dbg!(left_total_limb_value + carry_in_value + pad_limb < carry_in_value);
+            // dbg!(left_total_limb_value + carry_in_value + pad_limb < pad_limb);
+            // dbg!(left_total_limb_value + carry_in_value + pad_limb < right_total_limb_value);
+            // dbg!(right_total_limb_value);
+            // dbg!(&new_accumulated_extra, remainder_limb);
+
             // Now check
             //      left_total_limb + pad_limb + carry_in - right_total_limb
             //   =  carry shift by (shift_per_limb * num_limb_in_this_group) + remainder
+            //
+            // ---
+            //
+            // My Note:
+            //
+            // cur_left - cur_right + carry_in + pad (to accommodate possible overflow for subtraction)
+            // = carry_out (of the above computation) + remainder (of accumulated padding)
+            //
+            // this is sound because it proves the remainder of the subtraction is 0 all the time.
 
             let eqn_left = left_total_limb + pad_limb + &carry_in - right_total_limb;
 
             let eqn_right = &carry
                 * BaseF::from(2u64).pow(&[(shift_per_limb * num_limb_in_this_group) as u64])
                 + remainder_limb;
-
-            // DEBUG: remove later
-            if cs.num_constraints() == 2803209 {
-                // this is right before the unsat constraint is added
-                assert!(cs.is_satisfied().unwrap());
-                // println!(
-                //     "{}, {}",
-                //     eqn_left.value().unwrap(),
-                //     eqn_right.value().unwrap()
-                // );
-
-                // print left values and right values
-                // - these are limb values -> they are not necessarily equal
-                // - so, we need to check TargetField repr
-                //   - if they are equal, bug is in this code
-                //   - if they are not, bug starts from prev code
-                let left_values: Vec<_> = left.iter().map(|fv| fv.value().unwrap()).collect();
-                let right_values: Vec<_> = right.iter().map(|fv| fv.value().unwrap()).collect();
-                println!("Reproducing Info");
-                println!(
-                    "surfeit: {},
-bits_per_limb: {},
-shift_per_limb: {},
-left_values: {:?},
-right_values: {:?}",
-                    surfeit, bits_per_limb, shift_per_limb, left_values, right_values
-                );
-                let left_value = AllocatedEmulatedFpVar::<TargetF, BaseF>::limbs_to_value(
-                    left_values,
-                    match cs.optimization_goal() {
-                        ark_relations::r1cs::OptimizationGoal::None => {
-                            crate::fields::emulated_fp::params::OptimizationType::Constraints
-                        },
-                        ark_relations::r1cs::OptimizationGoal::Constraints => {
-                            crate::fields::emulated_fp::params::OptimizationType::Constraints
-                        },
-                        ark_relations::r1cs::OptimizationGoal::Weight => {
-                            crate::fields::emulated_fp::params::OptimizationType::Weight
-                        },
-                    },
-                );
-                let right_value = AllocatedEmulatedFpVar::<TargetF, BaseF>::limbs_to_value(
-                    right_values,
-                    match cs.optimization_goal() {
-                        ark_relations::r1cs::OptimizationGoal::None => {
-                            crate::fields::emulated_fp::params::OptimizationType::Constraints
-                        },
-                        ark_relations::r1cs::OptimizationGoal::Constraints => {
-                            crate::fields::emulated_fp::params::OptimizationType::Constraints
-                        },
-                        ark_relations::r1cs::OptimizationGoal::Weight => {
-                            crate::fields::emulated_fp::params::OptimizationType::Weight
-                        },
-                    },
-                );
-                println!(
-                    "\nExpected Result in TargetF\nLeft: {}\nRight: {}",
-                    left_value, right_value
-                );
-            }
 
             eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseF>::TRUE)?;
 
@@ -383,6 +411,7 @@ right_values: {:?}",
                     &accumulated_extra,
                 )))?;
             } else {
+                // enforce carry's bits length
                 Reducer::<TargetF, BaseF>::limb_to_bits(&carry, surfeit + bits_per_limb)?;
             }
         }
