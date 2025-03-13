@@ -432,9 +432,13 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
         Ok(AllocatedMulResultVar {
             cs: self.cs(),
             limbs: prod_limbs,
+            // can actually remove BaseF::one added to two `additions_over_normal_form`, but I am not pretty
+            // sure why it exists, so, I leave it as it is as an overestimation of this has no downside.
             prod_of_num_of_additions: (self_reduced.num_of_additions_over_normal_form
                 + BaseF::one())
-                * (other_reduced.num_of_additions_over_normal_form + BaseF::one()),
+                * (other_reduced.num_of_additions_over_normal_form + BaseF::one())
+                + BaseF::from(BaseF::one().into_bigint() << params.bits_per_limb as u32)
+                + BaseF::from((params.num_limbs as f64 / 2.).log2() as u32),
             target_phantom: PhantomData,
         })
     }
