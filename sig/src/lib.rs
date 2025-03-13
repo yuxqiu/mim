@@ -269,10 +269,13 @@ mod tests {
         - Cross-check the aforementioned projects to see where the bug is
 
         ---
+        Debug Story 5
 
         What I actually did
         - Play around with add to understand more about surfeit, equality check, num_limbs_in_a_group, pad_limb, group_size
         - Play around with mul to spot the bug for pad_limb
+        
+        See `third_party/r1cs-std/src/fields/emulated_fp/reduce.rs` for more details.
         */
 
         // then, we ensure during the computation, there are no unsatisfiable constraints generated
@@ -340,9 +343,24 @@ mod tests {
 
         let bits_per_limb = 24;
         let shift_per_limb = 12;
-        // this should be a safe surfeit
+
+        // bug inducing surfeit value
+        // let surfeit = 21;
+
+        // this should be a safe surfeit: 32 is the num_limbs
         let surfeit = 21 + (32 as f64 / 2.).log2().ceil() as usize;
-        // println!("{}", <TargetF as ark_ff::PrimeField>::MODULUS_BIT_SIZE / 12 + 1);
+
+        // To let the below test pass for the old code, we can set `num_limb_in_a_group` in `group_and_check_equality` to be 1.
+        // 
+        // A further examination shows that
+        // - 17/18 is the boundary where the bug happens, and the calc inside the `group_and_check_equality` gives 18,
+        // which causes the bug.
+        //
+        // 18 causes overflow as we find that
+        // - left_total_limb_value + carry_in_value + pad_limb < left_total_limb_value == true
+        // - left_total_limb_value + carry_in_value + pad_limb < pad_limb == true
+        // 
+        // let num_limb_in_a_group = 1;
 
         let left_values: [u64; 63] = [
             129410767216,

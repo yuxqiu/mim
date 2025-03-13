@@ -220,14 +220,6 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             - (bits_per_limb - shift_per_limb))
             / shift_per_limb;
 
-        // 1 temporary fixes this, but is very slow and generates many constraints
-        //
-        // - 17/18 is the boundary of the MRE, and the above calc gives 18
-        //
-        // 18 potentially causes overflow as one grouped pair overflows based on the test
-        // - left_total_limb_value + carry_in_value + pad_limb < pad_limb == true
-        // let num_limb_in_a_group = 1;
-
         // let _left_values: Vec<_> = left.iter().map(|fv| fv.value().unwrap()).collect();
         // let _right_values: Vec<_> = right.iter().map(|fv| fv.value().unwrap()).collect();
         // dbg!(surfeit);
