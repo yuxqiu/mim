@@ -220,6 +220,13 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             - (bits_per_limb - shift_per_limb))
             / shift_per_limb;
 
+        // 1 temporary fixes this, but is very slow and generates many constraints
+        // let num_limb_in_a_group = 1;
+
+        dbg!(surfeit);
+        dbg!(BaseF::MODULUS_BIT_SIZE);
+        dbg!(num_limb_in_a_group * bits_per_limb);
+
         let shift_array = {
             let mut array = Vec::new();
             let mut cur = BaseF::one().into_bigint();
@@ -267,6 +274,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
         {
             let mut pad_limb_repr = BaseF::ONE.into_bigint();
 
+            // calculate max_word?
             pad_limb_repr <<= (surfeit
                 + (bits_per_limb - shift_per_limb)
                 + shift_per_limb * num_limb_in_this_group
@@ -358,7 +366,10 @@ right_values: {:?}",
                         },
                     },
                 );
-                println!("\nExpected Result in TargetF\nLeft: {}\nRight: {}", left_value, right_value);
+                println!(
+                    "\nExpected Result in TargetF\nLeft: {}\nRight: {}",
+                    left_value, right_value
+                );
             }
 
             eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseF>::TRUE)?;

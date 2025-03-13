@@ -14,11 +14,13 @@ mod tests {
     use ark_ff::{
         BigInt, BitIteratorBE, CubicExtField, Fp2ConfigWrapper, Fp6ConfigWrapper, QuadExtField,
     };
+    use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::fp2::Fp2Var;
     use ark_r1cs_std::fields::fp6_3over2::Fp6Var;
     use ark_r1cs_std::fields::quadratic_extension::QuadExtVar;
     use ark_r1cs_std::fields::FieldVar;
+    use ark_r1cs_std::R1CSVar;
     use ark_r1cs_std::{
         alloc::AllocVar,
         groups::{
@@ -35,6 +37,7 @@ mod tests {
         ParametersVar, PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar,
     };
     use rand::thread_rng;
+    use tracing::field::Field;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
     use crate::bls::BLSSigCurveConfig;
@@ -241,7 +244,7 @@ mod tests {
         how the whole limb representation work. So, I spent a couple of hours reading xJsnark paper, read the source code for
         converting from limb representations to TargetF and the other way around, addition, multiplication (and verify reduction),
         and took a look at `bellman-bignat`: https://github.com/alex-ozdemir/bellman-bignat/blob/master/src/mp/bignat.rs#L567.
-        
+
         ---
         Some I thought might be helpful for the debug later:
         - https://github.com/FindoraNetwork/zei/blob/ea475a4996f4949987610945299effb9896b6597/crypto/src/field_simulation.rs#L372
@@ -328,6 +331,7 @@ mod tests {
     fn reproduce_group_eq_bug() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
         type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
+        // type BaseF = <ark_bls12_377::Config as Bls12Config>::Fp;
 
         let surfeit = 21;
         let bits_per_limb = 24;
@@ -478,5 +482,59 @@ mod tests {
         ).unwrap();
 
         assert!(cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    fn reproduce_add_bug() {
+        type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
+        type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
+
+        let cs: ark_relations::r1cs::ConstraintSystemRef<BaseF> = ConstraintSystem::new_ref();
+
+        let mut target = EmulatedFpVar::new_input(cs.clone(), || Ok(TargetF::from(1))).unwrap();
+        let mut target_value = TargetF::from(1);
+
+        for _ in 0..<BaseF as ark_ff::PrimeField>::MODULUS_BIT_SIZE {
+            // My previous thought:
+            //
+            // fresh clone so that
+            // - add_over_normal_form is 1
+            // - each add guarantees to add one more bit to the output
+            //
+            // let fresh_clone =
+            //     EmulatedFpVar::new_input(cs.clone(), || Ok(TargetF::from(target.value().unwrap())))
+            //         .unwrap();
+            //
+            // ---
+            //
+            // But I missed that when the cloned TargetF is greater than bits_per_limb, the least significant lib
+            // will be capped on that. So, when
+            // - target >= 2^{bits_per_limbs}: it can only add itself to achieve the fastest growth, but doing so causes
+            // surfeit to +1. It's worth noting `surfeit` is an over estimation.
+            // - target < 2^{bits_per_limbs}:
+            //
+            // A good way to think about surfeit is it represents the number of times numbers with value < 2^{bits_per_limbs}
+            // are added together. It can give us an upper bound of the target value.
+            //
+            // a * 2^bits_per_limb < BaseF::MODULUS
+            // <=> bits_per_limb + log(a) < log(BaseF::MODULUS)
+            //
+            // In practice, this seems to be a safe choice
+            // <=> bits_per_limb + ceil(log(a)) < BaseF::MODULUS_BIT_SIZE - 1
+            //
+            // But in arkworks, surfeit is computed as 2 * bits_per_limb + ceil(log(a + 1)) + 1 + 1.
+            // Do note that the above is just an analysis for `add`. In practice,
+            // this bound is chosen so that all operations are safe to do.
+            target += target.clone();
+            target_value += target_value;
+
+            assert_eq!(target.value().unwrap(), target_value);
+        }
+
+        // Sidenote: sonobe has an excellent explanation about their choice of bits_per_limb, which showcases the possiblity of
+        // optimizing non-native field variables.
+        // - https://github.com/grandchildrice/sonobe/blob/aa324450f58894d2621af9aabe2a5cf6bac63c12/folding-schemes/src/folding/circuits/nonnative/uint.rs#L179
+        //
+        // They also implemented the xJsnark's version of `mul` operations which arkworks does not implement.
     }
 }

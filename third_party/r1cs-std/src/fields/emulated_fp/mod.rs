@@ -169,10 +169,17 @@ macro_rules! overhead {
             }
         }
 
+        // BUG: there might be a problem with the original impl here
+        // if is_power_of_2 {
+        //     num_bits.len() - skipped_bits
+        // } else {
+        //     num_bits.len() - skipped_bits + 1
+        // }
+
         if is_power_of_2 {
-            num_bits.len() - skipped_bits
+            num_bits.len() - skipped_bits - 1
         } else {
-            num_bits.len() - skipped_bits + 1
+            num_bits.len() - skipped_bits
         }
     }};
 }
