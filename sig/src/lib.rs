@@ -7,18 +7,11 @@ pub mod hash;
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_377::Bls12_377;
-    use ark_bls12_381::Fq;
     use ark_ec::bls12::{Bls12, Bls12Config};
     use ark_ec::pairing::Pairing;
-    use ark_ff::{
-        BigInt, BitIteratorBE, CubicExtField, Fp2ConfigWrapper, Fp6ConfigWrapper, QuadExtField,
-    };
+    use ark_ff::BitIteratorBE;
     use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
     use ark_r1cs_std::fields::fp::FpVar;
-    use ark_r1cs_std::fields::fp2::Fp2Var;
-    use ark_r1cs_std::fields::fp6_3over2::Fp6Var;
-    use ark_r1cs_std::fields::quadratic_extension::QuadExtVar;
     use ark_r1cs_std::fields::FieldVar;
     use ark_r1cs_std::R1CSVar;
     use ark_r1cs_std::{
@@ -37,7 +30,6 @@ mod tests {
         ParametersVar, PublicKey, PublicKeyVar, SecretKey, Signature, SignatureVar,
     };
     use rand::thread_rng;
-    use tracing::field::Field;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
     use crate::bls::BLSSigCurveConfig;
@@ -152,38 +144,20 @@ mod tests {
         let mut f =
             <MyPairingVar as PairingVar<Bls12<BLSSigCurveConfig>, BaseSNARKField>>::GTVar::one();
 
-        for (idx, i) in BitIteratorBE::new(<BLSSigCurveConfig as Bls12Config>::X)
+        for (_, i) in BitIteratorBE::new(<BLSSigCurveConfig as Bls12Config>::X)
             .skip(1)
             .enumerate()
         {
-            println!("at {}", idx);
-
             f.square_in_place().unwrap();
-            println!(
-                "cs.satisfied = {} at {}",
-                cs.is_satisfied().unwrap(),
-                line!()
-            );
 
             for &mut (p, ref mut coeffs) in pairs.iter_mut() {
                 MyPairingVar::ell(&mut f, coeffs.next().unwrap(), &p.0).unwrap();
             }
-            println!(
-                "cs.satisfied = {} at {}",
-                cs.is_satisfied().unwrap(),
-                line!()
-            );
-
             if i {
                 for &mut (p, ref mut coeffs) in pairs.iter_mut() {
                     MyPairingVar::ell(&mut f, coeffs.next().unwrap(), &p.0).unwrap();
                 }
             }
-            println!(
-                "cs.satisfied = {} at {}",
-                cs.is_satisfied().unwrap(),
-                line!()
-            );
 
             let unsat = cs.which_is_unsatisfied().unwrap();
             if let Some(s) = unsat {
@@ -274,7 +248,7 @@ mod tests {
         What I actually did
         - Play around with add to understand more about surfeit, equality check, num_limbs_in_a_group, pad_limb, group_size
         - Play around with mul to spot the bug for pad_limb
-        
+
         See `third_party/r1cs-std/src/fields/emulated_fp/reduce.rs` for more details.
         */
 
@@ -351,7 +325,7 @@ mod tests {
         let surfeit = 21 + (32 as f64 / 2.).log2().ceil() as usize;
 
         // To let the below test pass for the old code, we can set `num_limb_in_a_group` in `group_and_check_equality` to be 1.
-        // 
+        //
         // A further examination shows that
         // - 17/18 is the boundary where the bug happens, and the calc inside the `group_and_check_equality` gives 18,
         // which causes the bug.
@@ -359,7 +333,7 @@ mod tests {
         // 18 causes overflow as we find that
         // - left_total_limb_value + carry_in_value + pad_limb < left_total_limb_value == true
         // - left_total_limb_value + carry_in_value + pad_limb < pad_limb == true
-        // 
+        //
         // let num_limb_in_a_group = 1;
 
         let left_values: [u64; 63] = [

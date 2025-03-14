@@ -239,6 +239,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedMulResultVar<TargetF, Base
             new_limbs.push(new_limb);
         }
 
+        // BUG: this can overflow
         Ok(Self {
             cs: self.cs(),
             limbs: new_limbs,
