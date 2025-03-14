@@ -153,6 +153,7 @@ macro_rules! overhead {
         use ark_ff::BigInteger;
         let num = $x;
         let num_bits = num.into_bigint().to_bits_be();
+
         let mut skipped_bits = 0;
         for b in num_bits.iter() {
             if *b == false {
@@ -170,13 +171,18 @@ macro_rules! overhead {
         }
 
         // BUG: there might be a problem with the original impl here
+        // - log(2) = 2
+        // - log(3) = 3
         // if is_power_of_2 {
         //     num_bits.len() - skipped_bits
         // } else {
         //     num_bits.len() - skipped_bits + 1
         // }
 
-        if is_power_of_2 {
+        // let log(0) = 0 in our case
+        if num == BaseF::zero() {
+            0
+        } else if is_power_of_2 {
             num_bits.len() - skipped_bits - 1
         } else {
             num_bits.len() - skipped_bits

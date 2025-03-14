@@ -155,31 +155,33 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             elem.get_optimization_type(),
         );
 
-        // allow `smallest_mul_bit_size == BaseF::MODULUS_BIT_SIZE as usize - 1`
-        // might lead to var that cannot be reduced
-        if 2 * params.bits_per_limb + ark_std::log2(params.num_limbs) as usize - 1
-            > BaseF::MODULUS_BIT_SIZE as usize - 2
+        // `smallest_mul_bit_size` needs to be `<= BaseF::MODULUS_BIT_SIZE as usize - 3`
+        // - see `group_and_check_equality` for more details
+        if 2 * params.bits_per_limb + ark_std::log2(params.num_limbs + 1) as usize
+            > BaseF::MODULUS_BIT_SIZE as usize - 3
         {
             panic!("The current limb parameters do not support multiplication.");
         }
 
         loop {
-            // not sure if this also needs to be changed, as we modify `prod_of_num_of_additions` of MulResult
-            // - if we fail to reduce enough, we will have a surfeit that is too large
-            //
-            // right now, I have adjusted it.
+            // this needs to be adjusted if we modify `prod_of_num_of_additions` of MulResult
             let prod_of_num_of_additions = (elem.num_of_additions_over_normal_form + BaseF::one())
                 * (elem_other.num_of_additions_over_normal_form + BaseF::one());
-            let overhead_limb = overhead!(prod_of_num_of_additions.mul(
-                &BaseF::from_bigint(<BaseF as PrimeField>::BigInt::from(
-                    (params.num_limbs / 2) as u64
-                ))
-                .unwrap()
-            ));
+            let overhead_limb = overhead!(
+                BaseF::one()
+                    + prod_of_num_of_additions.mul(
+                        &BaseF::from_bigint(<BaseF as PrimeField>::BigInt::from(
+                            (params.num_limbs) as u64
+                        ))
+                        .unwrap()
+                    )
+            );
 
             let bits_per_mulresult_limb = 2 * params.bits_per_limb + overhead_limb;
 
-            // -2 because we want bits_per_mulresult_limb smaller than MODULUS_BIT_SIZE - 2 (which is for padding)
+            // -2 because we want bits_per_mulresult_limb <= MODULUS_BIT_SIZE - 3
+            // - this is the max bit it can have in our configuration right now
+            // - see `group_and_check_equality` for more details
             if bits_per_mulresult_limb < (BaseF::MODULUS_BIT_SIZE - 2) as usize {
                 break;
             }

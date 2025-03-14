@@ -432,15 +432,25 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
         Ok(AllocatedMulResultVar {
             cs: self.cs(),
             limbs: prod_limbs,
-            // can actually remove BaseF::one added to two `additions_over_normal_form`, but I am not pretty
+            // Can actually remove BaseF::one added to two `additions_over_normal_form`, but I am not pretty
             // sure why it exists, so, I leave it as it is as an overestimation of this has no downside.
+            // - Wrong. See update below.
             //
-            // There is no need to add a params.bits_per_limb here. This will be used with bits_per_limb set as
+            // ---
+            //
+            // Update:
+            //
+            // 1. There is no need to add a params.bits_per_limb here. This will be used with bits_per_limb set as
             // 2 * params.bits_per_limb.
+            // 2. BaseF::one added to two `additions_over_normal_form` is needed because each cell represents m pairs of
+            // number in the form (a+1)2^{bits_per_limb} * (b+1)2^{bits_per_limb} = (ab+a+b+1)*2^{2*bits_per_limb}
+            // - Why m pair: at cell m, there are m possible pairs (one limb from each var) that can add to cell m
+            // - In theory, we can let `prod_of_num_of_additions = (m(ab+a+b+1)-1)` (-1 because this is for surfeit).
+            //   But below, we use an overestimation.
             prod_of_num_of_additions: (self_reduced.num_of_additions_over_normal_form
                 + BaseF::one())
                 * (other_reduced.num_of_additions_over_normal_form + BaseF::one())
-                * BaseF::from((params.num_limbs / 2) as u32),
+                * BaseF::from((params.num_limbs) as u32),
             target_phantom: PhantomData,
         })
     }

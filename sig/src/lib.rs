@@ -516,18 +516,24 @@ mod tests {
             // are added together. It can give us an upper bound of the target value.
             //
             // a * 2^bits_per_limb < BaseF::MODULUS
-            // <=> bits_per_limb + log(a) < log(BaseF::MODULUS)
+            // a * 2^bits_per_limb + 1 < BaseF::MODULUS + 1
+            // <=> log(a * 2^bits_per_limb + 1) < BaseF::MODULUS_BIT_SIZE
             //
-            // You can see that `surfeit` appears as `log(a)` (with a caveat as noted below).
+            // We use an upper bound to bound the LHS:
+            // log(a * 2^bits_per_limb + 1) < bits_per_limb + log(a + 1)
+            // - This is ok because surfeit is an upper bound of additional bit size for each word.
+            //   By enforcing `surfeit` satisfies some conditions, because of this upper bound, we naturally
+            //   also force the actual bit size to satisfy the condition.
             //
             // In practice, this seems to be a safe choice
-            // <=> bits_per_limb + ceil(log(a)) < BaseF::MODULUS_BIT_SIZE - 1
+            // <=> bits_per_limb + ceil(log(a + 1)) < BaseF::MODULUS_BIT_SIZE - 1
             //
             // But in arkworks, the condition is computed as 2 * bits_per_limb + ceil(log(a + 1)) + 1 + 1.
             // - the `surfeit` it computes is `ceil(log(a + 1)) + 1`, which is slightly larger than our calculation.
             //
             // My best guess is the above is just an analysis for `add`. In practice, this bound is chosen so that all
             // operations are safe to do.
+            // - See my analysis in `group_and_check_equality` for more details.
             target += target.clone();
             target_value += target_value;
 

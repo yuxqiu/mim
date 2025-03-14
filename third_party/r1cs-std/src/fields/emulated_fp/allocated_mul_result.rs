@@ -113,7 +113,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedMulResultVar<TargetF, Base
         };
 
         // Step 2: compute surfeit
-        let surfeit = overhead!(self.prod_of_num_of_additions);
+        let surfeit = overhead!(self.prod_of_num_of_additions + BaseF::one());
 
         // Step 3: allocate k
         let k_bits = {
