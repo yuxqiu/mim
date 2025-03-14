@@ -21,7 +21,9 @@ where
     for<'a> &'a F: FieldOpsBounds<'a, <P as Bls12Config>::Fp, F>,
 {
     // Evaluate the line function at point p.
-    // DEBUG: remove pub
+    //
+    // pub is added for debug `EmulatedFpVar`
+    // It is not removed because of the MRE example in `sig/src/lib.rs`.
     #[tracing::instrument(target = "r1cs", skip_all)]
     pub fn ell(
         f: &mut Fp12Var<P::Fp12Config, F, CF>,
