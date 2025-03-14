@@ -250,3 +250,51 @@ impl AllocVar<Parameters, BaseSNARKField> for ParametersVar {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::bls::{
+        BLSAggregateSignatureVerifyGadget, BaseSNARKField, Parameters, ParametersVar, PublicKey,
+        PublicKeyVar, SecretKey, Signature, SignatureVar,
+    };
+
+    use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
+    use ark_relations::r1cs::ConstraintSystem;
+    use rand::thread_rng;
+
+    fn get_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature) {
+        let msg = "Hello World";
+        let mut rng = thread_rng();
+
+        let params = Parameters::setup();
+        let sk = SecretKey::new(&mut rng);
+        let pk = PublicKey::new(&sk, &params);
+
+        let sig = Signature::sign(msg.as_bytes(), &sk, &params);
+
+        (msg, params, sk, pk, sig)
+    }
+
+    #[test]
+    fn check_r1cs() {
+        let cs = ConstraintSystem::new_ref();
+        let (msg, params, _, pk, sig) = get_instance();
+
+        let msg_var: Vec<UInt8<BaseSNARKField>> = msg
+            .as_bytes()
+            .iter()
+            .map(|b| UInt8::new_input(cs.clone(), || Ok(b)).unwrap())
+            .collect();
+        let params_var = ParametersVar::new_input(cs.clone(), || Ok(params)).unwrap();
+        let pk_var = PublicKeyVar::new_input(cs.clone(), || Ok(pk)).unwrap();
+        let sig_var = SignatureVar::new_input(cs.clone(), || Ok(sig)).unwrap();
+
+        BLSAggregateSignatureVerifyGadget::verify(&params_var, &pk_var, &msg_var, &sig_var)
+            .unwrap();
+
+        println!("Number of constraints: {}", cs.num_constraints());
+        assert!(cs.is_satisfied().unwrap());
+
+        println!("RC1S is satisfied!");
+    }
+}
