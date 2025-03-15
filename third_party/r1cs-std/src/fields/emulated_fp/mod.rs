@@ -144,10 +144,10 @@ use ark_std::fmt::Debug;
 /// - `bits_per_limb`:          the size of the limbs
 pub mod params;
 
-// pub(crate) is removed for debug `EmulatedFpVar`
+// Debug: pub(crate) is removed for debug `EmulatedFpVar`
 // This is not revered back to pub(crate) because
 // of the MRE example in `sig/src/lib.rs`.
-// 
+//
 /// How are non-native elements reduced?
 pub mod reduce;
 

@@ -555,7 +555,10 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
         Ok(())
     }
 
-    pub(crate) fn get_optimization_type(&self) -> OptimizationType {
+    // Debug: pub(crate) is removed for debug `EmulatedFpVar`
+    // This is not revered back to pub(crate) because
+    // of the MRE example in `sig/src/lib.rs`.
+    pub fn get_optimization_type(&self) -> OptimizationType {
         match self.cs().optimization_goal() {
             OptimizationGoal::None => OptimizationType::Constraints,
             OptimizationGoal::Constraints => OptimizationType::Constraints,

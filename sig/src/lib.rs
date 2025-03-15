@@ -9,8 +9,9 @@ pub mod hash;
 mod tests {
     use ark_ec::bls12::{Bls12, Bls12Config};
     use ark_ec::pairing::Pairing;
-    use ark_ff::BitIteratorBE;
-    use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
+    use ark_ff::{BitIteratorBE, PrimeField};
+    use ark_r1cs_std::fields::emulated_fp::params::get_params;
+    use ark_r1cs_std::fields::emulated_fp::{AllocatedEmulatedFpVar, EmulatedFpVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::FieldVar;
     use ark_r1cs_std::R1CSVar;
@@ -107,6 +108,86 @@ mod tests {
     // ================================================================================
     // =======================Analysis of bug in `EmulatedFpVar`=======================
     // ================================================================================
+    fn check_constraint<TargetF: PrimeField, BaseF: PrimeField>(
+        var: &AllocatedEmulatedFpVar<TargetF, BaseF>,
+    ) -> bool {
+        let limb_values: Vec<_> = var
+            .limbs
+            .iter()
+            .map(|fpvar| fpvar.value().unwrap())
+            .collect();
+        let params = get_params(
+            TargetF::MODULUS_BIT_SIZE as usize,
+            BaseF::MODULUS_BIT_SIZE as usize,
+            var.get_optimization_type(),
+        );
+        let bits_per_limb = params.bits_per_limb;
+        let upper_bound = (var.num_of_additions_over_normal_form + BaseF::one())
+            * BaseF::from((1 << bits_per_limb) - 1);
+        return !limb_values.iter().any(|value| value > &upper_bound);
+    }
+
+    /// MRE for subtraction bug in `EmulatedFpVar`
+    #[test]
+    fn reproduce_emulated_fpvar_sub_bug() {
+        type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
+        type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
+
+        let self_limb_values = [
+            100, 2618, 1428, 2152, 2602, 1242, 2823, 511, 1752, 2058, 3599, 1113, 3207, 3601, 2736,
+            435, 1108, 2965, 2685, 1705, 1016, 1343, 1760, 2039, 1355, 1767, 2355, 1945, 3594,
+            4066, 1913, 2646,
+        ];
+        let self_num_of_additions_over_normal_form = 1;
+        let self_is_in_the_normal_form = false;
+        let other_limb_values = [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 4,
+        ];
+        let other_num_of_additions_over_normal_form = 1;
+        let other_is_in_the_normal_form = false;
+
+        let cs = ConstraintSystem::new_ref();
+
+        let left_limb = self_limb_values
+            .iter()
+            .map(|v| FpVar::new_input(cs.clone(), || Ok(BaseF::from(*v))).unwrap())
+            .collect();
+        let left: AllocatedEmulatedFpVar<TargetF, BaseF> =
+            ark_r1cs_std::fields::emulated_fp::AllocatedEmulatedFpVar {
+                cs: cs.clone(),
+                limbs: left_limb,
+                num_of_additions_over_normal_form: BaseF::from(
+                    self_num_of_additions_over_normal_form,
+                ),
+                is_in_the_normal_form: self_is_in_the_normal_form,
+                target_phantom: std::marker::PhantomData,
+            };
+
+        let other_limb = other_limb_values
+            .iter()
+            .map(|v| FpVar::new_input(cs.clone(), || Ok(BaseF::from(*v))).unwrap())
+            .collect();
+        let right: AllocatedEmulatedFpVar<TargetF, BaseF> =
+            ark_r1cs_std::fields::emulated_fp::AllocatedEmulatedFpVar {
+                cs: cs.clone(),
+                limbs: other_limb,
+                num_of_additions_over_normal_form: BaseF::from(
+                    other_num_of_additions_over_normal_form,
+                ),
+                is_in_the_normal_form: other_is_in_the_normal_form,
+                target_phantom: std::marker::PhantomData,
+            };
+
+        let result = left.sub_without_reduce(&right).unwrap();
+        assert!(check_constraint(&left));
+        assert!(check_constraint(&right));
+        assert!(check_constraint(&result));
+    }
+
+    // =====================================================================================================
+    // =======================Archive of debug story and example for `EmulatedFpVar`=======================
+    // =====================================================================================================
 
     /// An example workload that triggers the bug in `EmulatedFpVar`.
     #[test]
@@ -294,7 +375,14 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
     }
 
-    /// MRE for bug in `EmulatedFpVar`
+    /// MRE for multiplication bug in `EmulatedFpVar`
+    ///
+    /// Note: This example strictly speaking is not a MRE as it does not satisfy the invariant of the multiplication.
+    /// This can be seen from the fact that
+    /// `self_num_of_additions_over_normal_form` and `other_num_of_additions_over_normal_form` are incorrect.
+    ///
+    /// But it is kept because it is generated from our workload (which indicates there are bugs in the
+    /// EmulatedFpVar's implementation).
     #[test]
     fn reproduce_emulated_fpvar_mul_bug() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
@@ -323,7 +411,7 @@ mod tests {
             .iter()
             .map(|v| FpVar::new_input(cs.clone(), || Ok(BaseF::from(*v))).unwrap())
             .collect();
-        let left = ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<TargetF, BaseF>::Var(
+        let left: AllocatedEmulatedFpVar<TargetF, BaseF> =
             ark_r1cs_std::fields::emulated_fp::AllocatedEmulatedFpVar {
                 cs: cs.clone(),
                 limbs: left_limb,
@@ -332,14 +420,13 @@ mod tests {
                 ),
                 is_in_the_normal_form: self_is_in_the_normal_form,
                 target_phantom: std::marker::PhantomData,
-            },
-        );
+            };
 
         let other_limb = other_limb_values
             .iter()
             .map(|v| FpVar::new_input(cs.clone(), || Ok(BaseF::from(*v))).unwrap())
             .collect();
-        let right = ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<TargetF, BaseF>::Var(
+        let right: AllocatedEmulatedFpVar<TargetF, BaseF> =
             ark_r1cs_std::fields::emulated_fp::AllocatedEmulatedFpVar {
                 cs: cs.clone(),
                 limbs: other_limb,
@@ -348,14 +435,19 @@ mod tests {
                 ),
                 is_in_the_normal_form: other_is_in_the_normal_form,
                 target_phantom: std::marker::PhantomData,
-            },
-        );
+            };
 
-        let _ = left * right;
+        let _ = left.mul(&right);
         assert!(cs.is_satisfied().unwrap());
     }
 
-    /// MRE for bug in `EmulatedFpVar`.
+    /// MRE for multiplication bug in `EmulatedFpVar`.
+    ///
+    /// Note: This example strictly speaking is not a MRE as it does not satisfy the invariant of the multiplication.
+    /// This can be seen from the fact that `surfeit` is incorrect.
+    ///
+    /// But it is kept because it is generated from our workload (which indicates there are bugs in the
+    /// EmulatedFpVar's implementation).
     #[test]
     fn reproduce_group_eq_bug() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
