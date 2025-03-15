@@ -155,10 +155,10 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             elem.get_optimization_type(),
         );
 
-        // `smallest_mul_bit_size` needs to be `<= BaseF::MODULUS_BIT_SIZE as usize - 3`
+        // `smallest_mul_bit_size` needs to be `<= BaseF::MODULUS_BIT_SIZE as usize - 4`
         // - see `group_and_check_equality` for more details
         if 2 * params.bits_per_limb + ark_std::log2(params.num_limbs) as usize
-            > BaseF::MODULUS_BIT_SIZE as usize - 3
+            >= BaseF::MODULUS_BIT_SIZE as usize - 3
         {
             panic!("The current limb parameters do not support multiplication.");
         }
@@ -179,10 +179,10 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
 
             let bits_per_mulresult_limb = 2 * params.bits_per_limb + overhead_limb;
 
-            // -2 because we want bits_per_mulresult_limb <= MODULUS_BIT_SIZE - 3
+            // because we want bits_per_mulresult_limb <= MODULUS_BIT_SIZE - 4
             // - this is the max bit it can have in our configuration right now
             // - see `group_and_check_equality` for more details
-            if bits_per_mulresult_limb < (BaseF::MODULUS_BIT_SIZE - 2) as usize {
+            if bits_per_mulresult_limb < (BaseF::MODULUS_BIT_SIZE - 3) as usize {
                 break;
             }
 
@@ -234,7 +234,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
         // - so, their sum has bit size at most BaseF::MODULUS_BIT_SIZE - 1
         //
         // 2. for premul_reduce
-        // - it enforces `2 * bits_per_limb + surfeit <= BaseF::MODULUS_BIT_SIZE - 3`
+        // - it enforces `2 * bits_per_limb + surfeit <= BaseF::MODULUS_BIT_SIZE - 4`
         //   - 2 * bits_per_limb in that function == 2 * (bits_per_limb - shift_per_limb) == shift_per_limb
         // - so, num_limb_in_a_group is at least 1 for mul
         //
