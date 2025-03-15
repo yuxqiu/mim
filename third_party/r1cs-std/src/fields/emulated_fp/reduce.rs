@@ -157,7 +157,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
 
         // `smallest_mul_bit_size` needs to be `<= BaseF::MODULUS_BIT_SIZE as usize - 3`
         // - see `group_and_check_equality` for more details
-        if 2 * params.bits_per_limb + ark_std::log2(params.num_limbs + 1) as usize
+        if 2 * params.bits_per_limb + ark_std::log2(params.num_limbs) as usize
             > BaseF::MODULUS_BIT_SIZE as usize - 3
         {
             panic!("The current limb parameters do not support multiplication.");
@@ -239,16 +239,15 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
         // - so, num_limb_in_a_group is at least 1 for mul
         //
         // 3. for postadd_reduce
-        // - when `2 * bits_per_limb + surfeit == BaseF::MODULUS_BIT_SIZE - 2`, reduce is called
-        //   - num_limb_in_a_group is therefore == (2 * bits_per_limb - 1) / bits_per_limb
-        // - so, num_limb_in_a_group is at least 1 as long as bits_per_limb >= 1 (which is indeed true)
+        // - need to check `sub_without_reduce` for its surfeit guarantee
+        // - but, it should work as this function is not modified
         //
         // 4. use add after mul_without_reduce
-        // - safe as when bits go from BaseF::MODULUS_BIT_SIZE - 3 => BaseF::MODULUS_BIT_SIZE - 2, post_add_reduce
-        //   will be triggered
+        // - currently, no reduce is applied when adding over MulResult.
         let num_limb_in_a_group = (BaseF::MODULUS_BIT_SIZE as usize
             - 1
             - surfeit
+            - 1
             - 1
             - 1
             - (bits_per_limb - shift_per_limb))
@@ -315,8 +314,10 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
         let mut groupped_limb_pairs = Vec::<(FpVar<BaseF>, FpVar<BaseF>, usize)>::new();
 
         for limb_pairs_in_a_group in limb_pairs.chunks(num_limb_in_a_group) {
-            // bit = num_limb_in_a_group * shift_per_limb + (bits_per_limb - shift_per_limb) + true surfeit
+            // bit = num_limb_in_a_group * shift_per_limb + bits_per_limb + true surfeit + 1
             //     = BaseF::MODULUS_BIT_SIZE - 3
+            //
+            // How is this derived? Calculate the sum of the total limbs. You will find it's a geometric series.
             let mut left_total_limb = zero.clone();
             let mut right_total_limb = zero.clone();
 
@@ -344,14 +345,14 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
         {
             let mut pad_limb_repr = BaseF::ONE.into_bigint();
 
-            // calculate max_word?
+            // calculate max_word
             //
             // Problem
             // - I observed that sometimes eqn_left wraps around, which should not happen
             //
             // Reasoning
             // - we should keep the size <= MODULUS_SIZE - 1
-            // - pad_limb_repr len can be BaseF::MODULUS_BIT_SIZE - 2 (expand shift_per_limb * num_limb_in_this_group)
+            // - pad_limb_repr len can be BaseF::MODULUS_BIT_SIZE - 1 (expand shift_per_limb * num_limb_in_this_group)
             //   - if it is greater than left/right values, adding left_total_limb_value + carry_in_value + pad_limb shouldn't cause
             //     any problem
             //   - however, then I observed a more serious problem, pad_limb_repr is not guaranteed to be larger than left/right.
@@ -361,23 +362,25 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             // Then, I suspect that it's because `surfeit` is not calculated correctly. As only in that case, the highest word will
             // have a value large than the pad_limb (surfeit is a upper bound for every word - see below).
             // - Why only this will happen when `surfeit` is not calculated correct is addressed below.
-            // - Currently, for mul, `surfeit = ceil(log(prod of add_over_normal + 1)) + 1 + 1`
+            // - Currently, for mul, `surfeit = ceil(log(prod of add_over_normal (without the num_limbs) + 1)) + 1 + 1`
             //
             // Before diving into my calculation, I want to explain what surfeit is for:
-            // - We can treat it as an estimation of the maximum bits of all words. In other word, it is max(max(word in bit, ignore
-            // leading 0) for word in words). We want this to be <= BaseF::MODULUS_BIT_SIZE - 1. So that we don't lose info.
+            // - We can treat it as an estimation of the maximum bits of all words - bits_per_limb.
+            // - In other word, it is max(max(word in bit, ignore leading 0) for word in words) - bits_per_limb.
+            // We want this to be <= BaseF::MODULUS_BIT_SIZE - 1. So that we don't lose info.
             //
             // Then, we can derive, given `x`` and `y`` that has `a` and `b` as `add_over_norm`. Let z = xy. We know we can bound
-            // the value of all words by a*2^{bits_per_limb} * b*2^{bits_per_limb} * m/2
-            // - m/2 comes from the fact that m/2 pairs of multiplication of 2 words will be added together at most
+            // the value of all words by (a+1)*2^{bits_per_limb} * (b+1)*2^{bits_per_limb} * m
+            // - m comes from the fact that m pairs of multiplication of 2 words will be added together at most
             //
-            // So, we know the total bit size will be 2*bits_per_limb + log(ab) + log(m/2). Then, by definition,
-            // surfeit will be log(ab) + log(m/2) (because `bits_per_limb` of this func is 2*bits_per_limb).
+            // So, we know the total bit size <= 2*bits_per_limb + log(ab+a+b+1) + log(m). Then, by definition,
+            // surfeit will be log(ab+a+b+1) + log(m) (because `bits_per_limb` of this func is 2*bits_per_limb).
             // With the correct surfeit, we can have padding that satisfies the constraint.
             //
             // With the above knowledge. We can also deduce why we need such a `num_limb_in_a_group` variable, we know
             // final length of the number will be upper bounded by:
-            // - num_limb_in_a_group * shift_per_limb + (bits_per_limb - shift_per_limb) + true_surfeit
+            // - num_limb_in_a_group * shift_per_limb + (bits_per_limb - shift_per_limb) + true_surfeit + 1
+            //   - why is this? See analysis of `left_total_limb` and `right_total_limb` above.
             // - This provides another perspective about why it's crucial to have a correct surfeit, or otherwise,
             //   when you expand the above formula, it will potentially be >= pad_limb's bit size.
 
@@ -385,6 +388,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             pad_limb_repr <<= (surfeit
                 + (bits_per_limb - shift_per_limb)
                 + shift_per_limb * num_limb_in_this_group
+                + 1
                 + 1) as u32;
             let pad_limb = BaseF::from_bigint(pad_limb_repr).unwrap();
 

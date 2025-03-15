@@ -484,6 +484,8 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
         for limb in p_representations.iter() {
             p_gadget_limbs.push(FpVar::<BaseF>::Constant(*limb));
         }
+
+        // BUG: unclear why this is not normal form and num_of_additions_over_normal_form == BaseF::one?
         let p_gadget = AllocatedEmulatedFpVar::<TargetF, BaseF> {
             cs: self.cs(),
             limbs: p_gadget_limbs,

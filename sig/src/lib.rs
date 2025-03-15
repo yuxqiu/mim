@@ -307,7 +307,7 @@ mod tests {
         // let surfeit = 21;
 
         // this should be a safe surfeit: 32 is the num_limbs
-        let surfeit = 21 + (32 as f64 / 2.).log2().ceil() as usize;
+        let surfeit = 21 + (32 as f64).log2().ceil() as usize;
 
         // To let the below test pass for the old code, we can set `num_limb_in_a_group` in `group_and_check_equality` to be 1.
         //
@@ -501,18 +501,14 @@ mod tests {
             // A good way to think about surfeit is it represents the number of times numbers with value < 2^{bits_per_limbs}
             // are added together. It can give us an upper bound of the target value.
             //
-            // a * 2^bits_per_limb < BaseF::MODULUS
-            // a * 2^bits_per_limb + 1 < BaseF::MODULUS + 1
-            // <=> log(a * 2^bits_per_limb + 1) < BaseF::MODULUS_BIT_SIZE
-            //
-            // We use an upper bound to bound the LHS:
-            // log(a * 2^bits_per_limb + 1) < bits_per_limb + log(a + 1)
-            // - This is ok because surfeit is an upper bound of additional bit size for each word.
-            //   By enforcing `surfeit` satisfies some conditions, because of this upper bound, we naturally
-            //   also force the actual bit size to satisfy the condition.
+            // actual number < (a+1) * 2^bits_per_limb < BaseF::MODULUS
+            // actual number + 1 <= a * 2^bits_per_limb < BaseF::MODULUS
+            // <=> actual_bits <= log(a+1) + bits_per_limb < log(BaseF::MODULUS) (because MODULUS is a prime, so it's not a power
+            // of 2 => ceil(log(BaseF::MODULUS)) == BaseF::MODULUS_BIT_SIZE)
             //
             // In practice, this seems to be a safe choice
-            // <=> bits_per_limb + ceil(log(a + 1)) < BaseF::MODULUS_BIT_SIZE - 1
+            // <=> bits_per_limb + ceil(log(a + 1)) (surfeit) < BaseF::MODULUS_BIT_SIZE - 1
+            // - Wrong. See below.
             //
             // But in arkworks, the condition is computed as 2 * bits_per_limb + ceil(log(a + 1)) + 1 + 1.
             // - the `surfeit` it computes is `ceil(log(a + 1)) + 1`, which is slightly larger than our calculation.
