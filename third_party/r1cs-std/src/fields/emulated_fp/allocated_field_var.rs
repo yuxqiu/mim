@@ -486,13 +486,14 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
         }
 
         // BUG: unclear why this is not normal form and num_of_additions_over_normal_form == BaseF::one?
-        let p_gadget = AllocatedEmulatedFpVar::<TargetF, BaseF> {
-            cs: self.cs(),
-            limbs: p_gadget_limbs,
-            num_of_additions_over_normal_form: BaseF::one(),
-            is_in_the_normal_form: false,
-            target_phantom: PhantomData,
-        };
+        // - But I think this is fine as only the limbs are used
+        // let p_gadget = AllocatedEmulatedFpVar::<TargetF, BaseF> {
+        //     cs: self.cs(),
+        //     limbs: p_gadget_limbs,
+        //     num_of_additions_over_normal_form: BaseF::one(),
+        //     is_in_the_normal_form: false,
+        //     target_phantom: PhantomData,
+        // };
 
         // Get delta = self - other
         let cs = self.cs().or(other.cs()).or(should_enforce.cs());
@@ -516,7 +517,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
 
         // Compute k * p
         let mut kp_gadget_limbs = Vec::new();
-        for limb in p_gadget.limbs.iter() {
+        for limb in p_gadget_limbs.iter() {
             kp_gadget_limbs.push(limb * &k_gadget);
         }
 

@@ -352,7 +352,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             //
             // Reasoning
             // - we should keep the size <= MODULUS_SIZE - 1
-            // - pad_limb_repr len can be BaseF::MODULUS_BIT_SIZE - 1 (expand shift_per_limb * num_limb_in_this_group)
+            // - pad_limb_repr len is BaseF::MODULUS_BIT_SIZE - 1 (expand shift_per_limb * num_limb_in_this_group)
             //   - if it is greater than left/right values, adding left_total_limb_value + carry_in_value + pad_limb shouldn't cause
             //     any problem
             //   - however, then I observed a more serious problem, pad_limb_repr is not guaranteed to be larger than left/right.
@@ -367,7 +367,6 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             // Before diving into my calculation, I want to explain what surfeit is for:
             // - We can treat it as an estimation of the maximum bits of all words - bits_per_limb.
             // - In other word, it is max(max(word in bit, ignore leading 0) for word in words) - bits_per_limb.
-            // We want this to be <= BaseF::MODULUS_BIT_SIZE - 1. So that we don't lose info.
             //
             // Then, we can derive, given `x`` and `y`` that has `a` and `b` as `add_over_norm`. Let z = xy. We know we can bound
             // the value of all words by (a+1)*2^{bits_per_limb} * (b+1)*2^{bits_per_limb} * m
