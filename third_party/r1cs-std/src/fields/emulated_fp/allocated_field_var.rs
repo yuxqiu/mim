@@ -242,12 +242,17 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
             }
         }
 
+        let padding_bit_len = {
+            let mut one = BaseF::ONE.into_bigint();
+            one <<= surfeit as u32;
+            BaseF::from(one)
+        };
         let result = AllocatedEmulatedFpVar::<TargetF, BaseF> {
             cs: self.cs(),
             limbs,
-            num_of_additions_over_normal_form: self.num_of_additions_over_normal_form
-                + (other.num_of_additions_over_normal_form + BaseF::one())
-                + (other.num_of_additions_over_normal_form + BaseF::one()),
+            num_of_additions_over_normal_form: self.num_of_additions_over_normal_form // this_limb
+                + padding_bit_len // pad_non_top_limb / pad_top_limb
+                + BaseF::one(), // pad_to_kp_limb
             is_in_the_normal_form: false,
             target_phantom: PhantomData,
         };
