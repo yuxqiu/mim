@@ -196,12 +196,12 @@ mod tests {
                 }
             }
 
-            // let unsat = cs.which_is_unsatisfied().unwrap();
-            // if let Some(s) = unsat {
-            //     println!("{}", s);
-            //     assert!(false);
-            // }
-            // println!();
+            let unsat = cs.which_is_unsatisfied().unwrap();
+            if let Some(s) = unsat {
+                println!("{}", s);
+                assert!(false);
+            }
+            println!();
         }
         // */
         // -> Fp12Var::mul_by_014 -> directly copying values pass the assertion
@@ -291,6 +291,67 @@ mod tests {
 
         // then, we ensure during the computation, there are no unsatisfiable constraints generated
         println!("{}", cs.num_constraints());
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    /// MRE for bug in `EmulatedFpVar`
+    #[test]
+    fn reproduce_emulated_fpvar_mul_bug() {
+        type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
+        type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
+
+        let self_limb_values = [
+            288976, 2316461, 2314908, 2342263, 2307696, 2346510, 2311247, 2318782, 2325266,
+            2324620, 2325695, 2306677, 2333163, 2312160, 2305027, 2314682, 2317464, 2297369,
+            2329920, 2297241, 2317710, 2305948, 2305258, 2358128, 2331330, 2342780, 2332804,
+            2318312, 2358127, 2344917, 2338890, 2335405,
+        ];
+        let self_num_of_additions_over_normal_form = 293;
+        let self_is_in_the_normal_form = false;
+        let other_limb_values = [
+            449559, 3610751, 3601697, 3624801, 3594041, 3609259, 3614711, 3598233, 3604110,
+            3618754, 3621915, 3607685, 3606625, 3615788, 3612675, 3617904, 3621188, 3603448,
+            3611609, 3606954, 3632410, 3609615, 3593899, 3613798, 3621036, 3615030, 3617645,
+            3607535, 3615922, 3611559, 3629930, 3591387,
+        ];
+        let other_num_of_additions_over_normal_form = 489;
+        let other_is_in_the_normal_form = false;
+
+        let cs = ConstraintSystem::new_ref();
+
+        let left_limb = self_limb_values
+            .iter()
+            .map(|v| FpVar::new_input(cs.clone(), || Ok(BaseF::from(*v))).unwrap())
+            .collect();
+        let left = ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<TargetF, BaseF>::Var(
+            ark_r1cs_std::fields::emulated_fp::AllocatedEmulatedFpVar {
+                cs: cs.clone(),
+                limbs: left_limb,
+                num_of_additions_over_normal_form: BaseF::from(
+                    self_num_of_additions_over_normal_form,
+                ),
+                is_in_the_normal_form: self_is_in_the_normal_form,
+                target_phantom: std::marker::PhantomData,
+            },
+        );
+
+        let other_limb = other_limb_values
+            .iter()
+            .map(|v| FpVar::new_input(cs.clone(), || Ok(BaseF::from(*v))).unwrap())
+            .collect();
+        let right = ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<TargetF, BaseF>::Var(
+            ark_r1cs_std::fields::emulated_fp::AllocatedEmulatedFpVar {
+                cs: cs.clone(),
+                limbs: other_limb,
+                num_of_additions_over_normal_form: BaseF::from(
+                    other_num_of_additions_over_normal_form,
+                ),
+                is_in_the_normal_form: other_is_in_the_normal_form,
+                target_phantom: std::marker::PhantomData,
+            },
+        );
+
+        let _ = left * right;
         assert!(cs.is_satisfied().unwrap());
     }
 
