@@ -729,6 +729,9 @@ mod tests {
         // optimizing non-native field variables.
         // - https://github.com/grandchildrice/sonobe/blob/aa324450f58894d2621af9aabe2a5cf6bac63c12/folding-schemes/src/folding/circuits/nonnative/uint.rs#L179
         //
-        // They also implemented the xJsnark's version of `mul` operations which arkworks does not implement.
+        // If I had to re-implement the same functionality again, I would definitely prefer sonobe's implementation.
+        // Instead of storing `num_of_additions_over_normal_form` and `prod_of_num_of_additions`, they store an explicit upper bound.
+        // This makes it way easier to know when to reduce the element and whether overflow will happen.
+        // It's relatively harder to manage `surfeit` values in `arkworks`.
     }
 }
