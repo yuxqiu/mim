@@ -157,7 +157,7 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
 
         // `smallest_mul_bit_size` needs to be `<= BaseF::MODULUS_BIT_SIZE as usize - 4`
         // - see `group_and_check_equality` for more details
-        if 2 * params.bits_per_limb + ark_std::log2(params.num_limbs) as usize
+        if 2 * params.bits_per_limb + ark_std::log2(params.num_limbs + 1) as usize
             >= BaseF::MODULUS_BIT_SIZE as usize - 3
         {
             panic!("The current limb parameters do not support multiplication.");
