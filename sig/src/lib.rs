@@ -11,7 +11,9 @@ mod tests {
     use ark_ec::pairing::Pairing;
     use ark_ff::{BitIteratorBE, PrimeField};
     use ark_r1cs_std::fields::emulated_fp::params::get_params;
-    use ark_r1cs_std::fields::emulated_fp::{AllocatedEmulatedFpVar, EmulatedFpVar};
+    use ark_r1cs_std::fields::emulated_fp::{
+        AllocatedEmulatedFpVar, AllocatedMulResultVar, EmulatedFpVar,
+    };
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::FieldVar;
     use ark_r1cs_std::R1CSVar;
@@ -111,11 +113,7 @@ mod tests {
     fn check_constraint<TargetF: PrimeField, BaseF: PrimeField>(
         var: &AllocatedEmulatedFpVar<TargetF, BaseF>,
     ) -> bool {
-        let limb_values: Vec<_> = var
-            .limbs
-            .iter()
-            .map(|fpvar| fpvar.value().unwrap())
-            .collect();
+        let limb_values = var.limbs.value().unwrap();
         let params = get_params(
             TargetF::MODULUS_BIT_SIZE as usize,
             BaseF::MODULUS_BIT_SIZE as usize,
@@ -123,13 +121,67 @@ mod tests {
         );
         let bits_per_limb = params.bits_per_limb;
         let upper_bound = (var.num_of_additions_over_normal_form + BaseF::one())
-            * BaseF::from((1 << bits_per_limb) - 1);
+            * BaseF::from(BaseF::from(1).into_bigint() << bits_per_limb as u32)
+            + BaseF::from(-1);
         return !limb_values.iter().any(|value| value > &upper_bound);
+    }
+
+    fn check_mulres_constraint<TargetF: PrimeField, BaseF: PrimeField>(
+        var: &AllocatedMulResultVar<TargetF, BaseF>,
+    ) -> bool {
+        let limb_values: Vec<_> = var.limbs.value().unwrap();
+        let params = get_params(
+            TargetF::MODULUS_BIT_SIZE as usize,
+            BaseF::MODULUS_BIT_SIZE as usize,
+            var.get_optimization_type(),
+        );
+        let bits_per_limb = params.bits_per_limb * 2;
+        let upper_bound = (var.prod_of_num_of_additions + BaseF::one())
+            * BaseF::from(BaseF::from(1).into_bigint() << bits_per_limb as u32)
+            + BaseF::from(-1);
+        return !limb_values.iter().any(|value| value > &upper_bound);
+    }
+
+    /*
+        The two MREs below do not directly enforce that the constraint systems is satisfied.
+        They focus on enforcing that the invariant of the EmulatedFpVar is satisfied.
+
+        The invariant we care about is:
+        - For `AllocatedEmulatedFpVar`, no limb has value > (num_of_additions_over_normal_form + 1) * (2^{bits_per_limb} - 1).
+        - For `AllocatedMulResultVar`, no limb has value > (prod_of_num_of_additions + 1) * (2^{bits_per_limb} - 1)
+    */
+
+    /// MRE for subtraction bug in `EmulatedFpVar`
+    #[test]
+    fn mre_emulated_fpvar_mul() {
+        type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
+        type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
+
+        let cs = ConstraintSystem::new_ref();
+
+        let left: AllocatedEmulatedFpVar<TargetF, BaseF> =
+            ark_r1cs_std::fields::emulated_fp::AllocatedEmulatedFpVar::new_input(
+                cs.clone(),
+                || {
+                    Ok(TargetF::from(
+                        TargetF::from(1).into_bigint()
+                            << (<TargetF as PrimeField>::MODULUS_BIT_SIZE - 1),
+                    ) + TargetF::from(-1))
+                },
+            )
+            .unwrap();
+
+        let right: AllocatedEmulatedFpVar<TargetF, BaseF> = left.clone();
+
+        let result = left.mul_without_reduce(&right).unwrap();
+        assert!(check_constraint(&left));
+        assert!(check_constraint(&right));
+        assert!(check_mulres_constraint(&result));
     }
 
     /// MRE for subtraction bug in `EmulatedFpVar`
     #[test]
-    fn reproduce_emulated_fpvar_sub_bug() {
+    fn mre_emulated_fpvar_sub() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
         type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
 
