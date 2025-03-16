@@ -121,8 +121,7 @@ mod tests {
         );
         let bits_per_limb = params.bits_per_limb;
         let upper_bound = (var.num_of_additions_over_normal_form + BaseF::one())
-            * BaseF::from(BaseF::from(1).into_bigint() << bits_per_limb as u32)
-            + BaseF::from(-1);
+            * (BaseF::from(BaseF::from(1).into_bigint() << bits_per_limb as u32) + BaseF::from(-1));
         return !limb_values.iter().any(|value| value > &upper_bound);
     }
 
@@ -137,8 +136,7 @@ mod tests {
         );
         let bits_per_limb = params.bits_per_limb * 2;
         let upper_bound = (var.prod_of_num_of_additions + BaseF::one())
-            * BaseF::from(BaseF::from(1).into_bigint() << bits_per_limb as u32)
-            + BaseF::from(-1);
+            * (BaseF::from(BaseF::from(1).into_bigint() << bits_per_limb as u32) + BaseF::from(-1));
         return !limb_values.iter().any(|value| value > &upper_bound);
     }
 
