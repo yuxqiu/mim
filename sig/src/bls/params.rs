@@ -10,7 +10,11 @@ use ark_r1cs_std::fields::fp2::Fp2Var;
 // we can easily switch between `ark_bls12_377` and `ark_bls12_381`
 // all we need to do is to replace the following crate name accordingly
 
+#[cfg(feature = "sig-12381-snark-12377")]
 use ark_bls12_381::{Config, G1Affine, G2Affine};
+
+#[cfg(feature = "sig-12377-snark-761")]
+use ark_bls12_377::{Config, G1Affine, G2Affine};
 
 // which curve the sig scheme runs on
 pub type BLSSigCurveConfig = Config;
@@ -37,21 +41,30 @@ pub const G2_GENERATOR: G2Affine = <<Config as Bls12Config>::G2Config as SWCurve
 /* ====================Signature Related==================== */
 
 /* ====================SNARK Related==================== */
+#[cfg(feature = "sig-12381-snark-12377")]
 pub type SNARKCurve = ark_bls12_377::Bls12_377;
+
+#[cfg(feature = "sig-12377-snark-761")]
+pub type SNARKCurve = ark_bw6_761::BW6_761;
 
 // which scalar field we run our SNARK on
 pub type BaseSNARKField = <SNARKCurve as Pairing>::ScalarField;
 // pub type BaseSNARKField = BaseSigCurveField; // experimentation only
 
 // which underlying FieldVar we use
+#[cfg(feature = "sig-12381-snark-12377")]
 #[macro_export]
 macro_rules! fp_var {
-    // experimentation only: checking whether R1CS is satisfied
-    // ($type_a:ty, $type_b:ty) => {
-    //     ark_r1cs_std::fields::fp::FpVar::<$type_a>
-    // };
     ($type_a:ty, $type_b:ty) => {
         ark_r1cs_std::fields::emulated_fp::EmulatedFpVar::<$type_a, $type_b>
+    };
+}
+
+#[cfg(feature = "sig-12377-snark-761")]
+#[macro_export]
+macro_rules! fp_var {
+    ($type_a:ty, $type_b:ty) => {
+        ark_r1cs_std::fields::fp::FpVar::<$type_a>
     };
 }
 /* ====================SNARK Related==================== */

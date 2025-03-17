@@ -30,10 +30,15 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 tracing-appender = "0.2.3"
 tracing-subscriber = "0.3.19"
 
+[features]
+default = ["sig-12381-snark-12377"]
+sig-12381-snark-12377 = [] # field emulation
+sig-12377-snark-761 = [] # native field
+
 [[bench]]
 name = "bls_pairing"
 harness = false
 
 [[bench]]
-name = "groth16"
+name = "groth16_single_step"
 harness = false
