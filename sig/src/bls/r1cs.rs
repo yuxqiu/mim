@@ -254,31 +254,17 @@ impl AllocVar<Parameters, BaseSNARKField> for ParametersVar {
 #[cfg(test)]
 mod test {
     use crate::bls::{
-        BLSAggregateSignatureVerifyGadget, BaseSNARKField, Parameters, ParametersVar, PublicKey,
-        PublicKeyVar, SecretKey, Signature, SignatureVar,
+        get_bls_instance, BLSAggregateSignatureVerifyGadget, BaseSNARKField, ParametersVar,
+        PublicKeyVar, SignatureVar,
     };
 
     use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
     use ark_relations::r1cs::ConstraintSystem;
-    use rand::thread_rng;
-
-    fn get_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature) {
-        let msg = "Hello World";
-        let mut rng = thread_rng();
-
-        let params = Parameters::setup();
-        let sk = SecretKey::new(&mut rng);
-        let pk = PublicKey::new(&sk, &params);
-
-        let sig = Signature::sign(msg.as_bytes(), &sk, &params);
-
-        (msg, params, sk, pk, sig)
-    }
 
     #[test]
     fn check_r1cs() {
         let cs = ConstraintSystem::new_ref();
-        let (msg, params, _, pk, sig) = get_instance();
+        let (msg, params, _, pk, sig) = get_bls_instance();
 
         let msg_var: Vec<UInt8<BaseSNARKField>> = msg
             .as_bytes()

@@ -175,57 +175,20 @@ impl Signature {
 
 #[cfg(test)]
 mod test {
-    use rand::thread_rng;
+    use crate::bls::{get_aggregate_bls_instance, get_bls_instance};
 
     use super::*;
 
-    fn get_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature) {
-        let msg = "Hello World";
-        let mut rng = thread_rng();
-
-        let params = Parameters::setup();
-        let sk = SecretKey::new(&mut rng);
-        let pk = PublicKey::new(&sk, &params);
-
-        let sig = Signature::sign(msg.as_bytes(), &sk, &params);
-
-        (msg, params, sk, pk, sig)
-    }
-
-    fn get_aggregate_instances() -> (
-        &'static str,
-        Parameters,
-        Vec<SecretKey>,
-        Vec<PublicKey>,
-        Signature,
-    ) {
-        const N: usize = 1000;
-
-        let msg = "Hello World";
-        let mut rng = thread_rng();
-
-        let params = Parameters::setup();
-        let secret_keys: Vec<SecretKey> = (0..N).map(|_| SecretKey::new(&mut rng)).collect();
-        let public_keys: Vec<PublicKey> = secret_keys
-            .iter()
-            .map(|sk| PublicKey::new(sk, &params))
-            .collect();
-
-        let sig = Signature::aggregate_sign(msg.as_bytes(), &secret_keys, &params).unwrap();
-
-        (msg, params, secret_keys, public_keys, sig)
-    }
-
     #[test]
     fn check_signature() {
-        let (msg, params, _, pk, sig) = get_instance();
+        let (msg, params, _, pk, sig) = get_bls_instance();
         assert!(Signature::verify_slow(msg.as_bytes(), &sig, &pk, &params));
         assert!(Signature::verify(msg.as_bytes(), &sig, &pk, &params));
     }
 
     #[test]
     fn check_verify_failure() {
-        let (msg, params, _, pk, sig) = get_instance();
+        let (msg, params, _, pk, sig) = get_bls_instance();
         assert!(!Signature::verify_slow(
             &[msg.as_bytes(), &[1]].concat(),
             &sig,
@@ -242,7 +205,7 @@ mod test {
 
     #[test]
     fn check_aggregate_signature() {
-        let (msg, params, _, public_keys, sig) = get_aggregate_instances();
+        let (msg, params, _, public_keys, sig) = get_aggregate_bls_instance();
         assert!(Signature::aggregate_verify(msg.as_bytes(), &sig, &public_keys, &params).unwrap());
     }
 }

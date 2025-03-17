@@ -2,23 +2,10 @@ use ark_groth16::Groth16;
 use ark_snark::{CircuitSpecificSetupSNARK, SNARK};
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::thread_rng;
-use sig::bls::{BLSCircuit, Parameters, PublicKey, SNARKCurve, SecretKey, Signature};
-
-fn get_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature) {
-    let msg = "Hello World";
-    let mut rng = thread_rng();
-
-    let params = Parameters::setup();
-    let sk = SecretKey::new(&mut rng);
-    let pk = PublicKey::new(&sk, &params);
-
-    let sig = Signature::sign(msg.as_bytes(), &sk, &params);
-
-    (msg, params, sk, pk, sig)
-}
+use sig::bls::{get_bls_instance, BLSCircuit, SNARKCurve};
 
 fn bench_groth16(c: &mut Criterion) {
-    let (msg, params, _, pk_bls, sig) = get_instance();
+    let (msg, params, _, pk_bls, sig) = get_bls_instance();
     let mut rng = thread_rng();
 
     // ===============Setup pk and vk===============

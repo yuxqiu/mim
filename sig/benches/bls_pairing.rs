@@ -1,22 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use rand::thread_rng;
-use sig::bls::{Parameters, PublicKey, SecretKey, Signature};
-
-fn get_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature) {
-    let msg = "Hello World";
-    let mut rng = thread_rng();
-
-    let params = Parameters::setup();
-    let sk = SecretKey::new(&mut rng);
-    let pk = PublicKey::new(&sk, &params);
-
-    let sig = Signature::sign(msg.as_bytes(), &sk, &params);
-
-    (msg, params, sk, pk, sig)
-}
+use sig::bls::{get_bls_instance, Signature};
 
 fn bls_verify_bench(c: &mut Criterion) {
-    let (msg, params, _, pk, sig) = get_instance();
+    let (msg, params, _, pk, sig) = get_bls_instance();
     let mut group = c.benchmark_group("BLS Signature");
 
     group.bench_function("verify (2 pairings)", |b| {
