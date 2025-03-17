@@ -40,5 +40,9 @@ name = "bls_pairing"
 harness = false
 
 [[bench]]
-name = "groth16_single_step"
+name = "groth16_single_step_native"
+harness = false
+
+[[bench]]
+name = "groth16_single_step_emulation"
 harness = false
