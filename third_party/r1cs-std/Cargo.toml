@@ -1,6 +1,6 @@
 [package]
 name = "ark-r1cs-std"
-version = "0.5.0"
+version = "0.5.0" # don't adjust the version to ensure interoperability with sonobe
 authors = [ "arkworks contributors" ]
 description = "A standard library for constraint system gadgets"
 homepage = "https://arkworks.rs"

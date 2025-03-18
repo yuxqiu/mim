@@ -1,6 +1,6 @@
 [package]
 name = "ark-crypto-primitives"
-version = "0.5.0"
+version = "0.0.0" # adjust the version from 0.5.0 => 0.0.0 to avoid conflict with sonobe's use of crypto-primitives
 resolver = "2"
 edition = "2021"
 

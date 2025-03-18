@@ -65,6 +65,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-bn254"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d69eab57e8d2663efa5c63135b2af4f396d66424f88954c21104125ab6b3e6bc"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
 name = "ark-bw6-761"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -78,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "ark-crypto-primitives"
-version = "0.5.0"
+version = "0.0.0"
 dependencies = [
  "ahash",
  "ark-crypto-primitives-macros",
@@ -93,6 +104,31 @@ dependencies = [
  "derivative",
  "digest",
  "fnv",
+ "rayon",
+ "sha2",
+ "tracing",
+]
+
+[[package]]
+name = "ark-crypto-primitives"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e0c292754729c8a190e50414fd1a37093c786c709899f29c9f7daccecfa855e"
+dependencies = [
+ "ahash",
+ "ark-crypto-primitives-macros",
+ "ark-ec",
+ "ark-ff",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-serialize",
+ "ark-snark",
+ "ark-std",
+ "blake2",
+ "derivative",
+ "digest",
+ "fnv",
+ "hashbrown 0.14.5",
  "merlin",
  "rayon",
  "sha2",
@@ -123,7 +159,7 @@ dependencies = [
  "ark-std",
  "educe",
  "fnv",
- "hashbrown",
+ "hashbrown 0.15.2",
  "itertools 0.13.0",
  "num-bigint",
  "num-integer",
@@ -180,7 +216,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88f1d0f3a534bb54188b8dcc104307db6c56cdae574ddc3212aec0625740fc7e"
 dependencies = [
- "ark-crypto-primitives",
+ "ark-crypto-primitives 0.5.0",
  "ark-ec",
  "ark-ff",
  "ark-poly",
@@ -188,6 +224,18 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "rayon",
+]
+
+[[package]]
+name = "ark-grumpkin"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef677b59f5aff4123207c4dceb1c0ec8fdde2d4af7886f48be42ad864bfa0352"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
 ]
 
 [[package]]
@@ -202,7 +250,31 @@ dependencies = [
  "ark-std",
  "educe",
  "fnv",
- "hashbrown",
+ "hashbrown 0.15.2",
+ "rayon",
+]
+
+[[package]]
+name = "ark-poly-commit"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d68a105d915bcde6c0687363591c97e72d2d3758f3532d48fd0bf21a3261ce7"
+dependencies = [
+ "ahash",
+ "ark-crypto-primitives 0.5.0",
+ "ark-ec",
+ "ark-ff",
+ "ark-poly",
+ "ark-relations",
+ "ark-serialize",
+ "ark-std",
+ "blake2",
+ "derivative",
+ "digest",
+ "fnv",
+ "merlin",
+ "num-traits",
+ "rand",
  "rayon",
 ]
 
@@ -575,6 +647,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "folding-schemes"
+version = "0.1.0"
+source = "git+https://github.com/privacy-scaling-explorations/sonobe#8912049ba100f66ac3849a35c47b8d80806d86f2"
+dependencies = [
+ "ark-bn254",
+ "ark-crypto-primitives 0.5.0",
+ "ark-ec",
+ "ark-ff",
+ "ark-groth16",
+ "ark-grumpkin",
+ "ark-poly",
+ "ark-poly-commit",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-serialize",
+ "ark-snark",
+ "ark-std",
+ "getrandom",
+ "log",
+ "num-bigint",
+ "num-integer",
+ "rayon",
+ "sha3",
+ "thiserror",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -591,8 +690,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4567c8db10ae91089c99af84c68c38da3ec2f087c3f82960bcdbf3656b6f4d7"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -603,6 +704,15 @@ checksum = "6dd08c532ae367adf81c312a4580bc67f1d0fe8bc9c460520283f4c0ff277888"
 dependencies = [
  "cfg-if",
  "crunchy",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+dependencies = [
+ "allocator-api2",
 ]
 
 [[package]]
@@ -687,6 +797,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
 
 [[package]]
+name = "libm"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
+
+[[package]]
 name = "log"
 version = "0.4.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -755,6 +871,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+ "libm",
 ]
 
 [[package]]
@@ -997,6 +1114,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha3"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
+dependencies = [
+ "digest",
+ "keccak",
+]
+
+[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1012,7 +1139,7 @@ dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
  "ark-bw6-761",
- "ark-crypto-primitives",
+ "ark-crypto-primitives 0.0.0",
  "ark-ec",
  "ark-ff",
  "ark-groth16",
@@ -1026,6 +1153,7 @@ dependencies = [
  "blake2",
  "criterion",
  "delegate",
+ "folding-schemes",
  "rand",
  "roaring",
  "serde",
@@ -1066,6 +1194,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.96",
 ]
 
 [[package]]
