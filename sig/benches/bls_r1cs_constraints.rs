@@ -1,9 +1,10 @@
 use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};
 use ark_relations::r1cs::ConstraintSystem;
 use sig::bls::{
-    get_bls_instance, BLSAggregateSignatureVerifyGadget, BaseSNARKField, ParametersVar,
+    get_bls_instance, BLSAggregateSignatureVerifyGadget, ParametersVar,
     PublicKeyVar, SignatureVar,
 };
+use sig::params::BaseSNARKField;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use tracing_tree::HierarchicalLayer;
 

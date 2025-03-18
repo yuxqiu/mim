@@ -1,7 +1,8 @@
 use ark_groth16::Groth16;
 use ark_snark::{CircuitSpecificSetupSNARK, SNARK};
 use rand::thread_rng;
-use sig::bls::{get_bls_instance, BLSCircuit, SNARKCurve};
+use sig::bls::{get_bls_instance, BLSCircuit};
+use sig::params::SNARKCurve;
 
 #[macro_export]
 macro_rules! timeit {

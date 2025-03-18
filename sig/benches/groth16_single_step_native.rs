@@ -2,7 +2,8 @@ use ark_groth16::Groth16;
 use ark_snark::{CircuitSpecificSetupSNARK, SNARK};
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::thread_rng;
-use sig::bls::{get_bls_instance, BLSCircuit, SNARKCurve};
+use sig::bls::{get_bls_instance, BLSCircuit};
+use sig::params::SNARKCurve;
 
 fn bench_groth16(c: &mut Criterion) {
     let (msg, params, _, pk_bls, sig) = get_bls_instance();
