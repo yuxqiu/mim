@@ -1,9 +1,8 @@
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
+use ark_serialize::{CanonicalSerialize, Compress};
 use blake2::Digest;
 use delegate::delegate;
 use rand::{thread_rng, Rng};
-use roaring::RoaringBitmap;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::{
     bc::params::AuthoritySecretKey,
@@ -15,33 +14,28 @@ use super::params::{
     Signers, HASH_OUTPUT_SIZE, STRONG_THRESHOLD, TOTAL_VOTING_POWER,
 };
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Debug, Default, Clone)]
 pub struct QuorumSignature {
     sig: AuthorityAggregatedSignature,
-    signers: RoaringBitmap,
+    // a roaring bitmap is a better alternative, but for easy impl of R1CS circuit, we use Vec<bool>
+    signers: Vec<bool>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Default, Clone)]
 pub struct CheckPoint {
     epoch: u64,
 
     /// hash to the previous checkpoint
     prev_digest: [u8; HASH_OUTPUT_SIZE],
 
-    seq_number: u64,
-
     sig: QuorumSignature,
 
-    /// Present only on the final checkpoint of the epoch.
-    end_of_epoch_data: Option<EndOfEpochData>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EndOfEpochData {
+    /// This is a simplification. Usually, committee is only stored at the last node of an epoch
+    /// as `Committee`.
     committee: Committee,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Blockchain {
     checkpoints: Vec<CheckPoint>,
     params: AuthoritySigParams,
@@ -57,20 +51,9 @@ macro_rules! impl_serde {
                 S: serde::Serializer,
             {
                 let mut bytes = vec![];
-                self.serialize_with_mode(&mut bytes, Compress::Yes)
+                self.serialize_with_mode(&mut bytes, Compress::No)
                     .map_err(serde::ser::Error::custom)?;
                 serializer.serialize_bytes(&bytes)
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $type {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                let s: Vec<u8> = serde::de::Deserialize::deserialize(deserializer)?;
-                let a = Self::deserialize_with_mode(s.as_slice(), Compress::Yes, Validate::Yes);
-                a.map_err(serde::de::Error::custom)
             }
         }
     };
@@ -81,32 +64,29 @@ impl_serde!(AuthorityAggregatedSignature);
 impl_serde!(AuthoritySigParams);
 
 impl CheckPoint {
-    pub fn genesis(data: EndOfEpochData) -> Self {
+    pub fn genesis(data: Committee) -> Self {
         Self {
             epoch: 0,
             prev_digest: Default::default(),
-            seq_number: 0,
             sig: Default::default(),
-            end_of_epoch_data: Some(data),
+            committee: data,
         }
     }
 
-    fn new_internal(
+    fn new(
         prev: &CheckPoint,
-        data: Option<EndOfEpochData>,
+        data: Committee,
         signers: &Signers,
-        bitmap: &RoaringBitmap,
+        bitmap: &Vec<bool>,
         params: &AuthoritySigParams,
-        increase_epoch: bool,
     ) -> Result<Self, Box<bincode::Error>> {
         assert!(!bitmap.is_empty(), "checkpoint must be signed");
 
         let mut cp = Self {
-            epoch: prev.epoch + increase_epoch as u64,
+            epoch: prev.epoch + 1 as u64,
             prev_digest: compute_digest(prev),
-            seq_number: prev.seq_number + 1,
             sig: Default::default(),
-            end_of_epoch_data: data,
+            committee: data,
         };
 
         let mut hasher = HashFunc::new();
@@ -116,7 +96,7 @@ impl CheckPoint {
             &signers
                 .iter()
                 .enumerate()
-                .filter(|(i, _)| bitmap.contains(*i as u32))
+                .filter(|(i, _)| bitmap[*i])
                 .map(|(_, sec)| sec)
                 .cloned()
                 .collect::<Vec<_>>(),
@@ -131,26 +111,6 @@ impl CheckPoint {
         Ok(cp)
     }
 
-    pub fn new(
-        prev: &CheckPoint,
-        signers: &Signers,
-        bitmap: &RoaringBitmap,
-        params: &AuthoritySigParams,
-        increase_epoch: bool,
-    ) -> Result<Self, Box<bincode::Error>> {
-        Self::new_internal(prev, None, signers, bitmap, params, increase_epoch)
-    }
-
-    pub fn new_with_data(
-        prev: &CheckPoint,
-        data: EndOfEpochData,
-        signers: &Signers,
-        bitmap: &RoaringBitmap,
-        params: &AuthoritySigParams,
-    ) -> Result<Self, Box<bincode::Error>> {
-        Self::new_internal(prev, Some(data), signers, bitmap, params, false)
-    }
-
     pub fn verify(&self, committee: &Committee, epoch: u64, params: &Parameters) -> bool {
         assert!(
             self.epoch == epoch + 1,
@@ -162,7 +122,7 @@ impl CheckPoint {
         let aggregate_signer_info = committee
             .iter()
             .enumerate()
-            .filter(|(i, _)| self.sig.signers.contains(*i as u32))
+            .filter(|(i, _)| self.sig.signers[*i])
             .map(|(_, signer_info)| signer_info)
             .cloned()
             .reduce(|acc, e| {
@@ -193,6 +153,8 @@ impl CheckPoint {
     }
 }
 
+/// A committee rotation chain, where each node is a checkpoint that stores a committee.
+/// This is a simplification of common light client protocols that rely on committee.
 impl Blockchain {
     pub fn new(params: AuthoritySigParams) -> Self {
         Self {
@@ -221,11 +183,7 @@ impl Blockchain {
             return true;
         }
 
-        let mut committee = &self.checkpoints[0]
-            .end_of_epoch_data
-            .as_ref()
-            .unwrap()
-            .committee;
+        let mut committee = &self.checkpoints[0].committee;
         let mut prev_digest = compute_digest(&self.checkpoints[0]);
         let mut committee_epoch = self.checkpoints[0].epoch;
 
@@ -235,10 +193,8 @@ impl Blockchain {
                 return false;
             }
             prev_digest = compute_digest(cp);
-            if let Some(new_commitee) = &cp.end_of_epoch_data {
-                committee = &new_commitee.committee;
-                committee_epoch = cp.epoch;
-            }
+            committee = &cp.committee;
+            committee_epoch = cp.epoch;
         }
 
         return true;
@@ -276,15 +232,15 @@ fn generate_committee(committee_size: usize, params: &AuthoritySigParams) -> (Si
     (csk, committee)
 }
 
-fn select_strong_committee(committee: &Committee) -> RoaringBitmap {
+fn select_strong_committee(committee: &Committee) -> Vec<bool> {
     let mut rng = thread_rng();
-    let mut selected_indices = RoaringBitmap::new();
+    let mut selected_indices = vec![false; committee.len()];
     let mut total_weight: u64 = 0;
 
     while total_weight <= STRONG_THRESHOLD {
         let index = rng.gen_range(0..committee.len());
-        if !selected_indices.contains(index as u32) {
-            selected_indices.insert(index as u32);
+        if !selected_indices[index] {
+            selected_indices[index] = true;
             total_weight += committee[index].1;
         }
     }
@@ -292,29 +248,19 @@ fn select_strong_committee(committee: &Committee) -> RoaringBitmap {
     selected_indices
 }
 
-pub fn gen_blockchain_with_params(
-    num_epochs: usize,
-    num_checkpoints_per_epoch: usize,
-    committee_size: usize,
-) -> Blockchain {
+pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> Blockchain {
     assert!(num_epochs > 0, "num_epochs should > 0");
-    assert!(
-        num_checkpoints_per_epoch > 0,
-        "num_checkpoints_per_epoch should > 0"
-    );
     assert!(committee_size > 0, "committee_size should > 0");
 
     // generate param
     let params = AuthoritySigParams::setup();
 
     let mut bc = Blockchain::new(params.clone());
-    bc.reserve(num_epochs * num_checkpoints_per_epoch);
+    bc.reserve(num_epochs);
 
     // generate genesis block (the only cp in 0th epoch)
     let (signers, committee) = generate_committee(committee_size, &params);
-    let genesis_cp = CheckPoint::genesis(EndOfEpochData {
-        committee: committee.clone(),
-    });
+    let genesis_cp = CheckPoint::genesis(committee.clone());
     bc.add_checkpoint(genesis_cp);
 
     let mut prev_signers = signers.clone();
@@ -323,26 +269,11 @@ pub fn gen_blockchain_with_params(
 
     // generate checkpoints for other epochs
     for _ in 1..num_epochs {
-        for i in 0..num_checkpoints_per_epoch - 1 {
-            let bitmap = select_strong_committee(&prev_committee);
-            let cp = CheckPoint::new(prev_cp, &prev_signers, &bitmap, &params, i == 0).unwrap();
-            bc.add_checkpoint(cp);
-            prev_cp = bc.last().unwrap();
-        }
-
         let bitmap = select_strong_committee(&prev_committee);
         let (signers, committee) = generate_committee(committee_size, &params);
 
-        let cp = CheckPoint::new_with_data(
-            prev_cp,
-            EndOfEpochData {
-                committee: committee.clone(),
-            },
-            &prev_signers,
-            &bitmap,
-            &params,
-        )
-        .unwrap();
+        let cp =
+            CheckPoint::new(prev_cp, committee.clone(), &prev_signers, &bitmap, &params).unwrap();
         bc.add_checkpoint(cp);
         prev_cp = bc.last().unwrap();
 
@@ -350,7 +281,7 @@ pub fn gen_blockchain_with_params(
         prev_signers = signers;
     }
 
-    assert_eq!(bc.len(), (num_epochs - 1) * num_checkpoints_per_epoch + 1);
+    assert_eq!(bc.len(), num_epochs);
     assert!(bc.verify());
 
     bc
@@ -362,6 +293,6 @@ mod test {
 
     #[test]
     fn test_gen_blockchain() {
-        gen_blockchain_with_params(10, 10, 10);
+        gen_blockchain_with_params(100, 10);
     }
 }

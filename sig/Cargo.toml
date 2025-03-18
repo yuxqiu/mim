@@ -20,7 +20,6 @@ bincode = "1.3.3"
 blake2 = "0.10.6"
 delegate = "0.13.2"
 rand = "0.8.5"
-roaring = { version = "0.10.10", features = ["serde"] }
 serde = "1.0.217"
 tracing = "0.1.41"
 folding-schemes = { git = "https://github.com/privacy-scaling-explorations/sonobe", package = "folding-schemes" }
