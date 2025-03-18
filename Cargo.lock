@@ -104,6 +104,7 @@ dependencies = [
  "derivative",
  "digest",
  "fnv",
+ "merlin",
  "rayon",
  "sha2",
  "tracing",

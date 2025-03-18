@@ -9,7 +9,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::{
     fields::{FieldOpsBounds, FieldVar},
     groups::curves::short_weierstrass::AffineVar,
-    poly::polynomial::univariate::dense::DensePolynomialVar,
+    poly::polynomial::univariate::dense::DensePolynomialVarGeneric,
     prelude::Boolean,
 };
 use ark_relations::r1cs::SynthesisError;
@@ -45,26 +45,26 @@ where
         SynthesisError,
     > {
         let map = P::ISOGENY_MAP;
-        let x_num = DensePolynomialVar::from_coefficients_slice(
+        let x_num = DensePolynomialVarGeneric::from_coefficients_slice(
             &map.x_map_numerator
                 .iter()
                 .map(|v| FpDomainCoDomain::constant(*v))
                 .collect::<Vec<_>>(),
         );
-        let x_den = DensePolynomialVar::from_coefficients_slice(
+        let x_den = DensePolynomialVarGeneric::from_coefficients_slice(
             &map.x_map_denominator
                 .iter()
                 .map(|v| FpDomainCoDomain::constant(*v))
                 .collect::<Vec<_>>(),
         );
 
-        let y_num = DensePolynomialVar::from_coefficients_slice(
+        let y_num = DensePolynomialVarGeneric::from_coefficients_slice(
             &map.y_map_numerator
                 .iter()
                 .map(|v| FpDomainCoDomain::constant(*v))
                 .collect::<Vec<_>>(),
         );
-        let y_den = DensePolynomialVar::from_coefficients_slice(
+        let y_den = DensePolynomialVarGeneric::from_coefficients_slice(
             &map.y_map_denominator
                 .iter()
                 .map(|v| FpDomainCoDomain::constant(*v))

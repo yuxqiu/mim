@@ -3,9 +3,11 @@ use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
 };
 
+use crate::params::BaseSNARKField;
+
 use super::{
-    BLSAggregateSignatureVerifyGadget, BaseSNARKField, Parameters, ParametersVar, PublicKey,
-    PublicKeyVar, Signature, SignatureVar,
+    BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar, PublicKey, PublicKeyVar,
+    Signature, SignatureVar,
 };
 
 #[derive(Clone)]

@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod test {
     use crate::bls::{
-        get_bls_instance, BLSSigCurveConfig, BaseSNARKField, BaseSigCurveField, ParametersVar,
+        get_bls_instance, ParametersVar,
         PublicKeyVar, SignatureVar,
     };
     use crate::fp_var;
+    use crate::params::{BLSSigCurveConfig, BaseSNARKField, BaseSigCurveField};
     use ark_ec::bls12::{Bls12, Bls12Config};
     use ark_ec::pairing::Pairing;
     use ark_ff::{BitIteratorBE, PrimeField};

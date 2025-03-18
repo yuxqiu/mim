@@ -17,14 +17,15 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 // Assuming the sig is running on BLS12 family of curves
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
 
-use crate::bls::{HashCurveGroup, HashCurveVar};
 use crate::fp_var;
 use crate::hash::hash_to_curve::MapToCurveBasedHasherGadget;
 use crate::hash::hash_to_field::default_hasher::DefaultFieldHasherGadget;
 use crate::hash::map_to_curve::wb::WBMapGadget;
+use crate::params::{
+    BLSSigCurveConfig, BaseSNARKField, BaseSigCurveField, HashCurveGroup, HashCurveVar,
+};
 
-use super::params::BaseSNARKField;
-use super::{BLSSigCurveConfig, BaseSigCurveField, Parameters, PublicKey, Signature};
+use super::{Parameters, PublicKey, Signature};
 
 type G1Gadget =
     G1Var<BLSSigCurveConfig, fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>;
@@ -253,9 +254,12 @@ impl AllocVar<Parameters, BaseSNARKField> for ParametersVar {
 
 #[cfg(test)]
 mod test {
-    use crate::bls::{
-        get_bls_instance, BLSAggregateSignatureVerifyGadget, BaseSNARKField, ParametersVar,
-        PublicKeyVar, SignatureVar,
+    use crate::{
+        bls::{
+            get_bls_instance, BLSAggregateSignatureVerifyGadget, ParametersVar, PublicKeyVar,
+            SignatureVar,
+        },
+        params::BaseSNARKField,
     };
 
     use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8};

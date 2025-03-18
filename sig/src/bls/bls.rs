@@ -10,9 +10,10 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blake2::Blake2s256;
 use rand::Rng;
 
-use crate::bls::{HashCurveConfig, HashCurveGroup};
-
-use super::{BLSSigCurveConfig, SecretKeyScalarField, G1, G1_GENERATOR, G2, G2_GENERATOR};
+use crate::params::{
+    BLSSigCurveConfig, HashCurveConfig, HashCurveGroup, SecretKeyScalarField, G1, G1_GENERATOR, G2,
+    G2_GENERATOR,
+};
 
 #[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Parameters {
