@@ -1,17 +1,21 @@
 mod bls;
-mod r1cs;
-
 pub use bls::*;
+
+mod r1cs;
 pub use r1cs::*;
 
-// only enable circuit if it is not native field or it uses sig-12377 and snark-761
 cfg_if::cfg_if! {
-    if #[cfg(all(feature = "native-field", feature = "sig-12377", feature = "snark-761"))] {
-        mod circuit;
-        pub use circuit::*;
-    } else if #[cfg(not(feature = "native-field"))] {
-        mod circuit;
-        pub use circuit::*;
+    if #[cfg(any(feature = "snark-12377", feature = "snark-761"))] {
+        // only enable circuit if it is not native field or it uses sig-12377 and snark-761
+        cfg_if::cfg_if! {
+            if #[cfg(all(not(feature = "emulated-field"), feature = "sig-12377", feature = "snark-761"))] {
+                mod circuit;
+                pub use circuit::*;
+            } else if #[cfg(feature = "emulated-field")] {
+                mod circuit;
+                pub use circuit::*;
+            }
+        }
     }
 }
 

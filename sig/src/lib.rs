@@ -5,7 +5,7 @@ pub mod bc;
 pub mod bls;
 
 #[expect(clippy::missing_errors_doc)]
-#[cfg(feature = "native-field")]
+#[cfg(not(feature = "emulated-field"))]
 // only enable when BLS verification R1CS is implemented in native field
 pub mod folding;
 

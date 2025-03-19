@@ -18,8 +18,7 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 // Assuming the sig is running on BLS12 family of curves
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
 
-use crate::fp_var;
-use crate::hash::hash_to_curve::MapToCurveBasedHasherGadget;
+use crate::{fp_var, hash::hash_to_curve::MapToCurveBasedHasherGadget};
 use crate::hash::hash_to_field::default_hasher::DefaultFieldHasherGadget;
 use crate::hash::map_to_curve::wb::WBMapGadget;
 use crate::params::{
