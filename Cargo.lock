@@ -1135,6 +1135,7 @@ dependencies = [
  "arrayvec",
  "bincode",
  "blake2",
+ "cfg-if",
  "criterion",
  "delegate",
  "folding-schemes",

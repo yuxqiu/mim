@@ -16,23 +16,23 @@ use super::params::{
 
 #[derive(Serialize, Debug, Default, Clone)]
 pub struct QuorumSignature {
-    sig: AuthorityAggregatedSignature,
+    pub sig: AuthorityAggregatedSignature,
     // a roaring bitmap is a better alternative, but for easy impl of R1CS circuit, we use Vec<bool>
-    signers: Vec<bool>,
+    pub signers: Vec<bool>,
 }
 
 #[derive(Serialize, Debug, Default, Clone)]
 pub struct CheckPoint {
-    epoch: u64,
+    pub epoch: u64,
 
     /// hash to the previous checkpoint
-    prev_digest: [u8; HASH_OUTPUT_SIZE],
+    pub prev_digest: [u8; HASH_OUTPUT_SIZE],
 
-    sig: QuorumSignature,
+    pub sig: QuorumSignature,
 
     /// This is a simplification. Usually, committee is only stored at the last node of an epoch
     /// as `Committee`.
-    committee: Committee,
+    pub committee: Committee,
 }
 
 #[derive(Serialize, Debug)]

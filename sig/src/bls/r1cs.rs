@@ -4,9 +4,10 @@ use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
 use ark_ec::bls12::Bls12;
 use ark_ec::pairing::Pairing;
 use ark_ec::{CurveConfig, CurveGroup};
-use ark_ff::Field;
+use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::{FieldOpsBounds, FieldVar};
 use ark_r1cs_std::groups::CurveVar;
 use ark_r1cs_std::pairing::bls12;
 use ark_r1cs_std::prelude::{Boolean, PairingVar};
@@ -27,25 +28,32 @@ use crate::params::{
 
 use super::{Parameters, PublicKey, Signature};
 
-type G1Gadget =
-    G1Var<BLSSigCurveConfig, fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>;
-type G2Gadget =
-    G2Var<BLSSigCurveConfig, fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>;
+type G1Gadget<FV, SNARKField> = G1Var<BLSSigCurveConfig, FV, SNARKField>;
+type G2Gadget<FV, SNARKField> = G2Var<BLSSigCurveConfig, FV, SNARKField>;
 
-#[derive(Clone)]
-pub struct ParametersVar {
-    pub g1_generator: G1Gadget,
-    pub g2_generator: G2Gadget,
+#[derive(Clone, Debug)]
+pub struct ParametersVar<FV: FieldVar<BaseSigCurveField, SNARKField>, SNARKField: PrimeField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BaseSigCurveField, FV>,
+{
+    pub g1_generator: G1Gadget<FV, SNARKField>,
+    pub g2_generator: G2Gadget<FV, SNARKField>,
 }
 
-#[derive(Clone)]
-pub struct PublicKeyVar {
-    pub pub_key: G1Gadget,
+#[derive(Clone, Debug)]
+pub struct PublicKeyVar<FV: FieldVar<BaseSigCurveField, SNARKField>, SNARKField: PrimeField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BaseSigCurveField, FV>,
+{
+    pub pub_key: G1Gadget<FV, SNARKField>,
 }
 
-#[derive(Clone)]
-pub struct SignatureVar {
-    pub signature: G2Gadget,
+#[derive(Clone, Debug)]
+pub struct SignatureVar<FV: FieldVar<BaseSigCurveField, SNARKField>, SNARKField: PrimeField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BaseSigCurveField, FV>,
+{
+    pub signature: G2Gadget<FV, SNARKField>,
 }
 
 pub struct BLSAggregateSignatureVerifyGadget;
@@ -53,10 +61,10 @@ pub struct BLSAggregateSignatureVerifyGadget;
 impl BLSAggregateSignatureVerifyGadget {
     #[tracing::instrument(skip_all)]
     pub fn verify(
-        parameters: &ParametersVar,
-        pk: &PublicKeyVar,
+        parameters: &ParametersVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
+        pk: &PublicKeyVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
         message: &[UInt8<BaseSNARKField>],
-        signature: &SignatureVar,
+        signature: &SignatureVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
     ) -> Result<(), SynthesisError> {
         let cs = parameters.g1_generator.cs();
 
@@ -102,10 +110,10 @@ impl BLSAggregateSignatureVerifyGadget {
     }
 
     pub fn verify_slow(
-        parameters: &ParametersVar,
-        pk: &PublicKeyVar,
+        parameters: &ParametersVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
+        pk: &PublicKeyVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
         message: &[UInt8<BaseSNARKField>],
-        signature: &SignatureVar,
+        signature: &SignatureVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
     ) -> Result<(), SynthesisError> {
         let hash_to_curve = Self::hash_to_curve(message)?;
 
@@ -139,10 +147,10 @@ impl BLSAggregateSignatureVerifyGadget {
     /// The time complexity will not change as we always need to pay the cost of
     /// deserializing public keys
     pub fn aggregate_verify(
-        parameters: &ParametersVar,
-        public_keys: &[PublicKeyVar],
+        parameters: &ParametersVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
+        public_keys: &[PublicKeyVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>],
         message: &[UInt8<BaseSNARKField>],
-        signature: &SignatureVar,
+        signature: &SignatureVar<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>,
     ) -> Result<(), SynthesisError> {
         // Aggregate all public keys
         let aggregated_pk =
@@ -158,7 +166,10 @@ impl BLSAggregateSignatureVerifyGadget {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn hash_to_curve(msg: &[UInt8<BaseSNARKField>]) -> Result<G2Gadget, SynthesisError> {
+    pub fn hash_to_curve(
+        msg: &[UInt8<BaseSNARKField>],
+    ) -> Result<G2Gadget<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>, SynthesisError>
+    {
         type HashGroupBaseField =
             <<HashCurveGroup as CurveGroup>::Config as CurveConfig>::BaseField;
 
@@ -190,9 +201,13 @@ impl BLSAggregateSignatureVerifyGadget {
     }
 }
 
-impl AllocVar<Signature, BaseSNARKField> for SignatureVar {
+impl<FV: FieldVar<BaseSigCurveField, SNARKField>, SNARKField: PrimeField>
+    AllocVar<Signature, SNARKField> for SignatureVar<FV, SNARKField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BaseSigCurveField, FV>,
+{
     fn new_variable<T: Borrow<Signature>>(
-        cs: impl Into<Namespace<BaseSNARKField>>,
+        cs: impl Into<Namespace<SNARKField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -206,9 +221,13 @@ impl AllocVar<Signature, BaseSNARKField> for SignatureVar {
     }
 }
 
-impl AllocVar<PublicKey, BaseSNARKField> for PublicKeyVar {
+impl<FV: FieldVar<BaseSigCurveField, SNARKField>, SNARKField: PrimeField>
+    AllocVar<PublicKey, SNARKField> for PublicKeyVar<FV, SNARKField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BaseSigCurveField, FV>,
+{
     fn new_variable<T: Borrow<PublicKey>>(
-        cs: impl Into<Namespace<BaseSNARKField>>,
+        cs: impl Into<Namespace<SNARKField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -218,9 +237,13 @@ impl AllocVar<PublicKey, BaseSNARKField> for PublicKeyVar {
     }
 }
 
-impl AllocVar<Parameters, BaseSNARKField> for ParametersVar {
+impl<FV: FieldVar<BaseSigCurveField, SNARKField>, SNARKField: PrimeField>
+    AllocVar<Parameters, SNARKField> for ParametersVar<FV, SNARKField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BaseSigCurveField, FV>,
+{
     fn new_variable<T: Borrow<Parameters>>(
-        cs: impl Into<Namespace<BaseSNARKField>>,
+        cs: impl Into<Namespace<SNARKField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {

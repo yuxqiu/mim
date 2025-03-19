@@ -90,8 +90,9 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
 }
 
 pub trait FromBaseFieldGadget<CF: PrimeField>: Sized {
-    type BaseFieldVar: FromBaseFieldGadget<CF>;
     type BasePrimeFieldVar: FromBaseFieldGadget<CF> + FromBitsGadget<CF>;
+
+    fn num_base_prime_field_var_needed() -> usize;
 
     fn from_base_prime_field_var(
         iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
@@ -99,7 +100,6 @@ pub trait FromBaseFieldGadget<CF: PrimeField>: Sized {
 }
 
 impl<CF: PrimeField> FromBaseFieldGadget<CF> for FpVar<CF> {
-    type BaseFieldVar = Self;
     type BasePrimeFieldVar = Self;
 
     fn from_base_prime_field_var(
@@ -107,16 +107,23 @@ impl<CF: PrimeField> FromBaseFieldGadget<CF> for FpVar<CF> {
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::AssignmentMissing)
     }
+
+    fn num_base_prime_field_var_needed() -> usize {
+        1
+    }
 }
 
 impl<F: PrimeField, CF: PrimeField> FromBaseFieldGadget<CF> for EmulatedFpVar<F, CF> {
-    type BaseFieldVar = Self;
     type BasePrimeFieldVar = Self;
 
     fn from_base_prime_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::AssignmentMissing)
+    }
+
+    fn num_base_prime_field_var_needed() -> usize {
+        1
     }
 }
 
@@ -128,16 +135,19 @@ impl<
 where
     for<'a> &'a BF: FieldOpsBounds<'a, <P as QuadExtConfig>::BaseField, BF>,
 {
-    type BaseFieldVar = BF;
     type BasePrimeFieldVar = BF::BasePrimeFieldVar;
 
     fn from_base_prime_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         // a better implementation could mimic `QuadExtField::from_base_prime_field_elems`
-        let c0 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
-        let c1 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
+        let c0 = BF::from_base_prime_field_var(iter.by_ref())?;
+        let c1 = BF::from_base_prime_field_var(iter.by_ref())?;
         Ok(Self::new(c0, c1))
+    }
+
+    fn num_base_prime_field_var_needed() -> usize {
+        BF::num_base_prime_field_var_needed() * 2
     }
 }
 
@@ -149,16 +159,19 @@ impl<
 where
     for<'a> &'a BF: FieldOpsBounds<'a, <P as CubicExtConfig>::BaseField, BF>,
 {
-    type BaseFieldVar = BF;
     type BasePrimeFieldVar = BF::BasePrimeFieldVar;
 
     fn from_base_prime_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         // a better implementation could mimic `CubicExtField::from_base_prime_field_elems`
-        let c0 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
-        let c1 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
-        let c2 = Self::BaseFieldVar::from_base_prime_field_var(iter.by_ref())?;
+        let c0 = BF::from_base_prime_field_var(iter.by_ref())?;
+        let c1 = BF::from_base_prime_field_var(iter.by_ref())?;
+        let c2 = BF::from_base_prime_field_var(iter.by_ref())?;
         Ok(Self::new(c0, c1, c2))
+    }
+
+    fn num_base_prime_field_var_needed() -> usize {
+        BF::num_base_prime_field_var_needed() * 3
     }
 }

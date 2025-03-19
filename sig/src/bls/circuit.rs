@@ -3,7 +3,10 @@ use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
 };
 
-use crate::params::BaseSNARKField;
+use crate::{
+    fp_var,
+    params::{BaseSNARKField, BaseSigCurveField},
+};
 
 use super::{
     BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar, PublicKey, PublicKeyVar,
@@ -43,17 +46,25 @@ impl<'a> BLSCircuit<'a> {
             .iter()
             .map(|b| UInt8::new_input(cs.clone(), || b.ok_or(SynthesisError::AssignmentMissing)))
             .collect::<Result<_, _>>()?;
-        let _ = ParametersVar::new_input(cs.clone(), || {
-            self.params
-                .as_ref()
-                .ok_or(SynthesisError::AssignmentMissing)
-        })?;
-        let _ = PublicKeyVar::new_input(cs.clone(), || {
-            self.pk.as_ref().ok_or(SynthesisError::AssignmentMissing)
-        })?;
-        let _ = SignatureVar::new_input(cs.clone(), || {
-            self.sig.as_ref().ok_or(SynthesisError::AssignmentMissing)
-        })?;
+        let _ =
+            ParametersVar::<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>::new_input(
+                cs.clone(),
+                || {
+                    self.params
+                        .as_ref()
+                        .ok_or(SynthesisError::AssignmentMissing)
+                },
+            )?;
+        let _ =
+            PublicKeyVar::<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>::new_input(
+                cs.clone(),
+                || self.pk.as_ref().ok_or(SynthesisError::AssignmentMissing),
+            )?;
+        let _ =
+            SignatureVar::<fp_var!(BaseSigCurveField, BaseSNARKField), BaseSNARKField>::new_input(
+                cs.clone(),
+                || self.sig.as_ref().ok_or(SynthesisError::AssignmentMissing),
+            )?;
 
         // `instance_assignment` has a placeholder value at index 0, we need to skip it
         let mut public_inputs = cs
