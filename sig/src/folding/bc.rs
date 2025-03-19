@@ -1,12 +1,6 @@
-use ark_ff::PrimeField;
 use ark_r1cs_std::{
-    alloc::AllocVar,
-    convert::ToConstraintFieldGadget,
-    fields::fp::FpVar,
-    groups::bls12::G1Var,
-    prelude::{Boolean, ToBytesGadget},
-    uint64::UInt64,
-    uint8::UInt8,
+    alloc::AllocVar, convert::ToConstraintFieldGadget, fields::fp::FpVar, groups::bls12::G1Var,
+    prelude::Boolean, uint64::UInt64, uint8::UInt8,
 };
 use ark_relations::r1cs::SynthesisError;
 
@@ -26,40 +20,31 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct SignerVar {
     pub pk: PublicKeyVar<FpVar<BaseSigCurveField>, BaseSigCurveField>,
-    // for easy deserialization, we treat weight as FpVar
     pub weight: UInt64<BaseSigCurveField>,
 }
 
 #[derive(Clone, Debug)]
 pub struct CommitteeVar {
-    // for easy deserialization, we treat epoch as FpVar
-    pub epoch: UInt64<BaseSigCurveField>,
     pub committee: Vec<SignerVar>,
 }
 
 impl FromBaseFieldVarGadget<BaseSigCurveField> for UInt64<BaseSigCurveField> {
     type BasePrimeFieldVar = FpVar<BaseSigCurveField>;
 
-    fn num_base_field_var_needed() -> usize {
-        1
-    }
-
     fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
-        let next = iter.next().ok_or(SynthesisError::AssignmentMissing)?;
+        let next = iter.next().ok_or(SynthesisError::Unsatisfiable)?;
         UInt64::from_fp(&next).map(|value| value.0)
     }
+
+    const NUM_BASE_FIELD_VAR_NEEDED: usize = 1;
 }
 
 impl FromBaseFieldVarGadget<BaseSigCurveField>
     for G1Var<BLSSigCurveConfig, FpVar<BaseSigCurveField>, BaseSigCurveField>
 {
     type BasePrimeFieldVar = FpVar<BaseSigCurveField>;
-
-    fn num_base_field_var_needed() -> usize {
-        FpVar::<BaseSigCurveField>::num_base_field_var_needed() * 3
-    }
 
     fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
@@ -74,6 +59,9 @@ impl FromBaseFieldVarGadget<BaseSigCurveField>
             FpVar::from_base_field_var(iter.by_ref())?,
         ))
     }
+
+    const NUM_BASE_FIELD_VAR_NEEDED: usize =
+        FpVar::<BaseSigCurveField>::NUM_BASE_FIELD_VAR_NEEDED * 3;
 }
 
 /// Reconstruct PublicKeyVar from BaseFieldVar
@@ -90,18 +78,15 @@ impl FromBaseFieldVarGadget<BaseSigCurveField>
         })
     }
 
-    fn num_base_field_var_needed() -> usize {
-        G1Var::<BLSSigCurveConfig, FpVar<BaseSigCurveField>, BaseSigCurveField>::num_base_field_var_needed()
-    }
+    const NUM_BASE_FIELD_VAR_NEEDED: usize = G1Var::<
+        BLSSigCurveConfig,
+        FpVar<BaseSigCurveField>,
+        BaseSigCurveField,
+    >::NUM_BASE_FIELD_VAR_NEEDED;
 }
 
 impl FromBaseFieldVarGadget<BaseSigCurveField> for SignerVar {
     type BasePrimeFieldVar = FpVar<BaseSigCurveField>;
-
-    fn num_base_field_var_needed() -> usize {
-        PublicKeyVar::num_base_field_var_needed()
-            + FpVar::<BaseSigCurveField>::num_base_field_var_needed()
-    }
 
     fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
@@ -111,37 +96,37 @@ impl FromBaseFieldVarGadget<BaseSigCurveField> for SignerVar {
             weight: UInt64::from_base_field_var(iter.by_ref())?,
         })
     }
+
+    const NUM_BASE_FIELD_VAR_NEEDED: usize = PublicKeyVar::NUM_BASE_FIELD_VAR_NEEDED
+        + FpVar::<BaseSigCurveField>::NUM_BASE_FIELD_VAR_NEEDED;
 }
 
 impl FromBaseFieldVarGadget<BaseSigCurveField> for CommitteeVar {
     type BasePrimeFieldVar = FpVar<BaseSigCurveField>;
 
     fn from_base_field_var(
-        mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
+        iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, ark_relations::r1cs::SynthesisError> {
         let mut num_consumed = 0;
-
-        let epoch = UInt64::from_base_field_var(iter.by_ref())?;
 
         let mut committee = Vec::new();
         committee.reserve_exact(MAX_COMMITTEE_SIZE as usize);
 
         let mut iter = iter.peekable();
-        while iter.peek().is_some() {
+        while iter.peek().is_some() && num_consumed < Self::NUM_BASE_FIELD_VAR_NEEDED {
             let signer = SignerVar::from_base_field_var(iter.by_ref())?;
-            num_consumed += SignerVar::num_base_field_var_needed();
+            num_consumed += SignerVar::NUM_BASE_FIELD_VAR_NEEDED;
             committee.push(signer);
         }
 
-        if num_consumed != Self::num_base_field_var_needed() {
-            return Err(ark_relations::r1cs::SynthesisError::AssignmentMissing);
+        if num_consumed != Self::NUM_BASE_FIELD_VAR_NEEDED {
+            return Err(ark_relations::r1cs::SynthesisError::Unsatisfiable);
         }
-        Ok(CommitteeVar { epoch, committee })
+        Ok(CommitteeVar { committee })
     }
 
-    fn num_base_field_var_needed() -> usize {
-        (PublicKeyVar::num_base_field_var_needed() + 1) * MAX_COMMITTEE_SIZE as usize
-    }
+    const NUM_BASE_FIELD_VAR_NEEDED: usize =
+        SignerVar::NUM_BASE_FIELD_VAR_NEEDED * MAX_COMMITTEE_SIZE as usize;
 }
 
 impl AllocVar<(PublicKey, u64), BaseSigCurveField> for SignerVar {
@@ -178,8 +163,8 @@ impl AllocVar<(PublicKey, u64), BaseSigCurveField> for SignerVar {
     }
 }
 
-impl AllocVar<(u64, Committee), BaseSigCurveField> for CommitteeVar {
-    fn new_variable<T: std::borrow::Borrow<(u64, Committee)>>(
+impl AllocVar<Committee, BaseSigCurveField> for CommitteeVar {
+    fn new_variable<T: std::borrow::Borrow<Committee>>(
         cs: impl Into<ark_relations::r1cs::Namespace<BaseSigCurveField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -188,29 +173,18 @@ impl AllocVar<(u64, Committee), BaseSigCurveField> for CommitteeVar {
 
         let committee = f();
 
-        let epoch = UInt64::new_variable(
-            cs.clone(),
-            || {
-                committee
-                    .as_ref()
-                    .map(|value| value.borrow().0)
-                    .map_err(SynthesisError::clone)
-            },
-            mode,
-        )?;
         let committee_var = Vec::<SignerVar>::new_variable(
             cs.clone(),
             || {
                 committee
                     .as_ref()
-                    .map(|value| value.borrow().1.clone())
+                    .map(|value| value.borrow().clone())
                     .map_err(SynthesisError::clone)
             },
             mode,
         )?;
 
         Ok(CommitteeVar {
-            epoch,
             committee: committee_var,
         })
     }
@@ -242,14 +216,12 @@ impl ToBaseFieldVarGadget<BaseSigCurveField, BaseSigCurveField> for CommitteeVar
     type BasePrimeFieldVar = FpVar<BaseSigCurveField>;
 
     fn to_base_field_vars(&self) -> Result<Vec<Self::BasePrimeFieldVar>, SynthesisError> {
-        let epoch = self.epoch.to_fp()?;
         let mut committee = Vec::new();
 
         for signer in &self.committee {
             committee.extend(signer.to_base_field_vars()?);
         }
 
-        committee.insert(0, epoch);
         Ok(committee)
     }
 }
@@ -354,7 +326,7 @@ impl AllocVar<CheckPoint, BaseSigCurveField> for CheckPointVar {
                 cp.as_ref()
                     .map(|cp| {
                         let cp = cp.borrow();
-                        (cp.epoch, cp.committee.clone())
+                        cp.committee.clone()
                     })
                     .map_err(SynthesisError::clone)
             },
@@ -367,40 +339,5 @@ impl AllocVar<CheckPoint, BaseSigCurveField> for CheckPointVar {
             sig,
             committee,
         })
-    }
-}
-
-// serialize a R1CS variable to a canonical byte representation
-pub trait SerializeGadget<F: PrimeField> {
-    fn serialize(&self) -> Result<Vec<UInt8<F>>, SynthesisError>;
-}
-
-impl SerializeGadget<BaseSigCurveField> for QuorumSignatureVar {
-    fn serialize(&self) -> Result<Vec<UInt8<BaseSigCurveField>>, SynthesisError> {
-        // let mut sig = self.sig;
-        // let signers = self.signers.to_bytes_le()?;
-
-        todo!();
-    }
-}
-
-impl SerializeGadget<BaseSigCurveField> for CommitteeVar {
-    fn serialize(&self) -> Result<Vec<UInt8<BaseSigCurveField>>, SynthesisError> {
-        todo!()
-    }
-}
-
-impl SerializeGadget<BaseSigCurveField> for CheckPointVar {
-    fn serialize(&self) -> Result<Vec<UInt8<BaseSigCurveField>>, SynthesisError> {
-        let mut epoch = self.epoch.to_bytes_le()?;
-        let prev_digest = &self.prev_digest;
-        let sig = self.sig.serialize()?;
-        let committee = self.committee.serialize()?;
-
-        epoch.extend_from_slice(prev_digest);
-        epoch.extend(sig);
-        epoch.extend(committee);
-
-        Ok(epoch)
     }
 }

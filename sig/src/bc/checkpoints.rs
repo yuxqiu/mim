@@ -1,8 +1,12 @@
-use ark_serialize::{CanonicalSerialize, Compress};
+use ark_ec::{
+    short_weierstrass::{Affine, SWCurveConfig},
+    CurveGroup,
+};
+use ark_serialize::CanonicalSerialize;
 use blake2::Digest;
 use delegate::delegate;
 use rand::{thread_rng, Rng};
-use serde::Serialize;
+use serde::{ser::SerializeTuple, Serialize, Serializer};
 
 use crate::{
     bc::params::AuthoritySecretKey,
@@ -35,33 +39,59 @@ pub struct CheckPoint {
     pub committee: Committee,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Debug)]
 pub struct Blockchain {
     checkpoints: Vec<CheckPoint>,
     params: AuthoritySigParams,
 }
 
-/// A thin ser/des layer on top of ark-serialize
-/// - see <https://github.com/arkworks-rs/algebra/issues/178>
-macro_rules! impl_serde {
-    ($type:ty) => {
-        impl Serialize for $type {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: serde::Serializer,
-            {
-                let mut bytes = vec![];
-                self.serialize_with_mode(&mut bytes, Compress::No)
-                    .map_err(serde::ser::Error::custom)?;
-                serializer.serialize_bytes(&bytes)
-            }
-        }
-    };
+fn serialize_curve_point<Config: SWCurveConfig, S: Serializer>(
+    affine: Affine<Config>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let mut bytes = vec![];
+    affine
+        .x
+        .serialize_uncompressed(&mut bytes)
+        .map_err(serde::ser::Error::custom)?;
+    affine
+        .y
+        .serialize_uncompressed(&mut bytes)
+        .map_err(serde::ser::Error::custom)?;
+    affine
+        .infinity
+        .serialize_uncompressed(&mut bytes)
+        .map_err(serde::ser::Error::custom)?;
+
+    // The length of the struct is static, so it's safe to use this
+    let mut seq = serializer.serialize_tuple(bytes.len())?;
+    for b in bytes {
+        seq.serialize_element(&b)?;
+    }
+    seq.end()
 }
 
-impl_serde!(AuthorityPublicKey);
-impl_serde!(AuthorityAggregatedSignature);
-impl_serde!(AuthoritySigParams);
+/// Serialize is implemented manually because it's easy to match it with `SerializeGadget` implementation
+impl Serialize for AuthorityAggregatedSignature {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let affine = self.signature.into_affine();
+        serialize_curve_point(affine, serializer)
+    }
+}
+
+/// Serialize is implemented manually because it's easy to match it with `SerializeGadget` implementation
+impl Serialize for AuthorityPublicKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let affine = self.pub_key.into_affine();
+        serialize_curve_point(affine, serializer)
+    }
+}
 
 impl CheckPoint {
     pub fn genesis(data: Committee) -> Self {

@@ -90,11 +90,11 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
 }
 
 /// Trait for constructing any R1CS variable from a vector of `FieldVar<F: PrimeField, CF: PrimeField>`.
-/// It can interrop with `ToBaseFieldVarGadget` trait to support serialization and deserialization for any variable.
+/// It should be able to interrop with `ToBaseFieldVarGadget` trait to support serialization and deserialization for any variable.
 pub trait FromBaseFieldVarGadget<CF: PrimeField>: Sized {
     type BasePrimeFieldVar: FromBaseFieldVarGadget<CF> + FromBitsGadget<CF>;
 
-    fn num_base_field_var_needed() -> usize;
+    const NUM_BASE_FIELD_VAR_NEEDED: usize;
 
     fn from_base_field_var(
         iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
@@ -107,12 +107,10 @@ impl<CF: PrimeField> FromBaseFieldVarGadget<CF> for FpVar<CF> {
     fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
-        iter.next().ok_or(SynthesisError::AssignmentMissing)
+        iter.next().ok_or(SynthesisError::Unsatisfiable)
     }
 
-    fn num_base_field_var_needed() -> usize {
-        1
-    }
+    const NUM_BASE_FIELD_VAR_NEEDED: usize = 1;
 }
 
 impl<F: PrimeField, CF: PrimeField> FromBaseFieldVarGadget<CF> for EmulatedFpVar<F, CF> {
@@ -121,12 +119,10 @@ impl<F: PrimeField, CF: PrimeField> FromBaseFieldVarGadget<CF> for EmulatedFpVar
     fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
-        iter.next().ok_or(SynthesisError::AssignmentMissing)
+        iter.next().ok_or(SynthesisError::Unsatisfiable)
     }
 
-    fn num_base_field_var_needed() -> usize {
-        1
-    }
+    const NUM_BASE_FIELD_VAR_NEEDED: usize = 1;
 }
 
 impl<
@@ -148,9 +144,7 @@ where
         Ok(Self::new(c0, c1))
     }
 
-    fn num_base_field_var_needed() -> usize {
-        BF::num_base_field_var_needed() * 2
-    }
+    const NUM_BASE_FIELD_VAR_NEEDED: usize = BF::NUM_BASE_FIELD_VAR_NEEDED * 2;
 }
 
 impl<
@@ -173,7 +167,5 @@ where
         Ok(Self::new(c0, c1, c2))
     }
 
-    fn num_base_field_var_needed() -> usize {
-        BF::num_base_field_var_needed() * 3
-    }
+    const NUM_BASE_FIELD_VAR_NEEDED: usize = BF::NUM_BASE_FIELD_VAR_NEEDED * 3;
 }

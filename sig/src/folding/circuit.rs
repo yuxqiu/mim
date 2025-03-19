@@ -5,7 +5,7 @@ use ark_r1cs_std::{
     eq::EqGadget,
     fields::{fp::FpVar, FieldVar},
     groups::{bls12::G1Var, CurveVar},
-    prelude::{Boolean, ToBytesGadget},
+    prelude::Boolean,
     uint64::UInt64,
 };
 use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
@@ -22,7 +22,7 @@ use crate::{
     params::{BLSSigCurveConfig, BaseSigCurveField},
 };
 
-use super::bc::CheckPointVar;
+use super::{bc::CheckPointVar, serialize::SerializeGadget};
 
 #[derive(Clone, Debug)]
 pub struct BCCircuitNoMerkle {
@@ -40,7 +40,7 @@ impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
 
     fn state_len(&self) -> usize {
         // needs to be an upper bound of the committee size
-        CommitteeVar::num_base_field_var_needed()
+        CommitteeVar::NUM_BASE_FIELD_VAR_NEEDED
     }
 
     /// generates the constraints for the step of F for the given z_i
@@ -51,13 +51,15 @@ impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
         z_i: Vec<FpVar<BaseSigCurveField>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<BaseSigCurveField>>, SynthesisError> {
-        // reconstruct committee from z_i
-        let committee = CommitteeVar::from_base_field_var(z_i.into_iter())?;
+        // reconstruct epoch and committee from z_i
+        let mut iter = z_i.into_iter();
+        let epoch = UInt64::from_base_field_var(iter.by_ref())?;
+        let committee = CommitteeVar::from_base_field_var(iter)?;
 
         // 1. enforce epoch of new committee = epoch of old committee + 1
         external_inputs
             .epoch
-            .is_eq(&(committee.epoch.wrapping_add(&UInt64::constant(1))))?
+            .is_eq(&(epoch.wrapping_add(&UInt64::constant(1))))?
             .enforce_equal(&Boolean::TRUE)?;
 
         // 2. enforce the signature matches
@@ -82,7 +84,12 @@ impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
 
         // 2.2 check signature
         let params = ParametersVar::new_constant(cs.clone(), self.params)?;
-        BLSAggregateSignatureVerifyGadget::verify(&params, &aggregate_pk, todo!(), sig)?;
+        BLSAggregateSignatureVerifyGadget::verify(
+            &params,
+            &aggregate_pk,
+            &external_inputs.serialize()?,
+            sig,
+        )?;
 
         // 2.3 check weight > threshold
         weight.to_fp()?.enforce_cmp(

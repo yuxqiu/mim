@@ -15,18 +15,18 @@ use crate::params::{
     G2_GENERATOR,
 };
 
-#[derive(Clone, Copy, Debug, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, Copy, Debug, Default, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Parameters {
     pub g1_generator: G1,
     pub g2_generator: G2,
 }
 
-#[derive(Clone, Copy, Debug, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, Copy, Debug, Default, CanonicalSerialize, CanonicalDeserialize)]
 pub struct PublicKey {
     pub pub_key: G1,
 }
 
-#[derive(Clone, Copy, Debug, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, Copy, Debug, Default, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SecretKey {
     pub secret_key: SecretKeyScalarField,
 }
