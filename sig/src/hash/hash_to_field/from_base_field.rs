@@ -89,89 +89,91 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
     }
 }
 
-pub trait FromBaseFieldGadget<CF: PrimeField>: Sized {
-    type BasePrimeFieldVar: FromBaseFieldGadget<CF> + FromBitsGadget<CF>;
+/// Trait for constructing any R1CS variable from a vector of `FieldVar<F: PrimeField, CF: PrimeField>`.
+/// It can interrop with `ToBaseFieldVarGadget` trait to support serialization and deserialization for any variable.
+pub trait FromBaseFieldVarGadget<CF: PrimeField>: Sized {
+    type BasePrimeFieldVar: FromBaseFieldVarGadget<CF> + FromBitsGadget<CF>;
 
-    fn num_base_prime_field_var_needed() -> usize;
+    fn num_base_field_var_needed() -> usize;
 
-    fn from_base_prime_field_var(
+    fn from_base_field_var(
         iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError>;
 }
 
-impl<CF: PrimeField> FromBaseFieldGadget<CF> for FpVar<CF> {
+impl<CF: PrimeField> FromBaseFieldVarGadget<CF> for FpVar<CF> {
     type BasePrimeFieldVar = Self;
 
-    fn from_base_prime_field_var(
+    fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::AssignmentMissing)
     }
 
-    fn num_base_prime_field_var_needed() -> usize {
+    fn num_base_field_var_needed() -> usize {
         1
     }
 }
 
-impl<F: PrimeField, CF: PrimeField> FromBaseFieldGadget<CF> for EmulatedFpVar<F, CF> {
+impl<F: PrimeField, CF: PrimeField> FromBaseFieldVarGadget<CF> for EmulatedFpVar<F, CF> {
     type BasePrimeFieldVar = Self;
 
-    fn from_base_prime_field_var(
+    fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::AssignmentMissing)
     }
 
-    fn num_base_prime_field_var_needed() -> usize {
+    fn num_base_field_var_needed() -> usize {
         1
     }
 }
 
 impl<
-        BF: FieldVar<P::BaseField, CF> + FromBaseFieldGadget<CF>,
+        BF: FieldVar<P::BaseField, CF> + FromBaseFieldVarGadget<CF>,
         P: QuadExtVarConfig<BF, CF>,
         CF: PrimeField,
-    > FromBaseFieldGadget<CF> for QuadExtVar<BF, P, CF>
+    > FromBaseFieldVarGadget<CF> for QuadExtVar<BF, P, CF>
 where
     for<'a> &'a BF: FieldOpsBounds<'a, <P as QuadExtConfig>::BaseField, BF>,
 {
     type BasePrimeFieldVar = BF::BasePrimeFieldVar;
 
-    fn from_base_prime_field_var(
+    fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         // a better implementation could mimic `QuadExtField::from_base_prime_field_elems`
-        let c0 = BF::from_base_prime_field_var(iter.by_ref())?;
-        let c1 = BF::from_base_prime_field_var(iter.by_ref())?;
+        let c0 = BF::from_base_field_var(iter.by_ref())?;
+        let c1 = BF::from_base_field_var(iter.by_ref())?;
         Ok(Self::new(c0, c1))
     }
 
-    fn num_base_prime_field_var_needed() -> usize {
-        BF::num_base_prime_field_var_needed() * 2
+    fn num_base_field_var_needed() -> usize {
+        BF::num_base_field_var_needed() * 2
     }
 }
 
 impl<
-        BF: FieldVar<P::BaseField, CF> + FromBaseFieldGadget<CF>,
+        BF: FieldVar<P::BaseField, CF> + FromBaseFieldVarGadget<CF>,
         P: CubicExtVarConfig<BF, CF>,
         CF: PrimeField,
-    > FromBaseFieldGadget<CF> for CubicExtVar<BF, P, CF>
+    > FromBaseFieldVarGadget<CF> for CubicExtVar<BF, P, CF>
 where
     for<'a> &'a BF: FieldOpsBounds<'a, <P as CubicExtConfig>::BaseField, BF>,
 {
     type BasePrimeFieldVar = BF::BasePrimeFieldVar;
 
-    fn from_base_prime_field_var(
+    fn from_base_field_var(
         mut iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError> {
         // a better implementation could mimic `CubicExtField::from_base_prime_field_elems`
-        let c0 = BF::from_base_prime_field_var(iter.by_ref())?;
-        let c1 = BF::from_base_prime_field_var(iter.by_ref())?;
-        let c2 = BF::from_base_prime_field_var(iter.by_ref())?;
+        let c0 = BF::from_base_field_var(iter.by_ref())?;
+        let c1 = BF::from_base_field_var(iter.by_ref())?;
+        let c2 = BF::from_base_field_var(iter.by_ref())?;
         Ok(Self::new(c0, c1, c2))
     }
 
-    fn num_base_prime_field_var_needed() -> usize {
-        BF::num_base_prime_field_var_needed() * 3
+    fn num_base_field_var_needed() -> usize {
+        BF::num_base_field_var_needed() * 3
     }
 }

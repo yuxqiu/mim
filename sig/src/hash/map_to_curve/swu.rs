@@ -14,7 +14,7 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-use super::{sqrt::SqrtGadget, to_base_field::ToBaseFieldGadget, MapToCurveGadget};
+use super::{sqrt::SqrtGadget, to_base_field::ToBaseFieldVarGadget, MapToCurveGadget};
 
 pub struct SWUMapGadget<P: SWUConfig>(PhantomData<fn() -> P>);
 
@@ -23,7 +23,7 @@ impl<
         P: SWUConfig,
         CF: PrimeField,
         FP: FieldVar<P::BaseField, CF>
-            + ToBaseFieldGadget<<<P as CurveConfig>::BaseField as Field>::BasePrimeField, CF>
+            + ToBaseFieldVarGadget<<<P as CurveConfig>::BaseField as Field>::BasePrimeField, CF>
             + SqrtGadget<P::BaseField, CF>,
     > MapToCurveGadget<Projective<P>, CF, FP> for SWUMapGadget<P>
 {
@@ -159,7 +159,7 @@ impl<
 }
 
 pub fn parity_var<
-    F: ToBitsGadget<CF> + ToBaseFieldGadget<TF, CF>,
+    F: ToBitsGadget<CF> + ToBaseFieldVarGadget<TF, CF>,
     TF: PrimeField,
     CF: PrimeField,
 >(
@@ -169,7 +169,7 @@ pub fn parity_var<
     let mut sign = Boolean::constant(false);
     let mut zero = Boolean::constant(true);
 
-    for xi in element.to_base_prime_field_vars()? {
+    for xi in element.to_base_field_vars()? {
         let sign_i = &xi.to_bits_le()?[0];
         let zero_i = xi.is_zero()?;
         sign |= &zero & sign_i;

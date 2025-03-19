@@ -2,7 +2,7 @@ mod isogeny_map;
 mod norm;
 mod sqrt;
 mod swu;
-mod to_base_field;
+pub mod to_base_field;
 pub mod wb;
 
 use ark_ec::{short_weierstrass::SWCurveConfig, CurveGroup};

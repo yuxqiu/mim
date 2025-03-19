@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use super::{
-    expander::ExpanderXmdGadget, from_base_field::FromBaseFieldGadget,
+    expander::ExpanderXmdGadget, from_base_field::FromBaseFieldVarGadget,
     from_base_field::FromBitsGadget, HashToFieldGadget,
 };
 use ark_crypto_primitives::prf::PRFGadget;
@@ -33,7 +33,7 @@ impl<
         H: PRFGadget<CF> + Default,
         TF: Field,
         CF: PrimeField,
-        FP: FieldVar<TF, CF> + FromBaseFieldGadget<CF>,
+        FP: FieldVar<TF, CF> + FromBaseFieldVarGadget<CF>,
         const SEC_PARAM: usize,
     > HashToFieldGadget<TF, CF, FP> for DefaultFieldHasherGadget<H, TF, CF, FP, SEC_PARAM>
 {
@@ -83,7 +83,7 @@ impl<
             .map(|bits| FP::BasePrimeFieldVar::from_le_bits(&bits));
 
         // can replace this with `array::try_from` once it becomes stable
-        let f = |_| FP::from_base_prime_field_var(&mut base_field_var_iter);
+        let f = |_| FP::from_base_field_var(&mut base_field_var_iter);
         let array = array_util::try_from_fn::<Result<FP, SynthesisError>, N, _>(f);
 
         tracing::info!(num_constraints = cs.num_constraints());

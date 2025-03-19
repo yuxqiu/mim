@@ -12,7 +12,7 @@ use ark_relations::r1cs::SynthesisError;
 
 use super::{
     isogeny_map::IsogenyMapGadget, sqrt::SqrtGadget, swu::SWUMapGadget,
-    to_base_field::ToBaseFieldGadget, MapToCurveGadget,
+    to_base_field::ToBaseFieldVarGadget, MapToCurveGadget,
 };
 
 pub struct WBMapGadget<P: WBConfig> {
@@ -24,7 +24,7 @@ impl<
         P: WBConfig,
         CF: PrimeField,
         FP: FieldVar<P::BaseField, CF>
-            + ToBaseFieldGadget<<P::BaseField as Field>::BasePrimeField, CF>
+            + ToBaseFieldVarGadget<<P::BaseField as Field>::BasePrimeField, CF>
             + SqrtGadget<P::BaseField, CF>,
     > MapToCurveGadget<Projective<P>, CF, FP> for WBMapGadget<P>
 where
