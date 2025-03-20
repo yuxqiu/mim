@@ -8,10 +8,7 @@ use delegate::delegate;
 use rand::{thread_rng, Rng};
 use serde::{ser::SerializeTuple, Serialize, Serializer};
 
-use crate::{
-    bc::params::AuthoritySecretKey,
-    bls::{Parameters, Signature},
-};
+use crate::{bc::params::AuthoritySecretKey, bls::Signature};
 
 use super::params::{
     AuthorityAggregatedSignature, AuthorityPublicKey, AuthoritySigParams, Committee, HashFunc,
@@ -141,7 +138,7 @@ impl CheckPoint {
         Ok(cp)
     }
 
-    pub fn verify(&self, committee: &Committee, epoch: u64, params: &Parameters) -> bool {
+    pub fn verify(&self, committee: &Committee, epoch: u64, params: &AuthoritySigParams) -> bool {
         assert!(
             self.epoch == epoch + 1,
             "epoch mismatches: expect {} but get {}",

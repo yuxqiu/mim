@@ -9,10 +9,11 @@ pub const HASH_OUTPUT_SIZE: usize = <HashFunc as OutputSizeUser>::OutputSize::US
 /* ====================Sig==================== */
 use crate::bls::{Parameters, PublicKey, SecretKey, Signature};
 
-pub type AuthoritySecretKey = SecretKey;
-pub type AuthorityPublicKey = PublicKey;
-pub type AuthorityAggregatedSignature = Signature;
-pub type AuthoritySigParams = Parameters;
+type BlsSigConfig = ark_bls12_381::Config;
+pub type AuthoritySecretKey = SecretKey<BlsSigConfig>;
+pub type AuthorityPublicKey = PublicKey<BlsSigConfig>;
+pub type AuthorityAggregatedSignature = Signature<BlsSigConfig>;
+pub type AuthoritySigParams = Parameters<BlsSigConfig>;
 /* ====================Sig==================== */
 
 /* ====================Committee==================== */

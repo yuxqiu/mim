@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 ark-bls12-377 = "0.5.0"
 ark-bls12-381 = "0.5.0"
-ark-bw6-761 = "0.5.0"
 ark-crypto-primitives = { version = "0.0.0", features = ["r1cs", "prf", "parallel", "sponge"] }
 ark-ec = { version = "0.5.0", features = ["parallel"] }
 ark-ff = { version = "0.5.0", features = ["parallel"] }
@@ -24,22 +23,16 @@ serde = "1.0.217"
 tracing = "0.1.41"
 folding-schemes = { git = "https://github.com/privacy-scaling-explorations/sonobe", package = "folding-schemes" }
 cfg-if = "1.0.0"
+derivative = "2.2.0"
 
 [dev-dependencies]
+ark-bw6-761 = "0.5.0"
 ark-mnt4-753 = { version = "0.5.0", features = ["r1cs"] }
 ark-mnt6-753 = { version = "0.5.0", features = ["r1cs"] }
 ark-snark = "0.5.1"
 criterion = { version = "0.5.1", features = ["html_reports"] }
 tracing-subscriber = "0.3.19"
 tracing-tree = "0.4.0"
-
-[features]
-default = ["sig-12377", "snark-761", "emulated-field"]
-sig-12381 = []
-sig-12377 = []
-snark-12377 = []
-snark-761 = []
-emulated-field = []
 
 [[bench]]
 name = "bls_pairing"

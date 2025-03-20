@@ -1,8 +1,9 @@
+use ark_ec::{bls12::Bls12Config, pairing::Pairing};
 use ark_groth16::Groth16;
+use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
 use ark_snark::{CircuitSpecificSetupSNARK, SNARK};
 use rand::thread_rng;
 use sig::bls::{get_bls_instance, BLSCircuit};
-use sig::params::SNARKCurve;
 
 #[macro_export]
 macro_rules! timeit {
@@ -17,14 +18,23 @@ macro_rules! timeit {
 }
 
 fn bench_groth16() {
-    let (msg, params, _, pk_bls, sig) = get_bls_instance();
+    type BlsSigConfig = ark_bls12_381::Config;
+    type BaseSigCurveField = <BlsSigConfig as Bls12Config>::Fp;
+    type SNARKCurve = ark_bls12_377::Bls12_377;
+    type BaseSNARKField = <SNARKCurve as Pairing>::ScalarField;
+
+    let (msg, params, _, pk_bls, sig) = get_bls_instance::<BlsSigConfig>();
     let mut rng = thread_rng();
 
     // ===============Setup pk and vk===============
     let mut pk_vk_gen = || {
         // in setup node, we don't need to provide assignment
         let msg = vec![None; msg.len()];
-        let circuit = BLSCircuit::new(None, None, &msg, None);
+        let circuit = BLSCircuit::<
+            BlsSigConfig,
+            EmulatedFpVar<BaseSigCurveField, BaseSNARKField>,
+            BaseSNARKField,
+        >::new(None, None, &msg, None);
         Groth16::<SNARKCurve>::setup(circuit.clone(), &mut rng).unwrap()
     };
 
@@ -54,7 +64,11 @@ fn bench_groth16() {
         .map(Option::Some)
         .collect::<Vec<_>>();
 
-    let circuit = BLSCircuit::new(Some(params), Some(pk_bls), &msg, Some(sig));
+    let circuit = BLSCircuit::<
+        BlsSigConfig,
+        EmulatedFpVar<BaseSigCurveField, BaseSNARKField>,
+        BaseSNARKField,
+    >::new(Some(params), Some(pk_bls), &msg, Some(sig));
 
     // ===============Get public inputs===============
     let public_inputs = circuit.get_public_inputs().unwrap();

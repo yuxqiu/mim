@@ -1,27 +1,27 @@
 mod bls;
+use ark_ec::{bls12::Bls12Config, hashing::curve_maps::wb::WBConfig};
 pub use bls::*;
+
+mod params;
 
 mod r1cs;
 pub use r1cs::*;
 
-cfg_if::cfg_if! {
-    if #[cfg(any(feature = "snark-12377", feature = "snark-761"))] {
-        // only enable circuit if it is not native field or it uses sig-12377 and snark-761
-        cfg_if::cfg_if! {
-            if #[cfg(all(not(feature = "emulated-field"), feature = "sig-12377", feature = "snark-761"))] {
-                mod circuit;
-                pub use circuit::*;
-            } else if #[cfg(feature = "emulated-field")] {
-                mod circuit;
-                pub use circuit::*;
-            }
-        }
-    }
-}
+mod circuit;
+pub use circuit::*;
 
 use rand::thread_rng;
 
-pub fn get_bls_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Signature) {
+pub fn get_bls_instance<SigCurveConfig: Bls12Config>() -> (
+    &'static str,
+    Parameters<SigCurveConfig>,
+    SecretKey<SigCurveConfig>,
+    PublicKey<SigCurveConfig>,
+    Signature<SigCurveConfig>,
+)
+where
+    <SigCurveConfig as Bls12Config>::G2Config: WBConfig,
+{
     let msg = "Hello World";
     let mut rng = thread_rng();
 
@@ -34,21 +34,24 @@ pub fn get_bls_instance() -> (&'static str, Parameters, SecretKey, PublicKey, Si
     (msg, params, sk, pk, sig)
 }
 
-pub fn get_aggregate_bls_instance() -> (
+pub fn get_aggregate_bls_instance<SigCurveConfig: Bls12Config>() -> (
     &'static str,
-    Parameters,
-    Vec<SecretKey>,
-    Vec<PublicKey>,
-    Signature,
-) {
+    Parameters<SigCurveConfig>,
+    Vec<SecretKey<SigCurveConfig>>,
+    Vec<PublicKey<SigCurveConfig>>,
+    Signature<SigCurveConfig>,
+)
+where
+    <SigCurveConfig as Bls12Config>::G2Config: WBConfig,
+{
     const N: usize = 1000;
 
     let msg = "Hello World";
     let mut rng = thread_rng();
 
     let params = Parameters::setup();
-    let secret_keys: Vec<SecretKey> = (0..N).map(|_| SecretKey::new(&mut rng)).collect();
-    let public_keys: Vec<PublicKey> = secret_keys
+    let secret_keys: Vec<_> = (0..N).map(|_| SecretKey::new(&mut rng)).collect();
+    let public_keys: Vec<_> = secret_keys
         .iter()
         .map(|sk| PublicKey::new(sk, &params))
         .collect();

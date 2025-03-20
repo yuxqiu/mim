@@ -1,11 +1,6 @@
 #[cfg(test)]
 mod test {
-    use crate::bls::{
-        get_bls_instance, ParametersVar,
-        PublicKeyVar, SignatureVar,
-    };
-    use crate::fp_var;
-    use crate::params::{BLSSigCurveConfig, BaseSNARKField, BaseSigCurveField};
+    use crate::bls::{get_bls_instance, ParametersVar, PublicKeyVar, SignatureVar};
     use ark_ec::bls12::{Bls12, Bls12Config};
     use ark_ec::pairing::Pairing;
     use ark_ff::{BitIteratorBE, PrimeField};
@@ -162,8 +157,13 @@ mod test {
     /// An example workload that triggers the bug in `EmulatedFpVar`.
     #[test]
     fn emulation_bug_example() {
+        type BlsSigConfig = ark_bls12_381::Config;
+        type BaseSigCurveField = <BlsSigConfig as Bls12Config>::Fp;
+        type SNARKCurve = ark_bls12_377::Bls12_377;
+        type BaseSNARKField = <SNARKCurve as Pairing>::ScalarField;
+
         let cs = ConstraintSystem::new_ref();
-        let (_, params, _, pk, sig) = get_bls_instance();
+        let (_, params, _, pk, sig) = get_bls_instance::<ark_bls12_381::Config>();
 
         let params_var = ParametersVar::new_input(cs.clone(), || Ok(params)).unwrap();
         let pk_var = PublicKeyVar::new_constant(cs.clone(), pk).unwrap();
@@ -202,19 +202,19 @@ mod test {
         // /*
         let ps = [
             G1PreparedVar::<
-                BLSSigCurveConfig,
-                fp_var!(BaseSigCurveField, BaseSNARKField),
+                BlsSigConfig,
+                EmulatedFpVar<BaseSigCurveField, BaseSNARKField>,
                 BaseSNARKField,
             >::from_group_var(&params_var.g1_generator.negate().unwrap())
             .unwrap(),
             G1PreparedVar::<
-                BLSSigCurveConfig,
-                fp_var!(BaseSigCurveField, BaseSNARKField),
+                BlsSigConfig,
+                EmulatedFpVar<BaseSigCurveField, BaseSNARKField>,
                 BaseSNARKField,
             >::from_group_var(&pk_var.pub_key)
             .unwrap(),
         ];
-        let qs: [G2PreparedVar<BLSSigCurveConfig, _, _>; 2] = [
+        let qs: [G2PreparedVar<BlsSigConfig, _, _>; 2] = [
             G2PreparedVar::from_group_var(&sig_var.signature).unwrap(),
             G2PreparedVar::from_group_var(&params_var.g2_generator).unwrap(),
         ];
@@ -225,14 +225,13 @@ mod test {
         }
 
         type MyPairingVar = bls12::PairingVar<
-            BLSSigCurveConfig,
-            fp_var!(BaseSigCurveField, BaseSNARKField),
+            BlsSigConfig,
+            EmulatedFpVar<BaseSigCurveField, BaseSNARKField>,
             BaseSNARKField,
         >;
-        let mut f =
-            <MyPairingVar as PairingVar<Bls12<BLSSigCurveConfig>, BaseSNARKField>>::GTVar::one();
+        let mut f = <MyPairingVar as PairingVar<Bls12<BlsSigConfig>, BaseSNARKField>>::GTVar::one();
 
-        for (_, i) in BitIteratorBE::new(<BLSSigCurveConfig as Bls12Config>::X)
+        for (_, i) in BitIteratorBE::new(<BlsSigConfig as Bls12Config>::X)
             .skip(1)
             .enumerate()
         {

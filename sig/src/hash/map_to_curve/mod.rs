@@ -1,6 +1,6 @@
 mod isogeny_map;
 mod norm;
-mod sqrt;
+pub mod sqrt;
 mod swu;
 pub mod to_base_field;
 pub mod wb;

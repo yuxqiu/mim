@@ -1,4 +1,4 @@
-mod cofactor;
+pub mod cofactor;
 
 use std::marker::PhantomData;
 
