@@ -39,8 +39,7 @@ impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
     }
 
     fn state_len(&self) -> usize {
-        // needs to be an upper bound of the committee size
-        CommitteeVar::NUM_BASE_FIELD_VAR_NEEDED
+        CommitteeVar::NUM_BASE_FIELD_VAR_NEEDED + 1
     }
 
     /// generates the constraints for the step of F for the given z_i
@@ -99,6 +98,9 @@ impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
         )?;
 
         // return the new state
-        external_inputs.committee.to_base_field_vars()
+        let mut state = external_inputs.epoch.to_base_field_vars()?;
+        let committee = external_inputs.committee.to_base_field_vars()?;
+        state.extend(committee);
+        Ok(state)
     }
 }

@@ -125,6 +125,7 @@ impl FromBaseFieldVarGadget<BaseSigCurveField> for CommitteeVar {
         Ok(CommitteeVar { committee })
     }
 
+    /// needs to be an upper bound of the committee size
     const NUM_BASE_FIELD_VAR_NEEDED: usize =
         SignerVar::NUM_BASE_FIELD_VAR_NEEDED * MAX_COMMITTEE_SIZE as usize;
 }
@@ -187,6 +188,14 @@ impl AllocVar<Committee, BaseSigCurveField> for CommitteeVar {
         Ok(CommitteeVar {
             committee: committee_var,
         })
+    }
+}
+
+impl ToBaseFieldVarGadget<BaseSigCurveField, BaseSigCurveField> for UInt64<BaseSigCurveField> {
+    type BasePrimeFieldVar = FpVar<BaseSigCurveField>;
+
+    fn to_base_field_vars(&self) -> Result<Vec<Self::BasePrimeFieldVar>, SynthesisError> {
+        self.to_fp().map(|v| vec![v])
     }
 }
 
