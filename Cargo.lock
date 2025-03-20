@@ -240,6 +240,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-mnt4-753"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e33982ce85d021036f94e47847f127697552b0f65431daa5d36acb57be2d5c4"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-r1cs-std",
+ "ark-std",
+]
+
+[[package]]
+name = "ark-mnt6-753"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c59ccd175dae4e117d11bf282263bd1d9d2393ee1e8754b516a3c452a0320cf"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-mnt4-753",
+ "ark-r1cs-std",
+ "ark-std",
+]
+
+[[package]]
 name = "ark-poly"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1127,6 +1152,8 @@ dependencies = [
  "ark-ec",
  "ark-ff",
  "ark-groth16",
+ "ark-mnt4-753",
+ "ark-mnt6-753",
  "ark-r1cs-std",
  "ark-relations",
  "ark-serialize",
