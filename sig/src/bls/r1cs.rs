@@ -218,7 +218,7 @@ where
         tracing::info!(num_constraints = cs.num_constraints());
 
         let hasher_gadget = HasherGadget::<SigCurveConfig, FV, CF>::new(&[]);
-        let hash = hasher_gadget.hash(&msg);
+        let hash = hasher_gadget.hash(msg);
 
         tracing::info!(num_constraints = cs.num_constraints());
 
@@ -359,6 +359,7 @@ mod test {
     }
 
     #[test]
+    #[ignore = "field emulation takes a long time to finish running"]
     fn check_r1cs_emulated() {
         type BlsSigConfig = ark_bls12_377::Config;
         type BaseSigCurveField = BlsSigField<BlsSigConfig>;

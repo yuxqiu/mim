@@ -91,6 +91,7 @@ impl Serialize for AuthorityPublicKey {
 }
 
 impl CheckPoint {
+    #[must_use]
     pub fn genesis(data: Committee) -> Self {
         Self {
             epoch: 0,
@@ -101,16 +102,16 @@ impl CheckPoint {
     }
 
     fn new(
-        prev: &CheckPoint,
+        prev: &Self,
         data: Committee,
         signers: &Signers,
-        bitmap: &Vec<bool>,
+        bitmap: &[bool],
         params: &AuthoritySigParams,
     ) -> Result<Self, Box<bincode::Error>> {
         assert!(!bitmap.is_empty(), "checkpoint must be signed");
 
         let mut cp = Self {
-            epoch: prev.epoch + 1 as u64,
+            epoch: prev.epoch + 1_u64,
             prev_digest: compute_digest(prev),
             sig: Default::default(),
             committee: data,
@@ -123,21 +124,22 @@ impl CheckPoint {
             &signers
                 .iter()
                 .enumerate()
-                .filter(|(i, _)| bitmap[*i])
+                .filter(|(i, _)| *bitmap.get(*i).unwrap_or(&false))
                 .map(|(_, sec)| sec)
-                .cloned()
+                .copied()
                 .collect::<Vec<_>>(),
             params,
         );
 
         cp.sig = QuorumSignature {
-            sig: sig.unwrap(),
-            signers: bitmap.clone(),
+            sig: sig.expect("at least one secret key is provided"),
+            signers: bitmap.to_owned(),
         };
 
         Ok(cp)
     }
 
+    #[must_use]
     pub fn verify(&self, committee: &Committee, epoch: u64, params: &AuthoritySigParams) -> bool {
         assert!(
             self.epoch == epoch + 1,
@@ -151,7 +153,7 @@ impl CheckPoint {
             .enumerate()
             .filter(|(i, _)| self.sig.signers[*i])
             .map(|(_, signer_info)| signer_info)
-            .cloned()
+            .copied()
             .reduce(|acc, e| {
                 (
                     AuthorityPublicKey {
@@ -176,28 +178,29 @@ impl CheckPoint {
         }
 
         // weights == 0 => no quorum signs this checkpoint
-        return false;
+        false
     }
 }
 
 /// A committee rotation chain, where each node is a checkpoint that stores a committee.
 /// This is a simplification of common light client protocols that rely on committee.
 impl Blockchain {
-    pub fn new(params: AuthoritySigParams) -> Self {
+    #[must_use]
+    pub const fn new(params: AuthoritySigParams) -> Self {
         Self {
             checkpoints: vec![],
-            params: params,
+            params,
         }
     }
 
     delegate! {
         to self.checkpoints {
-            pub fn is_empty(&self) -> bool;
+            #[must_use] pub fn is_empty(&self) -> bool;
 
             #[call(push)]
             pub fn add_checkpoint(&mut self, value: CheckPoint);
 
-            pub fn len(&self) -> usize;
+            #[must_use] pub fn len(&self) -> usize;
 
             fn reserve(&mut self, size: usize);
 
@@ -205,6 +208,7 @@ impl Blockchain {
         }
     }
 
+    #[must_use]
     pub fn verify(&self) -> bool {
         if self.is_empty() {
             return true;
@@ -224,7 +228,7 @@ impl Blockchain {
             committee_epoch = cp.epoch;
         }
 
-        return true;
+        true
     }
 }
 
@@ -253,7 +257,7 @@ fn generate_committee(committee_size: usize, params: &AuthoritySigParams) -> (Si
     let committee = csk
         .iter()
         .zip(weights)
-        .map(|(sk, weight)| (AuthorityPublicKey::new(sk, &params), weight))
+        .map(|(sk, weight)| (AuthorityPublicKey::new(sk, params), weight))
         .collect::<Vec<_>>();
 
     (csk, committee)
@@ -275,6 +279,7 @@ fn select_strong_committee(committee: &Committee) -> Vec<bool> {
     selected_indices
 }
 
+#[must_use]
 pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> Blockchain {
     assert!(num_epochs > 0, "num_epochs should > 0");
     assert!(committee_size > 0, "committee_size should > 0");
@@ -282,7 +287,7 @@ pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> B
     // generate param
     let params = AuthoritySigParams::setup();
 
-    let mut bc = Blockchain::new(params.clone());
+    let mut bc = Blockchain::new(params);
     bc.reserve(num_epochs);
 
     // generate genesis block (the only cp in 0th epoch)
@@ -290,7 +295,7 @@ pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> B
     let genesis_cp = CheckPoint::genesis(committee.clone());
     bc.add_checkpoint(genesis_cp);
 
-    let mut prev_signers = signers.clone();
+    let mut prev_signers = signers;
     let mut prev_committee = committee;
     let mut prev_cp = &bc.checkpoints[0];
 
@@ -320,6 +325,6 @@ mod test {
 
     #[test]
     fn test_gen_blockchain() {
-        gen_blockchain_with_params(100, 10);
+        let _ = gen_blockchain_with_params(100, 10);
     }
 }

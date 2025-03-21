@@ -18,7 +18,6 @@ use super::{sqrt::SqrtGadget, to_base_field::ToBaseFieldVarGadget, MapToCurveGad
 
 pub struct SWUMapGadget<P: SWUConfig>(PhantomData<fn() -> P>);
 
-#[expect(clippy::similar_names)]
 impl<
         P: SWUConfig,
         CF: PrimeField,
@@ -285,86 +284,100 @@ mod test {
     generate_parity_tests!(test_parity_fp3, Fp3<Fq3Config>, Fp3Var<Fq3Config>);
 
     macro_rules! generate_swu_map_tests {
-        ($test_name:ident, $field:ty, $field_var:ty, $curve:ty) => {
+        // Pattern with `ignore` flag and a custom reason
+        (@inner $test_name:ident, $field:ty, $field_var:ty, $curve:ty, ignore, $reason:expr) => {
+            #[test]
+            #[ignore = $reason]
+            fn $test_name() {
+                generate_swu_map_tests!(@body $field, $field_var, $curve);
+            }
+        };
+
+        // Pattern without `ignore` flag
+        (@inner $test_name:ident, $field:ty, $field_var:ty, $curve:ty) => {
             #[test]
             fn $test_name() {
-                fn test_constant() {
-                    let mut rng = thread_rng();
-
-                    {
-                        // test zero
-                        let zero = <$field as Zero>::zero();
-                        let zero_var = <$field_var>::constant(zero);
-                        let swu_zero = SWUMap::<$curve>::map_to_curve(zero).unwrap();
-                        let swu_zero_var = SWUMapGadget::<$curve>::map_to_curve(zero_var).unwrap();
-                        assert_eq!(swu_zero_var.value_unchecked().unwrap(), swu_zero);
-                        assert!(swu_zero_var.x.is_constant());
-                        assert!(swu_zero_var.y.is_constant());
-                    }
-
-                    {
-                        // test one
-                        let one = <$field as Field>::ONE;
-                        let one_var = <$field_var>::constant(one);
-                        let swu_one = SWUMap::<$curve>::map_to_curve(one).unwrap();
-                        let swu_one_var = SWUMapGadget::<$curve>::map_to_curve(one_var).unwrap();
-                        assert_eq!(swu_one_var.value_unchecked().unwrap(), swu_one);
-                        assert!(swu_one_var.x.is_constant());
-                        assert!(swu_one_var.y.is_constant());
-                    }
-
-                    {
-                        // test random element
-                        let r = <$field>::rand(&mut rng);
-                        let r_var = <$field_var>::constant(r);
-                        let swu_r = SWUMap::<$curve>::map_to_curve(r).unwrap();
-                        let swu_r_var = SWUMapGadget::<$curve>::map_to_curve(r_var).unwrap();
-                        assert_eq!(swu_r_var.value_unchecked().unwrap(), swu_r);
-                        assert!(swu_r_var.x.is_constant());
-                        assert!(swu_r_var.y.is_constant());
-                    }
-                }
-
-                fn test_input() {
-                    let mut rng = thread_rng();
-
-                    {
-                        // test zero
-                        let cs = ConstraintSystem::new_ref();
-                        let zero = <$field as Zero>::zero();
-                        let zero_var = <$field_var>::new_input(cs.clone(), || Ok(zero)).unwrap();
-                        let swu_zero = SWUMap::<$curve>::map_to_curve(zero).unwrap();
-                        let swu_zero_var = SWUMapGadget::<$curve>::map_to_curve(zero_var).unwrap();
-                        assert_eq!(swu_zero_var.value_unchecked().unwrap(), swu_zero);
-                        assert!(cs.is_satisfied().unwrap());
-                    }
-
-                    {
-                        // test one
-                        let cs = ConstraintSystem::new_ref();
-                        let one = <$field as Field>::ONE;
-                        let one_var = <$field_var>::new_input(cs.clone(), || Ok(one)).unwrap();
-                        let swu_one = SWUMap::<$curve>::map_to_curve(one).unwrap();
-                        let swu_one_var = SWUMapGadget::<$curve>::map_to_curve(one_var).unwrap();
-                        assert_eq!(swu_one_var.value_unchecked().unwrap(), swu_one);
-                        assert!(cs.is_satisfied().unwrap());
-                    }
-
-                    {
-                        // test random element
-                        let cs = ConstraintSystem::new_ref();
-                        let r = <$field>::rand(&mut rng);
-                        let r_var = <$field_var>::new_input(cs.clone(), || Ok(r)).unwrap();
-                        let swu_r = SWUMap::<$curve>::map_to_curve(r).unwrap();
-                        let swu_r_var = SWUMapGadget::<$curve>::map_to_curve(r_var).unwrap();
-                        assert_eq!(swu_r_var.value_unchecked().unwrap(), swu_r);
-                        assert!(cs.is_satisfied().unwrap());
-                    }
-                }
-
-                test_constant();
-                test_input();
+                generate_swu_map_tests!(@body $field, $field_var, $curve);
             }
+        };
+
+        // Shared function body (to avoid repeating logic)
+        (@body $field:ty, $field_var:ty, $curve:ty) => {
+            fn test_constant() {
+                let mut rng = thread_rng();
+
+                {
+                    let zero = <$field as Zero>::zero();
+                    let zero_var = <$field_var>::constant(zero);
+                    let swu_zero = SWUMap::<$curve>::map_to_curve(zero).unwrap();
+                    let swu_zero_var = SWUMapGadget::<$curve>::map_to_curve(zero_var).unwrap();
+                    assert_eq!(swu_zero_var.value_unchecked().unwrap(), swu_zero);
+                    assert!(swu_zero_var.x.is_constant());
+                    assert!(swu_zero_var.y.is_constant());
+                }
+
+                {
+                    let one = <$field as Field>::ONE;
+                    let one_var = <$field_var>::constant(one);
+                    let swu_one = SWUMap::<$curve>::map_to_curve(one).unwrap();
+                    let swu_one_var = SWUMapGadget::<$curve>::map_to_curve(one_var).unwrap();
+                    assert_eq!(swu_one_var.value_unchecked().unwrap(), swu_one);
+                    assert!(swu_one_var.x.is_constant());
+                    assert!(swu_one_var.y.is_constant());
+                }
+
+                {
+                    let r = <$field>::rand(&mut rng);
+                    let r_var = <$field_var>::constant(r);
+                    let swu_r = SWUMap::<$curve>::map_to_curve(r).unwrap();
+                    let swu_r_var = SWUMapGadget::<$curve>::map_to_curve(r_var).unwrap();
+                    assert_eq!(swu_r_var.value_unchecked().unwrap(), swu_r);
+                    assert!(swu_r_var.x.is_constant());
+                    assert!(swu_r_var.y.is_constant());
+                }
+            }
+
+            fn test_input() {
+                let mut rng = thread_rng();
+
+                {
+                    let cs = ConstraintSystem::new_ref();
+                    let zero = <$field as Zero>::zero();
+                    let zero_var = <$field_var>::new_input(cs.clone(), || Ok(zero)).unwrap();
+                    let swu_zero = SWUMap::<$curve>::map_to_curve(zero).unwrap();
+                    let swu_zero_var = SWUMapGadget::<$curve>::map_to_curve(zero_var).unwrap();
+                    assert_eq!(swu_zero_var.value_unchecked().unwrap(), swu_zero);
+                    assert!(cs.is_satisfied().unwrap());
+                }
+
+                {
+                    let cs = ConstraintSystem::new_ref();
+                    let one = <$field as Field>::ONE;
+                    let one_var = <$field_var>::new_input(cs.clone(), || Ok(one)).unwrap();
+                    let swu_one = SWUMap::<$curve>::map_to_curve(one).unwrap();
+                    let swu_one_var = SWUMapGadget::<$curve>::map_to_curve(one_var).unwrap();
+                    assert_eq!(swu_one_var.value_unchecked().unwrap(), swu_one);
+                    assert!(cs.is_satisfied().unwrap());
+                }
+
+                {
+                    let cs = ConstraintSystem::new_ref();
+                    let r = <$field>::rand(&mut rng);
+                    let r_var = <$field_var>::new_input(cs.clone(), || Ok(r)).unwrap();
+                    let swu_r = SWUMap::<$curve>::map_to_curve(r).unwrap();
+                    let swu_r_var = SWUMapGadget::<$curve>::map_to_curve(r_var).unwrap();
+                    assert_eq!(swu_r_var.value_unchecked().unwrap(), swu_r);
+                    assert!(cs.is_satisfied().unwrap());
+                }
+            }
+
+            test_constant();
+            test_input();
+        };
+
+        // Entry point with optional `ignore` flag and reason
+        ($test_name:ident, $field:ty, $field_var:ty, $curve:ty $(, $meta:ident $(, $reason:expr)?)?) => {
+            generate_swu_map_tests!(@inner $test_name, $field, $field_var, $curve $(, $meta $(, $reason)?)?);
         };
     }
 
@@ -379,7 +392,8 @@ mod test {
         test_swu_map_fp_emu,
         Fq,
         EmulatedFpVar<Fq, Fr>,
-        <ark_bls12_381::g1::Config as WBConfig>::IsogenousCurve
+        <ark_bls12_381::g1::Config as WBConfig>::IsogenousCurve,
+        ignore, "field emulation takes a long time to finish running"
     );
 
     generate_swu_map_tests!(

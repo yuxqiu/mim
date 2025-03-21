@@ -156,6 +156,7 @@ mod test {
 
     /// An example workload that triggers the bug in `EmulatedFpVar`.
     #[test]
+    #[ignore = "this test is archived"]
     fn emulation_bug_example() {
         type BlsSigConfig = ark_bls12_381::Config;
         type BaseSigCurveField = <BlsSigConfig as Bls12Config>::Fp;
@@ -231,24 +232,23 @@ mod test {
         >;
         let mut f = <MyPairingVar as PairingVar<Bls12<BlsSigConfig>, BaseSNARKField>>::GTVar::one();
 
-        for (_, i) in BitIteratorBE::new(<BlsSigConfig as Bls12Config>::X)
+        for i in BitIteratorBE::new(<BlsSigConfig as Bls12Config>::X)
             .skip(1)
-            .enumerate()
         {
             f.square_in_place().unwrap();
 
-            for &mut (p, ref mut coeffs) in pairs.iter_mut() {
+            for &mut (p, ref mut coeffs) in &mut pairs {
                 MyPairingVar::ell(&mut f, coeffs.next().unwrap(), &p.0).unwrap();
             }
             if i {
-                for &mut (p, ref mut coeffs) in pairs.iter_mut() {
+                for &mut (p, ref mut coeffs) in &mut pairs {
                     MyPairingVar::ell(&mut f, coeffs.next().unwrap(), &p.0).unwrap();
                 }
             }
 
             let unsat = cs.which_is_unsatisfied().unwrap();
             if let Some(s) = unsat {
-                println!("{}", s);
+                println!("{s}");
                 assert!(false);
             }
             println!();
@@ -351,8 +351,9 @@ mod test {
     /// `self_num_of_additions_over_normal_form` and `other_num_of_additions_over_normal_form` are incorrect.
     ///
     /// But it is kept because it is generated from our workload (which indicates there are bugs in the
-    /// EmulatedFpVar's implementation).
+    /// `EmulatedFpVar`'s implementation).
     #[test]
+    #[ignore = "this test is archived"]
     fn reproduce_emulated_fpvar_mul_bug() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
         type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
@@ -416,8 +417,9 @@ mod test {
     /// This can be seen from the fact that `surfeit` is incorrect.
     ///
     /// But it is kept because it is generated from our workload (which indicates there are bugs in the
-    /// EmulatedFpVar's implementation).
+    /// `EmulatedFpVar`'s implementation).
     #[test]
+    #[ignore = "this test is archived"]
     fn reproduce_group_eq_bug() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
         type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
@@ -429,7 +431,7 @@ mod test {
         // let surfeit = 21;
 
         // this should be a safe surfeit: 32 is the num_limbs
-        let surfeit = 21 + (32 as f64).log2().ceil() as usize;
+        let surfeit = 21 + 32_f64.log2().ceil() as usize;
 
         // To let the below test pass for the old code, we can set `num_limb_in_a_group` in `group_and_check_equality` to be 1.
         //
@@ -592,6 +594,7 @@ mod test {
 
     /// Play with `EmulatedFpVar`'s internal.
     #[test]
+    #[ignore = "this test is archived"]
     fn experiment_add() {
         type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
         type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;

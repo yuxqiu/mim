@@ -1,11 +1,11 @@
 /// This example performs the full flow:
 /// - define the circuit to be folded
 /// - fold the circuit with Nova+CycleFold's IVC
-/// - generate a DeciderEthCircuit final proof
+/// - generate a `DeciderEthCircuit` final proof
 /// - generate the Solidity contract that verifies the proof
 /// - verify the proof in the EVM
 ///
-/// It's adapted from sonobe/examples/full_flow.rs
+/// It's adapted from `sonobe/examples/full_flow.rs`
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
 
@@ -51,7 +51,7 @@ impl<F: PrimeField> FCircuit<F> for CubicFCircuit<F> {
         z_i: Vec<FpVar<F>>,
         _external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        let five = FpVar::<F>::new_constant(cs.clone(), F::from(5u32))?;
+        let five = FpVar::<F>::new_constant(cs, F::from(5u32))?;
         let z_i = z_i[0].clone();
 
         Ok(vec![&z_i * &z_i * &z_i + &z_i + &five])
@@ -83,7 +83,7 @@ fn main() -> Result<(), Error> {
     let mut rng = rand::rngs::OsRng;
 
     // prepare the Nova prover & verifier params
-    let nova_preprocess_params = PreprocessorParam::new(poseidon_config.clone(), f_circuit);
+    let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
     let nova_params = N::preprocess(&mut rng, &nova_preprocess_params)?;
 
     // prepare the Decider prover & verifier params
@@ -105,7 +105,7 @@ fn main() -> Result<(), Error> {
     println!("generated Decider proof: {:?}", start.elapsed());
 
     let verified = D::verify(
-        decider_vp.clone(),
+        decider_vp,
         nova.i,
         nova.z_0.clone(),
         nova.z_i.clone(),
@@ -114,7 +114,7 @@ fn main() -> Result<(), Error> {
         &proof,
     )?;
     assert!(verified);
-    println!("Decider proof verification: {}", verified);
+    println!("Decider proof verification: {verified}");
 
     Ok(())
 }

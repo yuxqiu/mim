@@ -19,6 +19,7 @@ impl<CF: PrimeField> FromBitsGadget<CF> for FpVar<CF> {
         // Assign a value only when we are constructing a constant.
         let should_construct_value = bits.is_constant();
         if should_construct_value {
+            // safety: we already checked `bits` are all constants
             let bits = bits.iter().map(|b| b.value().unwrap()).collect::<Vec<_>>();
             let bytes = bits
                 .chunks(8)
@@ -57,6 +58,7 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
         // Assign a value only when we are constructing a constant.
         let should_construct_value = bits.is_constant();
         if should_construct_value {
+            // safety: we already checked `bits` are all constants
             let bits = bits.iter().map(|b| b.value().unwrap()).collect::<Vec<_>>();
             let bytes = bits
                 .chunks(8)
@@ -82,7 +84,7 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
                     result
                 })
                 .reduce(core::ops::Add::add)
-                .unwrap();
+                .unwrap_or(EmulatedFpVar::zero());
 
             combined
         }
@@ -90,6 +92,7 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
 }
 
 /// Trait for constructing any R1CS variable from a vector of `FieldVar<F: PrimeField, CF: PrimeField>`.
+///
 /// It should be able to interrop with `ToBaseFieldVarGadget` trait to support serialization and deserialization for any variable.
 pub trait FromBaseFieldVarGadget<CF: PrimeField>: Sized {
     type BasePrimeFieldVar: FromBaseFieldVarGadget<CF> + FromBitsGadget<CF>;

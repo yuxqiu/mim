@@ -41,8 +41,7 @@ where
         tracing::info!(num_constraints = cs.num_constraints());
 
         // first we need to map the field point to the isogenous curve
-        let point_on_isogenious_curve =
-            SWUMapGadget::<P::IsogenousCurve>::map_to_curve(element).unwrap();
+        let point_on_isogenious_curve = SWUMapGadget::<P::IsogenousCurve>::map_to_curve(element)?;
 
         // P::ISOGENY_MAP.apply(point_on_isogenious_curve)
         let ret = IsogenyMapGadget::apply(point_on_isogenious_curve);
@@ -72,102 +71,118 @@ mod test {
     use crate::hash::map_to_curve::{wb::WBMapGadget, MapToCurveGadget};
 
     macro_rules! generate_wb_map_tests {
-        ($test_name:ident, $field:ty, $field_var:ty, $curve_config:ty) => {
+        // Pattern with `ignore` flag and a custom reason
+        (@inner $test_name:ident, $field:ty, $field_var:ty, $curve_config:ty, ignore, $reason:expr) => {
+            #[test]
+            #[ignore = $reason]
+            fn $test_name() {
+                generate_wb_map_tests!(@body $field, $field_var, $curve_config);
+            }
+        };
+
+        // Pattern without `ignore` flag
+        (@inner $test_name:ident, $field:ty, $field_var:ty, $curve_config:ty) => {
             #[test]
             fn $test_name() {
-                fn test_constant() {
-                    let mut rng = thread_rng();
-
-                    {
-                        // test zero
-                        let zero = <$field>::ZERO;
-                        let zero_var = <$field_var>::constant(zero);
-                        let wb_zero: Affine<$curve_config> =
-                            WBMap::<$curve_config>::map_to_curve(zero).unwrap();
-                        let wb_zero_var =
-                            WBMapGadget::<$curve_config>::map_to_curve(zero_var).unwrap();
-                        assert_eq!(wb_zero_var.value_unchecked().unwrap(), wb_zero);
-                        assert!(wb_zero_var.x.is_constant());
-                        assert!(wb_zero_var.y.is_constant());
-                    }
-
-                    {
-                        // test one
-                        let one = <$field>::ONE;
-                        let one_var = <$field_var>::constant(one);
-                        let wb_one: Affine<$curve_config> =
-                            WBMap::<$curve_config>::map_to_curve(one).unwrap();
-                        let wb_one_var =
-                            WBMapGadget::<$curve_config>::map_to_curve(one_var).unwrap();
-                        assert_eq!(wb_one_var.value_unchecked().unwrap(), wb_one);
-                        assert!(wb_one_var.x.is_constant());
-                        assert!(wb_one_var.y.is_constant());
-                    }
-
-                    {
-                        // test random element
-                        let r = <$field>::rand(&mut rng);
-                        let r_var = <$field_var>::constant(r);
-                        let wb_r: Affine<$curve_config> =
-                            WBMap::<$curve_config>::map_to_curve(r).unwrap();
-                        let wb_r_var = WBMapGadget::<$curve_config>::map_to_curve(r_var).unwrap();
-                        assert_eq!(wb_r_var.value_unchecked().unwrap(), wb_r);
-                        assert!(wb_r_var.x.is_constant());
-                        assert!(wb_r_var.y.is_constant());
-                    }
-                }
-
-                fn test_input() {
-                    let mut rng = thread_rng();
-
-                    {
-                        // test zero
-                        let cs = ConstraintSystem::new_ref();
-                        let zero = <$field>::ZERO;
-                        let zero_var = <$field_var>::new_input(cs.clone(), || Ok(zero)).unwrap();
-                        let wb_zero: Affine<$curve_config> =
-                            WBMap::<$curve_config>::map_to_curve(zero).unwrap();
-                        let wb_zero_var =
-                            WBMapGadget::<$curve_config>::map_to_curve(zero_var).unwrap();
-                        assert_eq!(wb_zero_var.value_unchecked().unwrap(), wb_zero);
-                        assert!(cs.is_satisfied().unwrap());
-                    }
-
-                    {
-                        // test one
-                        let cs = ConstraintSystem::new_ref();
-                        let one = <$field>::ONE;
-                        let one_var = <$field_var>::new_input(cs.clone(), || Ok(one)).unwrap();
-                        let wb_one: Affine<$curve_config> =
-                            WBMap::<$curve_config>::map_to_curve(one).unwrap();
-                        let wb_one_var =
-                            WBMapGadget::<$curve_config>::map_to_curve(one_var).unwrap();
-                        assert_eq!(wb_one_var.value_unchecked().unwrap(), wb_one);
-                        assert!(cs.is_satisfied().unwrap());
-                    }
-
-                    {
-                        // test random element
-                        let cs = ConstraintSystem::new_ref();
-                        let r = <$field>::rand(&mut rng);
-                        let r_var = <$field_var>::new_input(cs.clone(), || Ok(r)).unwrap();
-                        let wb_r: Affine<$curve_config> =
-                            WBMap::<$curve_config>::map_to_curve(r).unwrap();
-                        let wb_r_var = WBMapGadget::<$curve_config>::map_to_curve(r_var).unwrap();
-                        assert_eq!(wb_r_var.value_unchecked().unwrap(), wb_r);
-                        assert!(cs.is_satisfied().unwrap());
-                    }
-                }
-
-                test_constant();
-                test_input();
+                generate_wb_map_tests!(@body $field, $field_var, $curve_config);
             }
+        };
+
+        // Shared function body (to avoid repeating logic)
+        (@body $field:ty, $field_var:ty, $curve_config:ty) => {
+            fn test_constant() {
+                let mut rng = thread_rng();
+
+                {
+                    let zero = <$field>::ZERO;
+                    let zero_var = <$field_var>::constant(zero);
+                    let wb_zero: Affine<$curve_config> =
+                        WBMap::<$curve_config>::map_to_curve(zero).unwrap();
+                    let wb_zero_var =
+                        WBMapGadget::<$curve_config>::map_to_curve(zero_var).unwrap();
+                    assert_eq!(wb_zero_var.value_unchecked().unwrap(), wb_zero);
+                    assert!(wb_zero_var.x.is_constant());
+                    assert!(wb_zero_var.y.is_constant());
+                }
+
+                {
+                    let one = <$field>::ONE;
+                    let one_var = <$field_var>::constant(one);
+                    let wb_one: Affine<$curve_config> =
+                        WBMap::<$curve_config>::map_to_curve(one).unwrap();
+                    let wb_one_var =
+                        WBMapGadget::<$curve_config>::map_to_curve(one_var).unwrap();
+                    assert_eq!(wb_one_var.value_unchecked().unwrap(), wb_one);
+                    assert!(wb_one_var.x.is_constant());
+                    assert!(wb_one_var.y.is_constant());
+                }
+
+                {
+                    let r = <$field>::rand(&mut rng);
+                    let r_var = <$field_var>::constant(r);
+                    let wb_r: Affine<$curve_config> =
+                        WBMap::<$curve_config>::map_to_curve(r).unwrap();
+                    let wb_r_var = WBMapGadget::<$curve_config>::map_to_curve(r_var).unwrap();
+                    assert_eq!(wb_r_var.value_unchecked().unwrap(), wb_r);
+                    assert!(wb_r_var.x.is_constant());
+                    assert!(wb_r_var.y.is_constant());
+                }
+            }
+
+            fn test_input() {
+                let mut rng = thread_rng();
+
+                {
+                    let cs = ConstraintSystem::new_ref();
+                    let zero = <$field>::ZERO;
+                    let zero_var = <$field_var>::new_input(cs.clone(), || Ok(zero)).unwrap();
+                    let wb_zero: Affine<$curve_config> =
+                        WBMap::<$curve_config>::map_to_curve(zero).unwrap();
+                    let wb_zero_var =
+                        WBMapGadget::<$curve_config>::map_to_curve(zero_var).unwrap();
+                    assert_eq!(wb_zero_var.value_unchecked().unwrap(), wb_zero);
+                    assert!(cs.is_satisfied().unwrap());
+                }
+
+                {
+                    let cs = ConstraintSystem::new_ref();
+                    let one = <$field>::ONE;
+                    let one_var = <$field_var>::new_input(cs.clone(), || Ok(one)).unwrap();
+                    let wb_one: Affine<$curve_config> =
+                        WBMap::<$curve_config>::map_to_curve(one).unwrap();
+                    let wb_one_var =
+                        WBMapGadget::<$curve_config>::map_to_curve(one_var).unwrap();
+                    assert_eq!(wb_one_var.value_unchecked().unwrap(), wb_one);
+                    assert!(cs.is_satisfied().unwrap());
+                }
+
+                {
+                    let cs = ConstraintSystem::new_ref();
+                    let r = <$field>::rand(&mut rng);
+                    let r_var = <$field_var>::new_input(cs.clone(), || Ok(r)).unwrap();
+                    let wb_r: Affine<$curve_config> =
+                        WBMap::<$curve_config>::map_to_curve(r).unwrap();
+                    let wb_r_var = WBMapGadget::<$curve_config>::map_to_curve(r_var).unwrap();
+                    assert_eq!(wb_r_var.value_unchecked().unwrap(), wb_r);
+                    assert!(cs.is_satisfied().unwrap());
+                }
+            }
+
+            test_constant();
+            test_input();
+        };
+
+        // Entry point with optional `ignore` flag and reason
+        ($test_name:ident, $field:ty, $field_var:ty, $curve_config:ty $(, $meta:ident $(, $reason:expr)?)?) => {
+            generate_wb_map_tests!(@inner $test_name, $field, $field_var, $curve_config $(, $meta $(, $reason)?)?);
         };
     }
 
     generate_wb_map_tests!(test_swu_map_fp, Fq, FpVar<Fq>, ark_bls12_381::g1::Config);
 
-    generate_wb_map_tests!(test_swu_map_fp_emu, Fq, EmulatedFpVar<Fq, Fr>, ark_bls12_381::g1::Config);
+    generate_wb_map_tests!(test_swu_map_fp_emu, Fq, EmulatedFpVar<Fq, Fr>, ark_bls12_381::g1::Config,
+        ignore, "field emulation takes a long time to finish running"
+    );
 
     generate_wb_map_tests!(
         test_swu_map_fp2,

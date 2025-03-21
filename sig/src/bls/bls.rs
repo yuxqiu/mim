@@ -107,7 +107,7 @@ where
             HashCurveGroup<SigCurveConfig>,
             FieldHasher,
             CurveMap<SigCurveConfig>,
-        > = MapToCurveBasedHasher::new(&[]).unwrap();
+        > = MapToCurveBasedHasher::new(&[]).expect("BLS12 curve supports hash to curve");
         let hashed_message = hasher.hash(message).unwrap();
 
         hashed_message.into()
@@ -207,10 +207,11 @@ where
             return None;
         }
 
+        let public_key_0 = *public_keys.get(0)?;
         let pk = public_keys
             .iter()
             .skip(1)
-            .fold(public_keys[0].clone(), |acc, new_pk| PublicKey {
+            .fold(public_key_0, |acc, new_pk| PublicKey {
                 pub_key: acc.pub_key + new_pk.pub_key,
             });
 

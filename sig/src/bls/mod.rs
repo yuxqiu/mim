@@ -12,7 +12,7 @@ pub use circuit::*;
 
 use rand::thread_rng;
 
-pub fn get_bls_instance<SigCurveConfig: Bls12Config>() -> (
+#[must_use] pub fn get_bls_instance<SigCurveConfig: Bls12Config>() -> (
     &'static str,
     Parameters<SigCurveConfig>,
     SecretKey<SigCurveConfig>,
@@ -34,7 +34,7 @@ where
     (msg, params, sk, pk, sig)
 }
 
-pub fn get_aggregate_bls_instance<SigCurveConfig: Bls12Config>() -> (
+#[must_use] pub fn get_aggregate_bls_instance<SigCurveConfig: Bls12Config>() -> (
     &'static str,
     Parameters<SigCurveConfig>,
     Vec<SecretKey<SigCurveConfig>>,

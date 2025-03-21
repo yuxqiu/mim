@@ -9,6 +9,7 @@ use ark_r1cs_std::fields::{
 use ark_relations::r1cs::SynthesisError;
 
 /// Trait for converting any R1CS variable to a vector of `FieldVar<F: PrimeField, CF: PrimeField>`.
+///
 /// It should be able to interrop with `FromBaseFieldVarGadget` trait to support serialization and deserialization for any variable.
 pub trait ToBaseFieldVarGadget<F: PrimeField, CF: PrimeField>: Sized {
     type BasePrimeFieldVar: ToBaseFieldVarGadget<F, CF> + FieldVar<F, CF>;

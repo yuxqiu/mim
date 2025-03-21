@@ -27,7 +27,7 @@ fn bench_groth16(c: &mut Criterion) {
 
     {
         c.bench_function("pk and vk generation", |b| {
-            b.iter(|| pk_vk_gen());
+            b.iter(&mut pk_vk_gen);
         });
     }
 
@@ -37,7 +37,7 @@ fn bench_groth16(c: &mut Criterion) {
 
     {
         c.bench_function("pvk generation", |b| {
-            b.iter(|| pvk_gen());
+            b.iter(&pvk_gen);
         });
     }
 
@@ -67,7 +67,7 @@ fn bench_groth16(c: &mut Criterion) {
 
     {
         c.bench_function("proof generation", |b| {
-            b.iter(|| proof_gen());
+            b.iter(&proof_gen);
         });
     }
 
@@ -79,7 +79,7 @@ fn bench_groth16(c: &mut Criterion) {
 
     {
         c.bench_function("verification", |b| {
-            b.iter(|| verification());
+            b.iter(&verification);
         });
     }
 
