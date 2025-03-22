@@ -9,7 +9,7 @@ use derivative::Derivative;
 use crate::{
     bc::{
         block::{Block, QuorumSignature},
-        params::{Committee, HASH_OUTPUT_SIZE},
+        params::{Committee, HASH_OUTPUT_SIZE, MAX_COMMITTEE_SIZE},
     },
     bls::{PublicKey, PublicKeyVar, SignatureVar},
     params::{BlsSigConfig, BlsSigField},
@@ -89,8 +89,8 @@ impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
 
         let committee = f();
 
-        let committee_var = Vec::<SignerVar<CF>>::new_variable(
-            cs,
+        let mut committee_var = Vec::<SignerVar<CF>>::new_variable(
+            cs.clone(),
             || {
                 committee
                     .as_ref()
@@ -99,6 +99,19 @@ impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
             },
             mode,
         )?;
+
+        // similar to `QuorumSignatureVar`, we need to fill committee_var
+        //
+        // safety: committee_var.len() <= MAX_COMMITTEE_SIZE
+        committee_var.extend(
+            std::iter::repeat(SignerVar::new_variable(
+                cs,
+                // it's ok to use default values as they will not be used
+                || Ok((PublicKey::default(), u64::default())),
+                mode,
+            )?)
+            .take(MAX_COMMITTEE_SIZE as usize - committee_var.len()),
+        );
 
         Ok(Self {
             committee: committee_var,
@@ -126,8 +139,9 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
             },
             mode,
         )?;
-        let signers = Vec::<Boolean<CF>>::new_variable(
-            cs,
+
+        let mut signers = Vec::<Boolean<CF>>::new_variable(
+            cs.clone(),
             || {
                 quorum_signature
                     .as_ref()
@@ -136,6 +150,16 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
             },
             mode,
         )?;
+
+        // needs to fill it to `MAX_COMMITTEE_SIZE` as the number of constraints needed should be fixed,
+        // irrespective of which state it is currently in.
+        // - otherwise nova `preprocess` will fail
+        //
+        // safety: signers.len() <= MAX_COMMITTEE_SIZE
+        signers.extend(
+            std::iter::repeat(Boolean::new_variable(cs, || Ok(false), mode)?)
+                .take(MAX_COMMITTEE_SIZE as usize - signers.len()),
+        );
 
         Ok(Self { sig, signers })
     }

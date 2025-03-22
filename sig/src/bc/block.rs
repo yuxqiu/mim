@@ -274,7 +274,7 @@ fn select_strong_committee(committee: &Committee) -> Vec<bool> {
     let mut selected_indices = vec![false; committee.len()];
     let mut total_weight: u64 = 0;
 
-    while total_weight <= STRONG_THRESHOLD {
+    while total_weight < STRONG_THRESHOLD {
         let index = rng.gen_range(0..committee.len());
         if !selected_indices[index] {
             selected_indices[index] = true;

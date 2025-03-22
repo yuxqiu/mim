@@ -7,13 +7,11 @@
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
 
-use ark_ff::AdditiveGroup;
 use ark_groth16::Groth16;
 use ark_r1cs_std::convert::ToConstraintFieldGadget;
 use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64};
 use ark_relations::r1cs::ConstraintSystem;
-use sig::folding::from_constraint_field::FromConstraintFieldGadget;
 use sig::{
     bc::block::gen_blockchain_with_params,
     bls::Parameters,
@@ -103,8 +101,6 @@ fn main() -> Result<(), Error> {
             .iter()
             .map(|fpvar| fpvar.value().unwrap())
             .collect();
-        // safety: z_0.len() <= CommitteeVar::<Fr>::num_constraint_var_needed()
-        z_0.extend([Fr::ZERO].repeat(CommitteeVar::<Fr>::num_constraint_var_needed() - z_0.len()));
         z_0.push(
             UInt64::constant(bc.get(0).unwrap().epoch)
                 .to_fp()?
