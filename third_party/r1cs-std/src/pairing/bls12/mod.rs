@@ -84,12 +84,6 @@ where
         ps: &[Self::G1PreparedVar],
         qs: &[Self::G2PreparedVar],
     ) -> Result<Self::GTVar, SynthesisError> {
-        // for convenience, just read 0
-        if let Some(p) = ps.get(0) {
-            let cs = p.0.x.cs();
-            tracing::info!(num_constraints = cs.num_constraints());
-        }
-
         let mut pairs = vec![];
         for (p, q) in ps.iter().zip(qs.iter()) {
             pairs.push((p, q.ell_coeffs.iter()));
@@ -112,12 +106,6 @@ where
 
         if P::X_IS_NEGATIVE {
             f = f.unitary_inverse()?;
-        }
-
-        // for convenience, just read 0
-        if let Some(p) = ps.get(0) {
-            let cs = p.0.x.cs();
-            tracing::info!(num_constraints = cs.num_constraints());
         }
 
         Ok(f)
