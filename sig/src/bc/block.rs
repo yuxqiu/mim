@@ -23,10 +23,10 @@ pub struct QuorumSignature {
 }
 
 #[derive(Serialize, Debug, Default, Clone)]
-pub struct CheckPoint {
+pub struct Block {
     pub epoch: u64,
 
-    /// hash to the previous checkpoint
+    /// hash to the previous block
     pub prev_digest: [u8; HASH_OUTPUT_SIZE],
 
     pub sig: QuorumSignature,
@@ -38,7 +38,7 @@ pub struct CheckPoint {
 
 #[derive(Debug)]
 pub struct Blockchain {
-    checkpoints: Vec<CheckPoint>,
+    blocks: Vec<Block>,
     params: AuthoritySigParams,
 }
 
@@ -90,7 +90,7 @@ impl Serialize for AuthorityPublicKey {
     }
 }
 
-impl CheckPoint {
+impl Block {
     #[must_use]
     pub fn genesis(data: Committee) -> Self {
         Self {
@@ -108,9 +108,9 @@ impl CheckPoint {
         bitmap: &[bool],
         params: &AuthoritySigParams,
     ) -> Result<Self, Box<bincode::Error>> {
-        assert!(!bitmap.is_empty(), "checkpoint must be signed");
+        assert!(!bitmap.is_empty(), "block must be signed");
 
-        let mut cp = Self {
+        let mut block = Self {
             epoch: prev.epoch + 1_u64,
             prev_digest: compute_digest(prev),
             sig: Default::default(),
@@ -118,7 +118,7 @@ impl CheckPoint {
         };
 
         let mut hasher = HashFunc::new();
-        hasher.update(bincode::serialize(&cp)?);
+        hasher.update(bincode::serialize(&block)?);
         let sig = AuthorityAggregatedSignature::aggregate_sign(
             &Into::<[u8; HASH_OUTPUT_SIZE]>::into(hasher.finalize()),
             &signers
@@ -131,12 +131,12 @@ impl CheckPoint {
             params,
         );
 
-        cp.sig = QuorumSignature {
+        block.sig = QuorumSignature {
             sig: sig.expect("at least one secret key is provided"),
             signers: bitmap.to_owned(),
         };
 
-        Ok(cp)
+        Ok(block)
     }
 
     #[must_use]
@@ -177,39 +177,39 @@ impl CheckPoint {
             return Signature::verify(&hasher.finalize(), &self.sig.sig, &aggregate_pk, params);
         }
 
-        // weights == 0 => no quorum signs this checkpoint
+        // weights == 0 => no quorum signs this block
         false
     }
 }
 
-/// A committee rotation chain, where each node is a checkpoint that stores a committee.
+/// A committee rotation chain, where each node is a block that stores a committee.
 /// This is a simplification of common light client protocols that rely on committee.
 impl Blockchain {
     #[must_use]
     pub const fn new(params: AuthoritySigParams) -> Self {
         Self {
-            checkpoints: vec![],
+            blocks: vec![],
             params,
         }
     }
 
     delegate! {
-        to self.checkpoints {
+        to self.blocks {
             #[must_use] pub fn is_empty(&self) -> bool;
 
             #[call(push)]
-            pub fn add_checkpoint(&mut self, value: CheckPoint);
+            pub fn add_block(&mut self, value: Block);
 
             #[must_use] pub fn len(&self) -> usize;
 
             fn reserve(&mut self, size: usize);
 
-            fn last(&self) -> Option<&CheckPoint>;
+            fn last(&self) -> Option<&Block>;
 
-            pub fn get(&self, i: usize) -> Option<&CheckPoint>;
+            pub fn get(&self, i: usize) -> Option<&Block>;
 
             #[call(into_iter)]
-            pub fn into_blocks(self) -> <Vec<CheckPoint> as IntoIterator>::IntoIter;
+            pub fn into_blocks(self) -> <Vec<Block> as IntoIterator>::IntoIter;
         }
     }
 
@@ -219,26 +219,27 @@ impl Blockchain {
             return true;
         }
 
-        let mut committee = &self.checkpoints[0].committee;
-        let mut prev_digest = compute_digest(&self.checkpoints[0]);
-        let mut committee_epoch = self.checkpoints[0].epoch;
+        let mut committee = &self.blocks[0].committee;
+        let mut prev_digest = compute_digest(&self.blocks[0]);
+        let mut committee_epoch = self.blocks[0].epoch;
 
-        for cp in self.checkpoints.iter().skip(1) {
-            if cp.prev_digest != prev_digest || !cp.verify(committee, committee_epoch, &self.params)
+        for block in self.blocks.iter().skip(1) {
+            if block.prev_digest != prev_digest
+                || !block.verify(committee, committee_epoch, &self.params)
             {
                 return false;
             }
-            prev_digest = compute_digest(cp);
-            committee = &cp.committee;
-            committee_epoch = cp.epoch;
+            prev_digest = compute_digest(block);
+            committee = &block.committee;
+            committee_epoch = block.epoch;
         }
 
         true
     }
 }
 
-fn compute_digest(cp: &CheckPoint) -> [u8; HASH_OUTPUT_SIZE] {
-    let bytes = bincode::serialize(&cp).unwrap();
+fn compute_digest(block: &Block) -> [u8; HASH_OUTPUT_SIZE] {
+    let bytes = bincode::serialize(&block).unwrap();
     let mut hasher = HashFunc::new();
     hasher.update(bytes);
     hasher.finalize().into()
@@ -295,24 +296,30 @@ pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> B
     let mut bc = Blockchain::new(params);
     bc.reserve(num_epochs);
 
-    // generate genesis block (the only cp in 0th epoch)
+    // generate genesis block
     let (signers, committee) = generate_committee(committee_size, &params);
-    let genesis_cp = CheckPoint::genesis(committee.clone());
-    bc.add_checkpoint(genesis_cp);
+    let genesis_block = Block::genesis(committee.clone());
+    bc.add_block(genesis_block);
 
     let mut prev_signers = signers;
     let mut prev_committee = committee;
-    let mut prev_cp = &bc.checkpoints[0];
+    let mut prev_block = &bc.blocks[0];
 
-    // generate checkpoints for other epochs
+    // generate blocks for other epochs
     for _ in 1..num_epochs {
         let bitmap = select_strong_committee(&prev_committee);
         let (signers, committee) = generate_committee(committee_size, &params);
 
-        let cp =
-            CheckPoint::new(prev_cp, committee.clone(), &prev_signers, &bitmap, &params).unwrap();
-        bc.add_checkpoint(cp);
-        prev_cp = bc.last().unwrap();
+        let block = Block::new(
+            prev_block,
+            committee.clone(),
+            &prev_signers,
+            &bitmap,
+            &params,
+        )
+        .unwrap();
+        bc.add_block(block);
+        prev_block = bc.last().unwrap();
 
         prev_committee = committee;
         prev_signers = signers;

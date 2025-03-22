@@ -12,7 +12,7 @@ use crate::{
     params::{BlsSigConfig, BlsSigField},
 };
 
-use super::bc::{CheckPointVar, CommitteeVar, QuorumSignatureVar, SignerVar};
+use super::bc::{BlockVar, CommitteeVar, QuorumSignatureVar, SignerVar};
 
 /// Serialize a R1CS variable to a canonical byte representation
 /// Implementation should match the result of `bincode::serialize`.
@@ -108,7 +108,7 @@ impl<CF: PrimeField> SerializeGadget<CF> for CommitteeVar<CF> {
     }
 }
 
-impl<CF: PrimeField> SerializeGadget<CF> for CheckPointVar<CF> {
+impl<CF: PrimeField> SerializeGadget<CF> for BlockVar<CF> {
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let mut epoch = self.epoch.serialize()?;
         let prev_digest = self.prev_digest.serialize()?;
@@ -130,11 +130,11 @@ mod test {
 
     use crate::{
         bc::{
-            checkpoints::{CheckPoint, QuorumSignature},
+            block::{Block, QuorumSignature},
             params::Committee,
         },
         bls::{Parameters, PublicKey, SecretKey, Signature, SignatureVar},
-        folding::bc::{CheckPointVar, CommitteeVar, QuorumSignatureVar, SignerVar},
+        folding::bc::{BlockVar, CommitteeVar, QuorumSignatureVar, SignerVar},
         params::{BlsSigConfig, BlsSigField},
     };
 
@@ -253,11 +253,11 @@ mod test {
     }
 
     #[test]
-    fn checkpoint_ser() {
+    fn block_ser() {
         let cs = ConstraintSystem::<CF>::new_ref();
 
-        let x = CheckPoint::default();
-        let xv = CheckPointVar::new_constant(cs, x.clone()).unwrap();
+        let x = Block::default();
+        let xv = BlockVar::new_constant(cs, x.clone()).unwrap();
 
         let xs = bincode::serialize(&x).unwrap();
         let xvs: Vec<u8> = xv

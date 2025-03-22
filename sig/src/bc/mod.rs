@@ -1,2 +1,2 @@
-pub mod checkpoints;
+pub mod block;
 pub mod params;

@@ -14,14 +14,14 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use folding_schemes::{frontend::FCircuit, Error};
 
 use crate::{
-    bc::{checkpoints::CheckPoint, params::STRONG_THRESHOLD},
+    bc::{block::Block, params::STRONG_THRESHOLD},
     bls::{BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar, PublicKeyVar},
     folding::bc::CommitteeVar,
     params::BlsSigConfig,
 };
 
 use super::{
-    bc::CheckPointVar, from_constraint_field::FromConstraintFieldGadget, serialize::SerializeGadget,
+    bc::BlockVar, from_constraint_field::FromConstraintFieldGadget, serialize::SerializeGadget,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -32,8 +32,8 @@ pub struct BCCircuitNoMerkle<CF: PrimeField> {
 
 impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
     type Params = Parameters<BlsSigConfig>;
-    type ExternalInputs = CheckPoint;
-    type ExternalInputsVar = CheckPointVar<CF>;
+    type ExternalInputs = Block;
+    type ExternalInputsVar = BlockVar<CF>;
 
     fn new(params: Self::Params) -> Result<Self, Error> {
         Ok(Self {

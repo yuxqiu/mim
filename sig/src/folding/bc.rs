@@ -8,7 +8,7 @@ use derivative::Derivative;
 
 use crate::{
     bc::{
-        checkpoints::{CheckPoint, QuorumSignature},
+        block::{Block, QuorumSignature},
         params::{Committee, HASH_OUTPUT_SIZE},
     },
     bls::{PublicKey, PublicKeyVar, SignatureVar},
@@ -35,17 +35,13 @@ pub struct QuorumSignatureVar<CF: PrimeField> {
     pub signers: Vec<Boolean<CF>>,
 }
 
+/// Copied from `sig/src/bc/block.rs`
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
-pub struct CheckPointVar<CF: PrimeField> {
+pub struct BlockVar<CF: PrimeField> {
     pub epoch: UInt64<CF>,
-
-    /// hash to the previous checkpoint
     pub prev_digest: [UInt8<CF>; HASH_OUTPUT_SIZE],
-
     pub sig: QuorumSignatureVar<CF>,
-
-    /// Present only on the final checkpoint of the epoch.
     pub committee: CommitteeVar<CF>,
 }
 
@@ -145,21 +141,22 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
     }
 }
 
-impl<CF: PrimeField> AllocVar<CheckPoint, CF> for CheckPointVar<CF> {
-    fn new_variable<T: std::borrow::Borrow<CheckPoint>>(
+impl<CF: PrimeField> AllocVar<Block, CF> for BlockVar<CF> {
+    fn new_variable<T: std::borrow::Borrow<Block>>(
         cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
         f: impl FnOnce() -> Result<T, ark_relations::r1cs::SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
     ) -> Result<Self, ark_relations::r1cs::SynthesisError> {
         let cs = cs.into();
 
-        let cp = f();
+        let block = f();
 
         let epoch = UInt64::new_variable(
             cs.clone(),
             || {
-                cp.as_ref()
-                    .map(|cp| cp.borrow().epoch)
+                block
+                    .as_ref()
+                    .map(|block| block.borrow().epoch)
                     .map_err(SynthesisError::clone)
             },
             mode,
@@ -168,8 +165,9 @@ impl<CF: PrimeField> AllocVar<CheckPoint, CF> for CheckPointVar<CF> {
         let prev_digest = AllocVar::<[u8; HASH_OUTPUT_SIZE], CF>::new_variable(
             cs.clone(),
             || {
-                cp.as_ref()
-                    .map(|cp| cp.borrow().prev_digest)
+                block
+                    .as_ref()
+                    .map(|block| block.borrow().prev_digest)
                     .map_err(SynthesisError::clone)
             },
             mode,
@@ -178,8 +176,9 @@ impl<CF: PrimeField> AllocVar<CheckPoint, CF> for CheckPointVar<CF> {
         let sig = QuorumSignatureVar::new_variable(
             cs.clone(),
             || {
-                cp.as_ref()
-                    .map(|cp| cp.borrow().sig.clone())
+                block
+                    .as_ref()
+                    .map(|block| block.borrow().sig.clone())
                     .map_err(SynthesisError::clone)
             },
             mode,
@@ -188,10 +187,11 @@ impl<CF: PrimeField> AllocVar<CheckPoint, CF> for CheckPointVar<CF> {
         let committee = CommitteeVar::new_variable(
             cs,
             || {
-                cp.as_ref()
-                    .map(|cp| {
-                        let cp = cp.borrow();
-                        cp.committee.clone()
+                block
+                    .as_ref()
+                    .map(|block| {
+                        let block = block.borrow();
+                        block.committee.clone()
                     })
                     .map_err(SynthesisError::clone)
             },

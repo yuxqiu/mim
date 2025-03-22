@@ -13,7 +13,7 @@ use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64};
 use ark_relations::r1cs::ConstraintSystem;
 use sig::{
-    bc::checkpoints::gen_blockchain_with_params,
+    bc::block::gen_blockchain_with_params,
     bls::Parameters,
     folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
 };
@@ -71,9 +71,9 @@ fn main() -> Result<(), Error> {
     let mut nova = N::init(&nova_params, f_circuit, z_0)?;
 
     // run n steps of the folding iteration
-    for (i, cp) in (0..n_steps).zip(bc.into_blocks().skip(1)) {
+    for (i, block) in (0..n_steps).zip(bc.into_blocks().skip(1)) {
         let start = Instant::now();
-        nova.prove_step(rng, cp, None)?;
+        nova.prove_step(rng, block, None)?;
         println!("Nova::prove_step {}: {:?}", i, start.elapsed());
     }
 

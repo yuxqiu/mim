@@ -1,10 +1,10 @@
-/* ====================Hash for Checkpoint==================== */
+/* ====================Hash for Block==================== */
 use blake2::digest::typenum::Unsigned;
 use blake2::{digest::OutputSizeUser, Blake2s256};
 
 pub type HashFunc = Blake2s256;
 pub const HASH_OUTPUT_SIZE: usize = <HashFunc as OutputSizeUser>::OutputSize::USIZE;
-/* ====================Hash for Checkpoint==================== */
+/* ====================Hash for Block==================== */
 
 /* ====================Sig==================== */
 use crate::bls::{Parameters, PublicKey, SecretKey, Signature};
