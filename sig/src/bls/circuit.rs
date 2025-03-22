@@ -1,15 +1,13 @@
 use std::marker::PhantomData;
 
 use ark_ec::{
-    bls12::Bls12Config,
-    hashing::curve_maps::wb::WBConfig,
-    short_weierstrass::{Projective, SWCurveConfig},
+    bls12::Bls12Config, hashing::curve_maps::wb::WBConfig, short_weierstrass::SWCurveConfig,
     CurveGroup,
 };
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
     alloc::AllocVar,
-    fields::{fp2::Fp2Var, FieldOpsBounds, FieldVar},
+    fields::{FieldOpsBounds, FieldVar},
     uint8::UInt8,
 };
 use ark_relations::r1cs::{
@@ -17,13 +15,17 @@ use ark_relations::r1cs::{
 };
 use derivative::Derivative;
 
-use crate::hash::{
-    hash_to_curve::cofactor::CofactorGadget,
-    hash_to_field::from_base_field::FromBaseFieldVarGadget,
-    map_to_curve::{sqrt::SqrtGadget, to_base_field::ToBaseFieldVarGadget},
+use crate::{
+    hash::{
+        hash_to_curve::cofactor::CofactorGadget,
+        hash_to_field::from_base_field::FromBaseFieldVarGadget,
+        map_to_curve::{sqrt::SqrtGadget, to_base_field::ToBaseFieldVarGadget},
+    },
+    params::BlsSigField,
 };
 
 use super::{
+    params::{HashCurveConfig, HashCurveGroup, HashCurveVar},
     BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar, PublicKey, PublicKeyVar,
     Signature, SignatureVar,
 };
@@ -42,8 +44,6 @@ pub struct BLSCircuit<
     sig: Option<Signature<SigCurveConfig>>,
     _fv: PhantomData<(FV, CF)>,
 }
-
-type BlsSigField<SigCurveConfig> = <SigCurveConfig as Bls12Config>::Fp;
 
 impl<
         'a,
@@ -101,12 +101,6 @@ where
         Ok(public_inputs)
     }
 }
-
-type G2<SigCurveConfig> = Projective<<SigCurveConfig as Bls12Config>::G2Config>;
-type HashCurveGroup<SigCurveConfig> = G2<SigCurveConfig>;
-type HashCurveConfig<SigCurveConfig> = <HashCurveGroup<SigCurveConfig> as CurveGroup>::Config;
-type HashCurveVar<SigCurveConfig, F, CF> =
-    Fp2Var<<SigCurveConfig as Bls12Config>::Fp2Config, F, CF>;
 
 // impl this trait so that SNARK can operate on this circuit
 impl<
