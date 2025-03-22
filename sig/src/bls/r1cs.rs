@@ -106,10 +106,6 @@ where
         message: &[UInt8<CF>],
         signature: &SignatureVar<SigCurveConfig, FV, CF>,
     ) -> Result<(), SynthesisError> {
-        let cs = parameters.g1_generator.cs();
-
-        tracing::info!(num_constraints = cs.num_constraints());
-
         let hash_to_curve = Self::hash_to_curve(message)?;
 
         // an optimised way to check two pairings are equal
@@ -125,6 +121,8 @@ where
                 G2PreparedVar::<SigCurveConfig, FV, CF>::from_group_var(&hash_to_curve)?,
             ],
         )?;
+
+        let cs = prod.cs();
 
         prod.is_eq(
             &<bls12::PairingVar<SigCurveConfig, FV, CF> as PairingVar<
