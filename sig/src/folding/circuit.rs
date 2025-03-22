@@ -1,9 +1,11 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, marker::PhantomData};
 
+use ark_ff::PrimeField;
 use ark_r1cs_std::{
     alloc::AllocVar,
+    convert::ToConstraintFieldGadget,
     eq::EqGadget,
-    fields::{fp::FpVar, FieldVar},
+    fields::{emulated_fp::EmulatedFpVar, fp::FpVar, FieldVar},
     groups::{bls12::G1Var, CurveVar},
     prelude::Boolean,
     uint64::UInt64,
@@ -15,45 +17,47 @@ use crate::{
     bc::{checkpoints::CheckPoint, params::STRONG_THRESHOLD},
     bls::{BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar, PublicKeyVar},
     folding::bc::CommitteeVar,
-    hash::{
-        hash_to_field::from_base_field::FromBaseFieldVarGadget,
-        map_to_curve::to_base_field::ToBaseFieldVarGadget,
-    },
-    params::{BLSSigCurveConfig, BaseSigCurveField},
+    params::BlsSigConfig,
 };
 
-use super::{bc::CheckPointVar, serialize::SerializeGadget};
+use super::{
+    bc::CheckPointVar, from_constraint_field::FromConstraintFieldGadget, serialize::SerializeGadget,
+};
 
-#[derive(Clone, Debug)]
-pub struct BCCircuitNoMerkle {
-    params: Parameters,
+#[derive(Clone, Copy, Debug)]
+pub struct BCCircuitNoMerkle<CF: PrimeField> {
+    params: Parameters<BlsSigConfig>,
+    _cf: PhantomData<CF>,
 }
 
-impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
-    type Params = Parameters;
+impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
+    type Params = Parameters<BlsSigConfig>;
     type ExternalInputs = CheckPoint;
-    type ExternalInputsVar = CheckPointVar;
+    type ExternalInputsVar = CheckPointVar<CF>;
 
     fn new(params: Self::Params) -> Result<Self, Error> {
-        Ok(Self { params })
+        Ok(Self {
+            params,
+            _cf: PhantomData,
+        })
     }
 
     fn state_len(&self) -> usize {
-        CommitteeVar::NUM_BASE_FIELD_VAR_NEEDED + 1
+        CommitteeVar::<CF>::num_constraint_var_needed() + 1
     }
 
     /// generates the constraints for the step of F for the given z_i
     fn generate_step_constraints(
         &self,
-        cs: ConstraintSystemRef<BaseSigCurveField>,
+        cs: ConstraintSystemRef<CF>,
         _: usize,
-        z_i: Vec<FpVar<BaseSigCurveField>>,
+        z_i: Vec<FpVar<CF>>,
         external_inputs: Self::ExternalInputsVar,
-    ) -> Result<Vec<FpVar<BaseSigCurveField>>, SynthesisError> {
+    ) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         // reconstruct epoch and committee from z_i
         let mut iter = z_i.into_iter();
-        let epoch = UInt64::from_base_field_var(iter.by_ref())?;
-        let committee = CommitteeVar::from_base_field_var(iter)?;
+        let committee = CommitteeVar::from_constraint_field(iter.by_ref())?;
+        let epoch = UInt64::from_constraint_field(iter.by_ref())?;
 
         // 1. enforce epoch of new committee = epoch of old committee + 1
         external_inputs
@@ -67,11 +71,11 @@ impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
 
         // 2.1 aggregate public keys
         let mut weight = UInt64::constant(0);
-        let mut aggregate_pk = G1Var::<BLSSigCurveConfig, _, _>::zero();
+        let mut aggregate_pk = G1Var::<BlsSigConfig, EmulatedFpVar<_, CF>, CF>::zero();
         for (signed, signer) in signers.iter().zip(committee.committee) {
             let pk = signed.select(
                 &(signer.pk.pub_key),
-                &G1Var::<BLSSigCurveConfig, _, _>::zero(),
+                &G1Var::<BlsSigConfig, EmulatedFpVar<_, CF>, CF>::zero(),
             )?;
             let w = signed.select(&(signer.weight), &UInt64::constant(0))?;
             aggregate_pk += pk;
@@ -98,9 +102,9 @@ impl FCircuit<BaseSigCurveField> for BCCircuitNoMerkle {
         )?;
 
         // return the new state
-        let mut state = external_inputs.epoch.to_base_field_vars()?;
-        let committee = external_inputs.committee.to_base_field_vars()?;
-        state.extend(committee);
-        Ok(state)
+        let mut committee = external_inputs.committee.to_constraint_field()?;
+        let epoch = external_inputs.epoch.to_fp()?;
+        committee.push(epoch);
+        Ok(committee)
     }
 }

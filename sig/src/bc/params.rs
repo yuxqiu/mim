@@ -8,8 +8,8 @@ pub const HASH_OUTPUT_SIZE: usize = <HashFunc as OutputSizeUser>::OutputSize::US
 
 /* ====================Sig==================== */
 use crate::bls::{Parameters, PublicKey, SecretKey, Signature};
+use crate::params::BlsSigConfig;
 
-type BlsSigConfig = ark_bls12_381::Config;
 pub type AuthoritySecretKey = SecretKey<BlsSigConfig>;
 pub type AuthorityPublicKey = PublicKey<BlsSigConfig>;
 pub type AuthorityAggregatedSignature = Signature<BlsSigConfig>;

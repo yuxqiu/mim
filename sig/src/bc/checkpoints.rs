@@ -205,6 +205,10 @@ impl Blockchain {
             fn reserve(&mut self, size: usize);
 
             fn last(&self) -> Option<&CheckPoint>;
+
+            pub fn get(&self, i: usize) -> Option<&CheckPoint>;
+
+            pub fn into_iter(self) -> <Vec<CheckPoint> as IntoIterator>::IntoIter;
         }
     }
 

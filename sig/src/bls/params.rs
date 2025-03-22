@@ -12,5 +12,3 @@ pub type HashCurveConfig<SigCurveConfig> = <HashCurveGroup<SigCurveConfig> as Cu
 // R1CS
 pub type HashCurveVar<SigCurveConfig, F, CF> =
     Fp2Var<<SigCurveConfig as Bls12Config>::Fp2Config, F, CF>;
-
-pub type BlsSigField<SigCurveConfig> = <SigCurveConfig as Bls12Config>::Fp;

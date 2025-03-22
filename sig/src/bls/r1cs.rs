@@ -29,11 +29,16 @@ use crate::hash::{
     hash_to_field::from_base_field::FromBaseFieldVarGadget,
     map_to_curve::{sqrt::SqrtGadget, to_base_field::ToBaseFieldVarGadget, wb::WBMapGadget},
 };
+use crate::params::BlsSigField;
 
-use super::params::{BlsSigField, HashCurveConfig, HashCurveGroup, HashCurveVar};
+use super::params::{HashCurveConfig, HashCurveGroup, HashCurveVar};
 use super::{Parameters, PublicKey, Signature};
 
-#[derive(Clone, Debug)]
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = ""),
+    Debug(bound = ""),
+)]
 pub struct ParametersVar<
     SigCurveConfig: Bls12Config,
     FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
@@ -45,8 +50,11 @@ pub struct ParametersVar<
     pub g2_generator: G2Var<SigCurveConfig, FV, CF>,
 }
 
-#[derive(Debug, Derivative)]
-#[derivative(Clone(bound = ""))]
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = ""),
+    Debug(bound = ""),
+)]
 pub struct PublicKeyVar<
     SigCurveConfig: Bls12Config,
     FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
@@ -57,7 +65,11 @@ pub struct PublicKeyVar<
     pub pub_key: G1Var<SigCurveConfig, FV, CF>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = ""),
+    Debug(bound = ""),
+)]
 pub struct SignatureVar<
     SigCurveConfig: Bls12Config,
     FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
@@ -318,10 +330,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::bls::{
-        get_bls_instance, params::BlsSigField, BLSAggregateSignatureVerifyGadget, ParametersVar,
-        PublicKeyVar, SignatureVar,
-    };
+    use crate::{bls::{
+        get_bls_instance, BLSAggregateSignatureVerifyGadget, ParametersVar, PublicKeyVar,
+        SignatureVar,
+    }, params::BlsSigField};
 
     use ark_r1cs_std::{
         alloc::AllocVar,

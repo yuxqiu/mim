@@ -97,8 +97,6 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
 pub trait FromBaseFieldVarGadget<CF: PrimeField>: Sized {
     type BasePrimeFieldVar: FromBaseFieldVarGadget<CF> + FromBitsGadget<CF>;
 
-    const NUM_BASE_FIELD_VAR_NEEDED: usize;
-
     fn from_base_field_var(
         iter: impl Iterator<Item = Self::BasePrimeFieldVar>,
     ) -> Result<Self, SynthesisError>;
@@ -112,8 +110,6 @@ impl<CF: PrimeField> FromBaseFieldVarGadget<CF> for FpVar<CF> {
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::Unsatisfiable)
     }
-
-    const NUM_BASE_FIELD_VAR_NEEDED: usize = 1;
 }
 
 impl<F: PrimeField, CF: PrimeField> FromBaseFieldVarGadget<CF> for EmulatedFpVar<F, CF> {
@@ -124,8 +120,6 @@ impl<F: PrimeField, CF: PrimeField> FromBaseFieldVarGadget<CF> for EmulatedFpVar
     ) -> Result<Self, SynthesisError> {
         iter.next().ok_or(SynthesisError::Unsatisfiable)
     }
-
-    const NUM_BASE_FIELD_VAR_NEEDED: usize = 1;
 }
 
 impl<
@@ -146,8 +140,6 @@ where
         let c1 = BF::from_base_field_var(iter.by_ref())?;
         Ok(Self::new(c0, c1))
     }
-
-    const NUM_BASE_FIELD_VAR_NEEDED: usize = BF::NUM_BASE_FIELD_VAR_NEEDED * 2;
 }
 
 impl<
@@ -169,6 +161,4 @@ where
         let c2 = BF::from_base_field_var(iter.by_ref())?;
         Ok(Self::new(c0, c1, c2))
     }
-
-    const NUM_BASE_FIELD_VAR_NEEDED: usize = BF::NUM_BASE_FIELD_VAR_NEEDED * 3;
 }
