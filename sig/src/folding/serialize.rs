@@ -12,10 +12,7 @@ use crate::{
     params::{BlsSigConfig, BlsSigField},
 };
 
-use super::{
-    bc::{CheckPointVar, CommitteeVar, QuorumSignatureVar, SignerVar},
-    params::USize,
-};
+use super::bc::{CheckPointVar, CommitteeVar, QuorumSignatureVar, SignerVar};
 
 /// Serialize a R1CS variable to a canonical byte representation
 /// Implementation should match the result of `bincode::serialize`.
@@ -25,12 +22,6 @@ pub trait SerializeGadget<F: PrimeField> {
 
 impl<CF: PrimeField> SerializeGadget<CF> for UInt8<CF> {
     fn serialize(&self) -> Result<Vec<Self>, SynthesisError> {
-        self.to_bytes_le()
-    }
-}
-
-impl<CF: PrimeField> SerializeGadget<CF> for USize<CF> {
-    fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         self.to_bytes_le()
     }
 }
@@ -96,13 +87,8 @@ impl<CF: PrimeField> SerializeGadget<CF> for [SignerVar<CF>] {
 impl<CF: PrimeField> SerializeGadget<CF> for QuorumSignatureVar<CF> {
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let mut sig = self.sig.serialize()?;
-        let signers_len = USize::constant(
-            self.signers
-                .len()
-                .try_into()
-                .map_err(|_| SynthesisError::Unsatisfiable)?,
-        )
-        .serialize()?;
+        // `bincode` serializes `usize` as `u64`
+        let signers_len = UInt64::constant(self.signers.len() as u64).serialize()?;
         let signers = self.signers.serialize()?;
 
         sig.extend(signers_len);
@@ -113,13 +99,8 @@ impl<CF: PrimeField> SerializeGadget<CF> for QuorumSignatureVar<CF> {
 
 impl<CF: PrimeField> SerializeGadget<CF> for CommitteeVar<CF> {
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
-        let mut committee_len = USize::constant(
-            self.committee
-                .len()
-                .try_into()
-                .map_err(|_| SynthesisError::Unsatisfiable)?,
-        )
-        .serialize()?;
+        // `bincode` serializes `usize` as `u64`
+        let mut committee_len = UInt64::constant(self.committee.len() as u64).serialize()?;
         let committee = self.committee.serialize()?;
 
         committee_len.extend(committee);
@@ -144,7 +125,7 @@ impl<CF: PrimeField> SerializeGadget<CF> for CheckPointVar<CF> {
 
 #[cfg(test)]
 mod test {
-    use ark_r1cs_std::{alloc::AllocVar, uint8::UInt8, R1CSVar};
+    use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64, uint8::UInt8, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
 
     use crate::{
@@ -153,10 +134,7 @@ mod test {
             params::Committee,
         },
         bls::{Parameters, PublicKey, SecretKey, Signature, SignatureVar},
-        folding::{
-            bc::{CheckPointVar, CommitteeVar, QuorumSignatureVar, SignerVar},
-            params::USize,
-        },
+        folding::bc::{CheckPointVar, CommitteeVar, QuorumSignatureVar, SignerVar},
         params::{BlsSigConfig, BlsSigField},
     };
 
@@ -166,8 +144,9 @@ mod test {
 
     #[test]
     fn u64_ser() {
+        // `bincode` serializes `usize` as `u64`
         let x: usize = 42;
-        let xv: USize<CF> = USize::constant(x.try_into().unwrap());
+        let xv: UInt64<CF> = UInt64::constant(x.try_into().unwrap());
 
         let xs = bincode::serialize(&x).unwrap();
         let xvs: Vec<u8> = xv
