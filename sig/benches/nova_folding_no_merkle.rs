@@ -20,6 +20,8 @@ use sig::{
     folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
 };
 use std::time::Instant;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing_tree::HierarchicalLayer;
 
 use folding_schemes::{
     commitment::kzg::KZG,
@@ -33,6 +35,36 @@ use folding_schemes::{
 };
 
 fn main() -> Result<(), Error> {
+    tracing_subscriber::registry()
+        .with(
+            HierarchicalLayer::new(2)
+                .with_indent_amount(4)
+                // for old tracing_subscriber::fmt::layer
+                // treat span enter/exit as an event
+                // .with_span_events(
+                //     tracing_subscriber::fmt::format::FmtSpan::EXIT
+                //         | tracing_subscriber::fmt::format::FmtSpan::ENTER,
+                // )
+                // .without_time()
+                .with_ansi(false)
+                // log functions inside our crate + pairing
+                .with_filter(tracing_subscriber::filter::FilterFn::new(|metadata| {
+                    // 1. target filtering - include target that has sig
+                    metadata.target().contains("sig")
+                        // 2. name filtering - include name that contains `miller_loop` and `final_exponentiation`
+                        || ["miller_loop", "final_exponentiation"]
+                            .into_iter()
+                            .any(|s| metadata.name().contains(s))
+                        // 3. event filtering
+                        // - to ensure all events from spans match above rules are included
+                        // - events from spans that do not match either of the above two rules will not be considered
+                        //   because as long as the spans of these events do not match the first two rules, their children
+                        //   events will not be triggered.
+                        || metadata.is_event()
+                })),
+        )
+        .init();
+
     let f_circuit = BCCircuitNoMerkle::<Fr>::new(Parameters::setup())?;
 
     // use Nova as FoldingScheme
