@@ -1090,14 +1090,21 @@ impl<F: PrimeField> AllocVar<F, F> for FpVar<F> {
 impl<'a, F: PrimeField> Sum<&'a FpVar<F>> for FpVar<F> {
     fn sum<I: Iterator<Item = &'a FpVar<F>>>(iter: I) -> FpVar<F> {
         let mut sum_constants = F::zero();
-        let sum_variables = FpVar::Var(AllocatedFp::<F>::add_many(iter.filter_map(|x| match x {
-            FpVar::Constant(c) => {
-                sum_constants += c;
-                None
-            },
-            FpVar::Var(v) => Some(v),
-        })));
+        let v: Vec<_> = iter
+            .filter_map(|x| match x {
+                FpVar::Constant(c) => {
+                    sum_constants += c;
+                    None
+                },
+                FpVar::Var(v) => Some(v),
+            })
+            .collect();
 
+        if v.is_empty() {
+            return FpVar::Constant(sum_constants);
+        }
+
+        let sum_variables = FpVar::Var(AllocatedFp::<F>::add_many(v.into_iter()));
         let sum = sum_variables + sum_constants;
         sum
     }
@@ -1106,14 +1113,21 @@ impl<'a, F: PrimeField> Sum<&'a FpVar<F>> for FpVar<F> {
 impl<'a, F: PrimeField> Sum<FpVar<F>> for FpVar<F> {
     fn sum<I: Iterator<Item = FpVar<F>>>(iter: I) -> FpVar<F> {
         let mut sum_constants = F::zero();
-        let sum_variables = FpVar::Var(AllocatedFp::<F>::add_many(iter.filter_map(|x| match x {
-            FpVar::Constant(c) => {
-                sum_constants += c;
-                None
-            },
-            FpVar::Var(v) => Some(v),
-        })));
+        let v: Vec<_> = iter
+            .filter_map(|x| match x {
+                FpVar::Constant(c) => {
+                    sum_constants += c;
+                    None
+                },
+                FpVar::Var(v) => Some(v),
+            })
+            .collect();
 
+        if v.is_empty() {
+            return FpVar::Constant(sum_constants);
+        }
+
+        let sum_variables = FpVar::Var(AllocatedFp::<F>::add_many(v.into_iter()));
         let sum = sum_variables + sum_constants;
         sum
     }
