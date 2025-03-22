@@ -207,7 +207,7 @@ where
             return None;
         }
 
-        let public_key_0 = *public_keys.get(0)?;
+        let public_key_0 = *public_keys.first()?;
         let pk = public_keys
             .iter()
             .skip(1)

@@ -112,14 +112,14 @@ type HashCurveVar<SigCurveConfig, F, CF> =
 impl<
         'b,
         SigCurveConfig: Bls12Config,
-        FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
+        FV: FieldVar<BlsSigField<SigCurveConfig>, CF>
+            + FromBaseFieldVarGadget<CF>
+            + ToBaseFieldVarGadget<BlsSigField<SigCurveConfig>, CF>
+            + SqrtGadget<BlsSigField<SigCurveConfig>, CF>,
         CF: PrimeField,
     > ConstraintSynthesizer<CF> for BLSCircuit<'b, SigCurveConfig, FV, CF>
 where
     for<'a> &'a FV: FieldOpsBounds<'a, BlsSigField<SigCurveConfig>, FV>,
-    FV: FromBaseFieldVarGadget<CF>
-        + ToBaseFieldVarGadget<BlsSigField<SigCurveConfig>, CF>
-        + SqrtGadget<BlsSigField<SigCurveConfig>, CF>,
     for<'a> &'a FV: FieldOpsBounds<'a, BlsSigField<SigCurveConfig>, FV>,
     <SigCurveConfig as Bls12Config>::G2Config: WBConfig,
 

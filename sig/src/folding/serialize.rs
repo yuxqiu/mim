@@ -24,7 +24,7 @@ pub trait SerializeGadget<F: PrimeField> {
 }
 
 impl<CF: PrimeField> SerializeGadget<CF> for UInt8<CF> {
-    fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
+    fn serialize(&self) -> Result<Vec<Self>, SynthesisError> {
         self.to_bytes_le()
     }
 }

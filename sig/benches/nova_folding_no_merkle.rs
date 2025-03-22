@@ -2,8 +2,6 @@
 /// - define the circuit to be folded
 /// - fold the circuit with Nova+CycleFold's IVC
 /// - generate a `DeciderEthCircuit` final proof
-/// - generate the Solidity contract that verifies the proof
-/// - verify the proof in the EVM
 ///
 /// It's adapted from `sonobe/examples/full_flow.rs`
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
@@ -73,7 +71,7 @@ fn main() -> Result<(), Error> {
     let mut nova = N::init(&nova_params, f_circuit, z_0)?;
 
     // run n steps of the folding iteration
-    for (i, cp) in (0..n_steps).zip(bc.into_iter().skip(1)) {
+    for (i, cp) in (0..n_steps).zip(bc.into_blocks().skip(1)) {
         let start = Instant::now();
         nova.prove_step(rng, cp, None)?;
         println!("Nova::prove_step {}: {:?}", i, start.elapsed());

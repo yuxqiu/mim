@@ -208,7 +208,8 @@ impl Blockchain {
 
             pub fn get(&self, i: usize) -> Option<&CheckPoint>;
 
-            pub fn into_iter(self) -> <Vec<CheckPoint> as IntoIterator>::IntoIter;
+            #[call(into_iter)]
+            pub fn into_blocks(self) -> <Vec<CheckPoint> as IntoIterator>::IntoIter;
         }
     }
 

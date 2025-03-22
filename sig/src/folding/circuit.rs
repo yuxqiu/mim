@@ -86,7 +86,7 @@ impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
         };
 
         // 2.2 check signature
-        let params = ParametersVar::new_constant(cs.clone(), self.params)?;
+        let params = ParametersVar::new_constant(cs, self.params)?;
         BLSAggregateSignatureVerifyGadget::verify(
             &params,
             &aggregate_pk,

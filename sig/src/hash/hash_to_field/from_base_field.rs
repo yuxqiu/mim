@@ -84,7 +84,7 @@ impl<F: PrimeField, CF: PrimeField> FromBitsGadget<CF> for EmulatedFpVar<F, CF> 
                     result
                 })
                 .reduce(core::ops::Add::add)
-                .unwrap_or(EmulatedFpVar::zero());
+                .unwrap_or_else(Self::zero);
 
             combined
         }

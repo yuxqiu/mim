@@ -35,10 +35,7 @@ use super::params::{HashCurveConfig, HashCurveGroup, HashCurveVar};
 use super::{Parameters, PublicKey, Signature};
 
 #[derive(Derivative)]
-#[derivative(
-    Clone(bound = ""),
-    Debug(bound = ""),
-)]
+#[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct ParametersVar<
     SigCurveConfig: Bls12Config,
     FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
@@ -51,10 +48,7 @@ pub struct ParametersVar<
 }
 
 #[derive(Derivative)]
-#[derivative(
-    Clone(bound = ""),
-    Debug(bound = ""),
-)]
+#[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct PublicKeyVar<
     SigCurveConfig: Bls12Config,
     FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
@@ -66,10 +60,7 @@ pub struct PublicKeyVar<
 }
 
 #[derive(Derivative)]
-#[derivative(
-    Clone(bound = ""),
-    Debug(bound = ""),
-)]
+#[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct SignatureVar<
     SigCurveConfig: Bls12Config,
     FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
@@ -88,13 +79,13 @@ pub struct BLSAggregateSignatureVerifyGadget<
 
 impl<
         SigCurveConfig: Bls12Config,
-        FV: FieldVar<BlsSigField<SigCurveConfig>, CF>,
+        FV: FieldVar<BlsSigField<SigCurveConfig>, CF>
+            + FromBaseFieldVarGadget<CF>
+            + ToBaseFieldVarGadget<BlsSigField<SigCurveConfig>, CF>
+            + SqrtGadget<BlsSigField<SigCurveConfig>, CF>,
         CF: PrimeField,
     > BLSAggregateSignatureVerifyGadget<SigCurveConfig, FV, CF>
 where
-    FV: FromBaseFieldVarGadget<CF>
-        + ToBaseFieldVarGadget<BlsSigField<SigCurveConfig>, CF>
-        + SqrtGadget<BlsSigField<SigCurveConfig>, CF>,
     for<'a> &'a FV: FieldOpsBounds<'a, BlsSigField<SigCurveConfig>, FV>,
     <SigCurveConfig as Bls12Config>::G2Config: WBConfig,
 
@@ -330,10 +321,13 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::{bls::{
-        get_bls_instance, BLSAggregateSignatureVerifyGadget, ParametersVar, PublicKeyVar,
-        SignatureVar,
-    }, params::BlsSigField};
+    use crate::{
+        bls::{
+            get_bls_instance, BLSAggregateSignatureVerifyGadget, ParametersVar, PublicKeyVar,
+            SignatureVar,
+        },
+        params::BlsSigField,
+    };
 
     use ark_r1cs_std::{
         alloc::AllocVar,

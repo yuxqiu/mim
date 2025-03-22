@@ -38,7 +38,7 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF> for UInt64<CF> {
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
     ) -> Result<Self, SynthesisError> {
-        let (num, remain) = UInt64::from_fp(&iter.next().ok_or(SynthesisError::Unsatisfiable)?)?;
+        let (num, remain) = Self::from_fp(&iter.next().ok_or(SynthesisError::Unsatisfiable)?)?;
         remain.enforce_equal(&FpVar::zero())?;
         Ok(num)
     }
@@ -137,7 +137,7 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF> for CommitteeVar<CF> {
         if num_consumed != MAX_COMMITTEE_SIZE {
             return Err(ark_relations::r1cs::SynthesisError::Unsatisfiable);
         }
-        Ok(CommitteeVar { committee })
+        Ok(Self { committee })
     }
 
     fn num_constraint_var_needed() -> usize {

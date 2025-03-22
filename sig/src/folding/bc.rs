@@ -58,7 +58,7 @@ impl<CF: PrimeField> AllocVar<(PublicKey<BlsSigConfig>, u64), CF> for SignerVar<
         let cs = cs.into();
         let signer = f();
 
-        Ok(SignerVar {
+        Ok(Self {
             pk: PublicKeyVar::new_variable(
                 cs.clone(),
                 || {
@@ -70,7 +70,7 @@ impl<CF: PrimeField> AllocVar<(PublicKey<BlsSigConfig>, u64), CF> for SignerVar<
                 mode,
             )?,
             weight: UInt64::new_variable(
-                cs.clone(),
+                cs,
                 || {
                     signer
                         .as_ref()
@@ -94,7 +94,7 @@ impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
         let committee = f();
 
         let committee_var = Vec::<SignerVar<CF>>::new_variable(
-            cs.clone(),
+            cs,
             || {
                 committee
                     .as_ref()
@@ -104,7 +104,7 @@ impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
             mode,
         )?;
 
-        Ok(CommitteeVar {
+        Ok(Self {
             committee: committee_var,
         })
     }
@@ -131,7 +131,7 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
             mode,
         )?;
         let signers = Vec::<Boolean<CF>>::new_variable(
-            cs.clone(),
+            cs,
             || {
                 quorum_signature
                     .as_ref()
@@ -141,7 +141,7 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
             mode,
         )?;
 
-        Ok(QuorumSignatureVar { sig, signers })
+        Ok(Self { sig, signers })
     }
 }
 
@@ -186,7 +186,7 @@ impl<CF: PrimeField> AllocVar<CheckPoint, CF> for CheckPointVar<CF> {
         )?;
 
         let committee = CommitteeVar::new_variable(
-            cs.clone(),
+            cs,
             || {
                 cp.as_ref()
                     .map(|cp| {
@@ -198,7 +198,7 @@ impl<CF: PrimeField> AllocVar<CheckPoint, CF> for CheckPointVar<CF> {
             mode,
         )?;
 
-        Ok(CheckPointVar {
+        Ok(Self {
             epoch,
             prev_digest,
             sig,

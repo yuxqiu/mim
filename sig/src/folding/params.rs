@@ -16,9 +16,9 @@ impl<F: PrimeField> USize<F> {
     }
 
     #[cfg(target_pointer_width = "64")]
-    pub fn constant(value: u64) -> USize<F> {
+    pub fn constant(value: u64) -> Self {
         use ark_r1cs_std::uint64::UInt64;
-        USize(UInt64::constant(value))
+        Self(UInt64::constant(value))
     }
 
     delegate::delegate! {
