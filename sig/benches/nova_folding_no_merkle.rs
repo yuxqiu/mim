@@ -7,11 +7,13 @@
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
 
+use ark_ff::AdditiveGroup;
 use ark_groth16::Groth16;
 use ark_r1cs_std::convert::ToConstraintFieldGadget;
 use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64};
 use ark_relations::r1cs::ConstraintSystem;
+use sig::folding::from_constraint_field::FromConstraintFieldGadget;
 use sig::{
     bc::block::gen_blockchain_with_params,
     bls::Parameters,
@@ -59,13 +61,26 @@ fn main() -> Result<(), Error> {
 
     // prepare num steps and blockchain
     let n_steps = 5;
-    let bc = gen_blockchain_with_params(n_steps + 1, 100);
+    let committee_size = 100; // needs to <= MAX_COMMITTEE_SIZE
+    let bc = gen_blockchain_with_params(n_steps + 1, committee_size);
 
     let cs = ConstraintSystem::new_ref();
-    let mut z_0 = CommitteeVar::new_constant(cs, bc.get(0).unwrap().committee.clone())?
-        .to_constraint_field()?;
-    z_0.push(UInt64::constant(bc.get(0).unwrap().epoch).to_fp()?);
-    let z_0 = z_0.iter().map(|fpvar| fpvar.value().unwrap()).collect();
+    let z_0 = {
+        let mut z_0: Vec<_> = CommitteeVar::new_constant(cs, bc.get(0).unwrap().committee.clone())?
+            .to_constraint_field()?
+            .iter()
+            .map(|fpvar| fpvar.value().unwrap())
+            .collect();
+        // safety: z_0.len() <= CommitteeVar::<Fr>::num_constraint_var_needed()
+        z_0.extend([Fr::ZERO].repeat(CommitteeVar::<Fr>::num_constraint_var_needed() - z_0.len()));
+        z_0.push(
+            UInt64::constant(bc.get(0).unwrap().epoch)
+                .to_fp()?
+                .value()
+                .unwrap(),
+        );
+        z_0
+    };
 
     // initialize the folding scheme engine, in our case we use Nova
     let mut nova = N::init(&nova_params, f_circuit, z_0)?;

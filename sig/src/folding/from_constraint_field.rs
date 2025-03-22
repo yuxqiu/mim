@@ -1,13 +1,11 @@
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
-    eq::EqGadget,
     fields::{
         emulated_fp::{
             params::{get_params, OptimizationType},
             AllocatedEmulatedFpVar, EmulatedFpVar,
         },
         fp::FpVar,
-        FieldVar,
     },
     groups::bls12::G1Var,
     uint64::UInt64,
@@ -38,8 +36,7 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF> for UInt64<CF> {
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
     ) -> Result<Self, SynthesisError> {
-        let (num, remain) = Self::from_fp(&iter.next().ok_or(SynthesisError::Unsatisfiable)?)?;
-        remain.enforce_equal(&FpVar::zero())?;
+        let (num, _) = Self::from_fp(&iter.next().ok_or(SynthesisError::Unsatisfiable)?)?;
         Ok(num)
     }
 
@@ -120,23 +117,16 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF> for SignerVar<CF> {
 
 impl<CF: PrimeField> FromConstraintFieldGadget<CF> for CommitteeVar<CF> {
     fn from_constraint_field(
-        iter: impl Iterator<Item = FpVar<CF>>,
+        mut iter: impl Iterator<Item = FpVar<CF>>,
     ) -> Result<Self, SynthesisError> {
-        let mut num_consumed = 0;
-
         let mut committee = Vec::new();
         committee.reserve_exact(MAX_COMMITTEE_SIZE as usize);
 
-        let mut iter = iter.peekable();
-        while iter.peek().is_some() && num_consumed < MAX_COMMITTEE_SIZE {
+        for _ in 0..MAX_COMMITTEE_SIZE {
             let signer = SignerVar::from_constraint_field(iter.by_ref())?;
-            num_consumed += 1;
             committee.push(signer);
         }
 
-        if num_consumed != MAX_COMMITTEE_SIZE {
-            return Err(ark_relations::r1cs::SynthesisError::Unsatisfiable);
-        }
         Ok(Self { committee })
     }
 
