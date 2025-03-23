@@ -122,6 +122,10 @@ impl<F: PrimeField> FpVar<F> {
     /// Helper function to check `self < other` and output a result bit. This
     /// function assumes `self` and `other` are `<= (p-1)/2` and does not
     /// generate constraints to verify that.
+    ///
+    /// This is quite clever as if `self < other`, this underflows, results in a number, when doubled,
+    /// greater than p. Then, as p is a prime, this number, when modulo p, results in an odd number.
+    /// Whereas, when self > other, `double`  results in a number smaller than p, and is therefore even.
     fn is_smaller_than_unchecked(&self, other: &FpVar<F>) -> Result<Boolean<F>, SynthesisError> {
         Ok((self - other)
             .double()?
@@ -145,10 +149,6 @@ impl<F: PrimeField> FpVar<F> {
     fn enforce_smaller_than_unchecked(&self, other: &FpVar<F>) -> Result<(), SynthesisError> {
         let is_smaller_than = self.is_smaller_than_unchecked(other)?;
         is_smaller_than.enforce_equal(&Boolean::TRUE)
-        // let lc_one = lc!() + Variable::One;
-        // [self, other]
-        // .cs()
-        // .enforce_constraint(is_smaller_than.lc(), lc_one.clone(), lc_one)
     }
 }
 
