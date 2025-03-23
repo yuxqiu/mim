@@ -82,10 +82,12 @@ fn main() -> Result<(), Error> {
     let mut rng = rand::rngs::OsRng;
 
     // prepare the Nova prover & verifier params
+    tracing::info!("nova folding preprocess");
     let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
     let nova_params = N::preprocess(&mut rng, &nova_preprocess_params)?;
 
     // prepare the Decider prover & verifier params
+    tracing::info!("nova decider preprocess");
     let (decider_pp, decider_vp) =
         D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len()))?;
 
@@ -111,18 +113,21 @@ fn main() -> Result<(), Error> {
     };
 
     // initialize the folding scheme engine, in our case we use Nova
+    tracing::info!("nova init");
     let mut nova = N::init(&nova_params, f_circuit, z_0)?;
 
     // run n steps of the folding iteration
+    tracing::info!("nova folding prove step");
     for (i, block) in (0..n_steps).zip(bc.into_blocks().skip(1)) {
         let start = Instant::now();
         nova.prove_step(rng, block, None)?;
-        println!("Nova::prove_step {}: {:?}", i, start.elapsed());
+        tracing::info!("Nova::prove_step {}: {:?}", i, start.elapsed());
     }
 
+    tracing::info!("nova decider prove");
     let start = Instant::now();
     let proof = D::prove(rng, decider_pp, nova.clone())?;
-    println!("generated Decider proof: {:?}", start.elapsed());
+    tracing::info!("generated decider proof: {:?}", start.elapsed());
 
     let verified = D::verify(
         decider_vp,
@@ -134,7 +139,7 @@ fn main() -> Result<(), Error> {
         &proof,
     )?;
     assert!(verified);
-    println!("Decider proof verification: {verified}");
+    tracing::info!("decider proof verification: {verified}");
 
     Ok(())
 }
