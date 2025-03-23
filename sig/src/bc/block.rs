@@ -335,8 +335,8 @@ pub fn gen_blockchain_with_params(
         "effective_committee_size should > 0"
     );
     assert!(
-        effective_committee_size < MAX_COMMITTEE_SIZE,
-        "effective_committee_size should < MAX_COMMITTEE_SIZE {}",
+        effective_committee_size <= MAX_COMMITTEE_SIZE,
+        "effective_committee_size should <= MAX_COMMITTEE_SIZE {}",
         MAX_COMMITTEE_SIZE
     );
 

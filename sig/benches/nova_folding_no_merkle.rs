@@ -91,7 +91,7 @@ fn main() -> Result<(), Error> {
 
     // prepare num steps and blockchain
     let n_steps = 5;
-    let committee_size = 100; // needs to <= MAX_COMMITTEE_SIZE
+    let committee_size = 25; // needs to <= MAX_COMMITTEE_SIZE
     let bc = gen_blockchain_with_params(n_steps + 1, committee_size);
 
     let cs = ConstraintSystem::new_ref();
