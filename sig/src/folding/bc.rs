@@ -18,6 +18,10 @@ use crate::{
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct SignerVar<CF: PrimeField> {
+    /// This field was originally used with on curve check and on prime order subgroup check enabled.
+    /// Because of the excessive number of constraints generated, it now disables on these checks.
+    /// But it is still safe, and you can see the safety argument in `BlockVar` and `from_constraint_field`
+    /// function of `PublicKeyVar`.
     pub pk: PublicKeyVar<BlsSigConfig, EmulatedFpVar<BlsSigField<BlsSigConfig>, CF>, CF>,
     pub weight: UInt64<CF>,
 }
@@ -42,6 +46,13 @@ pub struct BlockVar<CF: PrimeField> {
     pub epoch: UInt64<CF>,
     pub prev_digest: [UInt8<CF>; HASH_OUTPUT_SIZE],
     pub sig: QuorumSignatureVar<CF>,
+
+    /// This field was originally used with on curve check and on prime order subgroup check enabled
+    /// for every committee member, which significantly grows the number of constraints
+    /// (70 million / 90 million constraints for 25 committee member). Right now, `SignerVar` disables
+    /// all the checks because the committee/blockchain consensus is responsible for ensuring the security
+    /// (pks reside on the curve and the prime order subgroup) of the first committee and new blocks signed
+    /// by the majority of the committee.
     pub committee: CommitteeVar<CF>,
 }
 
@@ -55,7 +66,8 @@ impl<CF: PrimeField> AllocVar<(PublicKey<BlsSigConfig>, u64), CF> for SignerVar<
         let signer = f();
 
         Ok(Self {
-            pk: PublicKeyVar::new_variable(
+            // safety: see above
+            pk: PublicKeyVar::new_variable_omit_on_curve_check(
                 cs.clone(),
                 || {
                     signer

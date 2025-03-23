@@ -86,6 +86,10 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF>
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
     ) -> Result<Self, SynthesisError> {
+        // There are no checks to ensure this point is on the curve and the prime order subgroup.
+        // This is safe because all the reconstructed `PublicKeyVar` are either public input or
+        // signed by some committee. Since the committee is the trusted base of the safety of the circuit,
+        // we don't need to perform additional check here.
         Ok(Self {
             pub_key: G1Var::<BlsSigConfig, EmulatedFpVar<BlsSigField<BlsSigConfig>, CF>, CF>::new(
                 EmulatedFpVar::from_constraint_field(iter.by_ref())?,

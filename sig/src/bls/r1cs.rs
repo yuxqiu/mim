@@ -279,6 +279,29 @@ impl<
         SigCurveConfig: Bls12Config,
         FV: FieldVar<BlsSigField<SigCurveConfig>, SNARKField>,
         SNARKField: PrimeField,
+    > PublicKeyVar<SigCurveConfig, FV, SNARKField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BlsSigField<SigCurveConfig>, FV>,
+{
+    pub fn new_variable_omit_on_curve_check<T: Borrow<PublicKey<SigCurveConfig>>>(
+        cs: impl Into<Namespace<SNARKField>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        Ok(Self {
+            pub_key: G1Var::<SigCurveConfig, _, _>::new_variable_omit_on_curve_check(
+                cs,
+                || f().map(|value| value.borrow().pub_key),
+                mode,
+            )?,
+        })
+    }
+}
+
+impl<
+        SigCurveConfig: Bls12Config,
+        FV: FieldVar<BlsSigField<SigCurveConfig>, SNARKField>,
+        SNARKField: PrimeField,
     > AllocVar<Parameters<SigCurveConfig>, SNARKField>
     for ParametersVar<SigCurveConfig, FV, SNARKField>
 where
