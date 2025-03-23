@@ -8,18 +8,26 @@ use delegate::delegate;
 use rand::{thread_rng, Rng};
 use serde::{ser::SerializeTuple, Serialize, Serializer};
 
-use crate::{bc::params::AuthoritySecretKey, bls::Signature};
-
-use super::params::{
-    AuthorityAggregatedSignature, AuthorityPublicKey, AuthoritySigParams, Committee, HashFunc,
-    Signers, HASH_OUTPUT_SIZE, STRONG_THRESHOLD, TOTAL_VOTING_POWER,
+use crate::{
+    bc::params::{AuthoritySecretKey, MAX_COMMITTEE_SIZE},
+    bls::Signature,
 };
 
-#[derive(Serialize, Debug, Default, Clone)]
+use super::params::{
+    AuthorityAggregatedSignature, AuthorityPublicKey, AuthoritySigParams, HashFunc, Signers,
+    Weight, HASH_OUTPUT_SIZE, STRONG_THRESHOLD, TOTAL_VOTING_POWER,
+};
+
+#[derive(Serialize, Debug, Clone)]
 pub struct QuorumSignature {
     pub sig: AuthorityAggregatedSignature,
     // a roaring bitmap is a better alternative, but for easy impl of R1CS circuit, we use Vec<bool>
     pub signers: Vec<bool>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct Committee {
+    pub signers: Vec<(AuthorityPublicKey, Weight)>,
 }
 
 #[derive(Serialize, Debug, Default, Clone)]
@@ -40,6 +48,25 @@ pub struct Block {
 pub struct Blockchain {
     blocks: Vec<Block>,
     params: AuthoritySigParams,
+}
+
+impl Default for QuorumSignature {
+    // a default quorum signature contains `MAX_COMMITTEE_SIZE` signers
+    fn default() -> Self {
+        Self {
+            sig: Default::default(),
+            signers: vec![bool::default(); MAX_COMMITTEE_SIZE],
+        }
+    }
+}
+
+impl Default for Committee {
+    // a default committee contains `MAX_COMMITTEE_SIZE` signers
+    fn default() -> Self {
+        Self {
+            signers: vec![(AuthorityPublicKey::default(), Weight::default()); MAX_COMMITTEE_SIZE],
+        }
+    }
 }
 
 fn serialize_curve_point<Config: SWCurveConfig, S: Serializer>(
@@ -149,6 +176,7 @@ impl Block {
         );
 
         let aggregate_signer_info = committee
+            .signers
             .iter()
             .enumerate()
             .filter(|(i, _)| self.sig.signers[*i])
@@ -257,7 +285,10 @@ fn generate_committee(committee_size: usize, params: &AuthoritySigParams) -> (Si
     }
     weights.push(remaining_weight);
 
-    let csk = (0..committee_size)
+    // fill to `MAX_COMMITTEE_SIZE`
+    weights.extend(std::iter::repeat(0).take(MAX_COMMITTEE_SIZE - committee_size));
+
+    let csk = (0..MAX_COMMITTEE_SIZE)
         .map(|_| AuthoritySecretKey::new(&mut rng))
         .collect::<Vec<_>>();
     let committee = csk
@@ -266,29 +297,48 @@ fn generate_committee(committee_size: usize, params: &AuthoritySigParams) -> (Si
         .map(|(sk, weight)| (AuthorityPublicKey::new(sk, params), weight))
         .collect::<Vec<_>>();
 
-    (csk, committee)
+    (csk, Committee { signers: committee })
 }
 
-fn select_strong_committee(committee: &Committee) -> Vec<bool> {
+fn select_strong_committee(committee: &Committee, effective_committee_size: usize) -> Vec<bool> {
     let mut rng = thread_rng();
-    let mut selected_indices = vec![false; committee.len()];
+    let mut selected_indices = vec![false; effective_committee_size];
     let mut total_weight: u64 = 0;
+    let signers = &committee.signers[0..effective_committee_size];
 
     while total_weight < STRONG_THRESHOLD {
-        let index = rng.gen_range(0..committee.len());
+        let index = rng.gen_range(0..signers.len());
         if !selected_indices[index] {
             selected_indices[index] = true;
-            total_weight += committee[index].1;
+            total_weight += signers[index].1;
         }
     }
+
+    // fill to `MAX_COMMITTEE_SIZE`
+    selected_indices
+        .extend(std::iter::repeat(false).take(MAX_COMMITTEE_SIZE - effective_committee_size));
 
     selected_indices
 }
 
+/// Generate a blockchain with effective committee size `committee_size`.
+/// By effective, it means in the returned blockchain, every block has a committee size of `MAX_COMMITTEE_SIZE`,
+/// but only `committee_size` of them has non-zero weights.
 #[must_use]
-pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> Blockchain {
+pub fn gen_blockchain_with_params(
+    num_epochs: usize,
+    effective_committee_size: usize,
+) -> Blockchain {
     assert!(num_epochs > 0, "num_epochs should > 0");
-    assert!(committee_size > 0, "committee_size should > 0");
+    assert!(
+        effective_committee_size > 0,
+        "effective_committee_size should > 0"
+    );
+    assert!(
+        effective_committee_size < MAX_COMMITTEE_SIZE,
+        "effective_committee_size should < MAX_COMMITTEE_SIZE {}",
+        MAX_COMMITTEE_SIZE
+    );
 
     // generate param
     let params = AuthoritySigParams::setup();
@@ -297,7 +347,14 @@ pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> B
     bc.reserve(num_epochs);
 
     // generate genesis block
-    let (signers, committee) = generate_committee(committee_size, &params);
+    let (signers, committee) = generate_committee(effective_committee_size, &params);
+
+    assert_eq!(
+        committee.signers.len(),
+        MAX_COMMITTEE_SIZE,
+        "committee must have len == MAX_COMMITTEE_SIZE"
+    );
+
     let genesis_block = Block::genesis(committee.clone());
     bc.add_block(genesis_block);
 
@@ -307,8 +364,15 @@ pub fn gen_blockchain_with_params(num_epochs: usize, committee_size: usize) -> B
 
     // generate blocks for other epochs
     for _ in 1..num_epochs {
-        let bitmap = select_strong_committee(&prev_committee);
-        let (signers, committee) = generate_committee(committee_size, &params);
+        let bitmap = select_strong_committee(&prev_committee, effective_committee_size);
+
+        assert_eq!(
+            bitmap.len(),
+            MAX_COMMITTEE_SIZE,
+            "bitmap must have len == MAX_COMMITTEE_SIZE"
+        );
+
+        let (signers, committee) = generate_committee(effective_committee_size, &params);
 
         let block = Block::new(
             prev_block,

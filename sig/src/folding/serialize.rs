@@ -129,10 +129,7 @@ mod test {
     use ark_relations::r1cs::ConstraintSystem;
 
     use crate::{
-        bc::{
-            block::{Block, QuorumSignature},
-            params::Committee,
-        },
+        bc::block::{Block, Committee, QuorumSignature},
         bls::{Parameters, PublicKey, SecretKey, Signature, SignatureVar},
         folding::bc::{BlockVar, CommitteeVar, QuorumSignatureVar, SignerVar},
         params::{BlsSigConfig, BlsSigField},

@@ -120,7 +120,7 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF> for CommitteeVar<CF> {
         mut iter: impl Iterator<Item = FpVar<CF>>,
     ) -> Result<Self, SynthesisError> {
         let mut committee = Vec::new();
-        committee.reserve_exact(MAX_COMMITTEE_SIZE as usize);
+        committee.reserve_exact(MAX_COMMITTEE_SIZE);
 
         for _ in 0..MAX_COMMITTEE_SIZE {
             let signer = SignerVar::from_constraint_field(iter.by_ref())?;
@@ -131,6 +131,6 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF> for CommitteeVar<CF> {
     }
 
     fn num_constraint_var_needed() -> usize {
-        SignerVar::<CF>::num_constraint_var_needed() * MAX_COMMITTEE_SIZE as usize
+        SignerVar::<CF>::num_constraint_var_needed() * MAX_COMMITTEE_SIZE
     }
 }

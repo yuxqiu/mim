@@ -8,8 +8,8 @@ use derivative::Derivative;
 
 use crate::{
     bc::{
-        block::{Block, QuorumSignature},
-        params::{Committee, HASH_OUTPUT_SIZE, MAX_COMMITTEE_SIZE},
+        block::{Block, Committee, QuorumSignature},
+        params::{HASH_OUTPUT_SIZE, MAX_COMMITTEE_SIZE},
     },
     bls::{PublicKey, PublicKeyVar, SignatureVar},
     params::{BlsSigConfig, BlsSigField},
@@ -89,29 +89,38 @@ impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
 
         let committee = f();
 
-        let mut committee_var = Vec::<SignerVar<CF>>::new_variable(
+        let committee_var = Vec::<SignerVar<CF>>::new_variable(
             cs.clone(),
             || {
                 committee
                     .as_ref()
-                    .map(|value| value.borrow().clone())
+                    .map(|value| value.borrow().clone().signers)
                     .map_err(SynthesisError::clone)
             },
             mode,
         )?;
 
+        assert_eq!(
+            committee_var.len(),
+            MAX_COMMITTEE_SIZE,
+            "committee_var must have len == MAX_COMMITTEE_SIZE"
+        );
+
         // similar to `QuorumSignatureVar`, we need to fill committee_var
         //
         // safety: committee_var.len() <= MAX_COMMITTEE_SIZE
-        committee_var.extend(
-            std::iter::repeat(SignerVar::new_variable(
-                cs,
-                // it's ok to use default values as they will not be used
-                || Ok((PublicKey::default(), u64::default())),
-                mode,
-            )?)
-            .take(MAX_COMMITTEE_SIZE as usize - committee_var.len()),
-        );
+        // committee_var.extend(
+        //     std::iter::repeat(SignerVar::new_variable(
+        //         cs,
+        //         // it's ok to use default values as they will not be used
+        //         || Ok((PublicKey::default(), u64::default())),
+        //         mode,
+        //     )?)
+        //     .take(MAX_COMMITTEE_SIZE - committee_var.len()),
+        // );
+        //
+        // Update: It's not correct to extend it here. Rather, we need to enforce all the state outside the circuit has
+        // fixed size. Otherwise, the hash of those states will never match their circuit counterpart.
 
         Ok(Self {
             committee: committee_var,
@@ -140,7 +149,7 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
             mode,
         )?;
 
-        let mut signers = Vec::<Boolean<CF>>::new_variable(
+        let signers = Vec::<Boolean<CF>>::new_variable(
             cs.clone(),
             || {
                 quorum_signature
@@ -151,15 +160,24 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
             mode,
         )?;
 
+        assert_eq!(
+            signers.len(),
+            MAX_COMMITTEE_SIZE,
+            "signers must have len == MAX_COMMITTEE_SIZE"
+        );
+
         // needs to fill it to `MAX_COMMITTEE_SIZE` as the number of constraints needed should be fixed,
         // irrespective of which state it is currently in.
         // - otherwise nova `preprocess` will fail
         //
         // safety: signers.len() <= MAX_COMMITTEE_SIZE
-        signers.extend(
-            std::iter::repeat(Boolean::new_variable(cs, || Ok(false), mode)?)
-                .take(MAX_COMMITTEE_SIZE as usize - signers.len()),
-        );
+        // signers.extend(
+        //     std::iter::repeat(Boolean::new_variable(cs, || Ok(false), mode)?)
+        //         .take(MAX_COMMITTEE_SIZE - signers.len()),
+        // );
+        //
+        // Update: It's not correct to extend it here. Rather, we need to enforce all the state outside the circuit has
+        // fixed size. Otherwise, the hash of those states will never match their circuit counterpart.
 
         Ok(Self { sig, signers })
     }
