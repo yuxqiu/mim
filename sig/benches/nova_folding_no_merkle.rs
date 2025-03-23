@@ -82,16 +82,13 @@ fn main() -> Result<(), Error> {
     let mut rng = rand::rngs::OsRng;
 
     // prepare the Nova prover & verifier params
+    // - can serialize this when the circuit is stable
     tracing::info!("nova folding preprocess");
     let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
     let nova_params = N::preprocess(&mut rng, &nova_preprocess_params)?;
 
-    // prepare the Decider prover & verifier params
-    tracing::info!("nova decider preprocess");
-    let (decider_pp, decider_vp) =
-        D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len()))?;
-
     // prepare num steps and blockchain
+    tracing::info!("generate blockchain instance");
     let n_steps = 5;
     let committee_size = 25; // needs to <= MAX_COMMITTEE_SIZE
     let bc = gen_blockchain_with_params(n_steps + 1, committee_size);
@@ -123,6 +120,12 @@ fn main() -> Result<(), Error> {
         nova.prove_step(rng, block, None)?;
         tracing::info!("Nova::prove_step {}: {:?}", i, start.elapsed());
     }
+
+    // prepare the Decider prover & verifier params
+    // - can serialize this when the circuit is stable
+    tracing::info!("nova decider preprocess");
+    let (decider_pp, decider_vp) =
+        D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len()))?;
 
     tracing::info!("nova decider prove");
     let start = Instant::now();
