@@ -28,6 +28,20 @@ where
     }
 }
 
+// Failed Attempt. The following adds slightly more constraints in total.
+// 
+// impl<F: PrimeField, CF: PrimeField> ToConstraintFieldGadget<CF>
+//     for PublicKeyVar<BlsSigConfig, EmulatedFpVar<F, CF>, CF>
+// where
+//     EmulatedFpVar<F, CF>: FieldVar<BlsSigField<BlsSigConfig>, CF>,
+//     for<'a> &'a EmulatedFpVar<F, CF>:
+//         FieldOpsBounds<'a, BlsSigField<BlsSigConfig>, EmulatedFpVar<F, CF>>,
+// {
+//     fn to_constraint_field(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
+//         self.pub_key.to_constraint_field()
+//     }
+// }
+
 impl<CF: PrimeField> ToConstraintFieldGadget<CF> for SignerVar<CF> {
     fn to_constraint_field(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         let mut pk = self.pk.to_constraint_field()?;

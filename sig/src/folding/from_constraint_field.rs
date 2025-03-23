@@ -100,6 +100,26 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF>
     }
 }
 
+// Failed Attempt. The following adds slightly more constraints in total.
+//
+// impl<CF: PrimeField> FromConstraintFieldGadget<CF> for Boolean<CF> {
+//     fn from_constraint_field(
+//         mut iter: impl Iterator<Item = FpVar<CF>>,
+//     ) -> Result<Self, SynthesisError> {
+//         let fp = iter.next().ok_or(SynthesisError::Unsatisfiable)?;
+//         // safety: `unwrap` is safe to call because FpVar is composed of one or more bits
+//         //
+//         // Here, it seems that we trade off state size vs. num of constraints.
+//         // But, reducing state sizes can greatly help reduce the num of constraints as folding scheme (Nova)
+//         // needs to compute commitment on the witnesses (states).
+//         Ok(fp.to_non_unique_bits_le()?.into_iter().next().unwrap())
+//     }
+
+//     fn num_constraint_var_needed() -> usize {
+//         1
+//     }
+// }
+
 impl<CF: PrimeField> FromConstraintFieldGadget<CF> for SignerVar<CF> {
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
