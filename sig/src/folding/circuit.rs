@@ -14,9 +14,12 @@ use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use folding_schemes::{frontend::FCircuit, Error};
 
 use crate::{
-    bc::{block::Block, params::STRONG_THRESHOLD},
+    bc::{
+        block::{Block, QuorumSignature},
+        params::STRONG_THRESHOLD,
+    },
     bls::{BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar, PublicKeyVar},
-    folding::bc::CommitteeVar,
+    folding::bc::{CommitteeVar, QuorumSignatureVar},
     params::BlsSigConfig,
 };
 
@@ -103,10 +106,13 @@ impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
         tracing::info!("start checking signatures");
 
         let params = ParametersVar::new_constant(cs.clone(), self.params)?;
+        let mut external_inputs_without_sig = external_inputs.clone();
+        external_inputs_without_sig.sig =
+            QuorumSignatureVar::new_constant(cs.clone(), QuorumSignature::default())?;
         BLSAggregateSignatureVerifyGadget::verify(
             &params,
             &aggregate_pk,
-            &external_inputs.serialize()?,
+            &external_inputs_without_sig.serialize()?,
             sig,
         )?;
 
