@@ -12,6 +12,7 @@ use ark_r1cs_std::convert::ToConstraintFieldGadget;
 use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64};
 use ark_relations::r1cs::ConstraintSystem;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use sig::{
     bc::block::gen_blockchain_with_params,
     bls::Parameters,
@@ -31,6 +32,36 @@ use folding_schemes::{
     transcript::poseidon::poseidon_canonical_config,
     Decider, Error, FoldingScheme,
 };
+
+use std::fs::{self, File};
+use std::path::Path;
+
+fn load_or_generate<T, F, S, D>(
+    path: &str,
+    generate_fn: F,
+    ser_fn: S,
+    deser_fn: D,
+) -> Result<T, Error>
+where
+    F: FnOnce() -> Result<T, Error>,
+    S: FnOnce(&T, &mut dyn ark_serialize::Write) -> Result<(), Error>,
+    D: FnOnce(&mut dyn ark_serialize::Read) -> Result<T, Error>,
+{
+    let path = Path::new(path);
+
+    if let Ok(mut file) = File::open(path) {
+        return deser_fn(&mut file);
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let val = generate_fn()?;
+    let mut file = File::create(path)?;
+    ser_fn(&val, &mut file)?;
+    Ok(val)
+}
 
 fn main() -> Result<(), Error> {
     tracing_subscriber::registry()
@@ -85,11 +116,30 @@ fn main() -> Result<(), Error> {
     // - can serialize this when the circuit is stable
     tracing::info!("nova folding preprocess");
     let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
-    let nova_params = N::preprocess(&mut rng, &nova_preprocess_params)?;
-
+    let nova_params = load_or_generate(
+        "data/nova_folding_params.dat",
+        || N::preprocess(&mut rng, &nova_preprocess_params),
+        |val, writer| Ok(val.serialize_compressed(writer)?),
+        |reader| {
+            Ok((
+                N::pp_deserialize_with_mode(
+                    &mut *reader,
+                    Compress::Yes,
+                    Validate::No,
+                    <BCCircuitNoMerkle<Fr> as FCircuit<Fr>>::Params::setup(),
+                )?,
+                N::vp_deserialize_with_mode(
+                    reader,
+                    Compress::Yes,
+                    Validate::No,
+                    <BCCircuitNoMerkle<Fr> as FCircuit<Fr>>::Params::setup(),
+                )?,
+            ))
+        },
+    )?;
     // prepare num steps and blockchain
     tracing::info!("generate blockchain instance");
-    let n_steps = 5;
+    let n_steps = 2;
     let committee_size = 25; // needs to <= MAX_COMMITTEE_SIZE
     let bc = gen_blockchain_with_params(n_steps + 1, committee_size);
 
@@ -124,8 +174,17 @@ fn main() -> Result<(), Error> {
     // prepare the Decider prover & verifier params
     // - can serialize this when the circuit is stable
     tracing::info!("nova decider preprocess");
-    let (decider_pp, decider_vp) =
-        D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len()))?;
+    let (decider_pp, decider_vp) = load_or_generate(
+        "data/nova_decider_params.dat",
+        || D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len())),
+        |val, writer| Ok(val.serialize_compressed(writer)?),
+        |reader| {
+            Ok(<(
+                <D as Decider<G1, G2, BCCircuitNoMerkle<Fr>, N>>::ProverParam,
+                <D as Decider<G1, G2, BCCircuitNoMerkle<Fr>, N>>::VerifierParam,
+            )>::deserialize_compressed(reader)?)
+        },
+    )?;
 
     tracing::info!("nova decider prove");
     let start = Instant::now();
