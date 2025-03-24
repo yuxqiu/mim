@@ -232,9 +232,7 @@ mod test {
         >;
         let mut f = <MyPairingVar as PairingVar<Bls12<BlsSigConfig>, BaseSNARKField>>::GTVar::one();
 
-        for i in BitIteratorBE::new(<BlsSigConfig as Bls12Config>::X)
-            .skip(1)
-        {
+        for i in BitIteratorBE::new(<BlsSigConfig as Bls12Config>::X).skip(1) {
             f.square_in_place().unwrap();
 
             for &mut (p, ref mut coeffs) in &mut pairs {

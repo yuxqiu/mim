@@ -29,7 +29,7 @@ where
 }
 
 // Failed Attempt. The following adds slightly more constraints in total.
-// 
+//
 // impl<F: PrimeField, CF: PrimeField> ToConstraintFieldGadget<CF>
 //     for PublicKeyVar<BlsSigConfig, EmulatedFpVar<F, CF>, CF>
 // where
