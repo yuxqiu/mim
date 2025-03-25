@@ -5,7 +5,7 @@ use ark_ec::{
 use ark_serialize::CanonicalSerialize;
 use blake2::Digest;
 use delegate::delegate;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use serde::{ser::SerializeTuple, Serialize, Serializer};
 
 use crate::{
@@ -273,9 +273,11 @@ fn compute_digest(block: &Block) -> [u8; HASH_OUTPUT_SIZE] {
     hasher.finalize().into()
 }
 
-fn generate_committee(committee_size: usize, params: &AuthoritySigParams) -> (Signers, Committee) {
-    let mut rng = thread_rng();
-
+fn generate_committee<R: Rng>(
+    committee_size: usize,
+    params: &AuthoritySigParams,
+    rng: &mut R,
+) -> (Signers, Committee) {
     let mut weights = Vec::new();
     let mut remaining_weight = TOTAL_VOTING_POWER;
     for _ in 0..committee_size - 1 {
@@ -289,7 +291,7 @@ fn generate_committee(committee_size: usize, params: &AuthoritySigParams) -> (Si
     weights.extend(std::iter::repeat(0).take(MAX_COMMITTEE_SIZE - committee_size));
 
     let csk = (0..MAX_COMMITTEE_SIZE)
-        .map(|_| AuthoritySecretKey::new(&mut rng))
+        .map(|_| AuthoritySecretKey::new(rng))
         .collect::<Vec<_>>();
     let committee = csk
         .iter()
@@ -300,8 +302,11 @@ fn generate_committee(committee_size: usize, params: &AuthoritySigParams) -> (Si
     (csk, Committee { signers: committee })
 }
 
-fn select_strong_committee(committee: &Committee, effective_committee_size: usize) -> Vec<bool> {
-    let mut rng = thread_rng();
+fn select_strong_committee<R: Rng>(
+    committee: &Committee,
+    effective_committee_size: usize,
+    rng: &mut R,
+) -> Vec<bool> {
     let mut selected_indices = vec![false; effective_committee_size];
     let mut total_weight: u64 = 0;
     let signers = &committee.signers[0..effective_committee_size];
@@ -325,9 +330,10 @@ fn select_strong_committee(committee: &Committee, effective_committee_size: usiz
 /// By effective, it means in the returned blockchain, every block has a committee size of `MAX_COMMITTEE_SIZE`,
 /// but only `committee_size` of them has non-zero weights.
 #[must_use]
-pub fn gen_blockchain_with_params(
+pub fn gen_blockchain_with_params<R: Rng>(
     num_epochs: usize,
     effective_committee_size: usize,
+    rng: &mut R,
 ) -> Blockchain {
     assert!(num_epochs > 0, "num_epochs should > 0");
     assert!(
@@ -347,7 +353,7 @@ pub fn gen_blockchain_with_params(
     bc.reserve(num_epochs);
 
     // generate genesis block
-    let (signers, committee) = generate_committee(effective_committee_size, &params);
+    let (signers, committee) = generate_committee(effective_committee_size, &params, rng);
 
     assert_eq!(
         committee.signers.len(),
@@ -364,7 +370,7 @@ pub fn gen_blockchain_with_params(
 
     // generate blocks for other epochs
     for _ in 1..num_epochs {
-        let bitmap = select_strong_committee(&prev_committee, effective_committee_size);
+        let bitmap = select_strong_committee(&prev_committee, effective_committee_size, rng);
 
         assert_eq!(
             bitmap.len(),
@@ -372,7 +378,7 @@ pub fn gen_blockchain_with_params(
             "bitmap must have len == MAX_COMMITTEE_SIZE"
         );
 
-        let (signers, committee) = generate_committee(effective_committee_size, &params);
+        let (signers, committee) = generate_committee(effective_committee_size, &params, rng);
 
         let block = Block::new(
             prev_block,
@@ -397,10 +403,12 @@ pub fn gen_blockchain_with_params(
 
 #[cfg(test)]
 mod test {
+    use rand::thread_rng;
+
     use super::gen_blockchain_with_params;
 
     #[test]
     fn test_gen_blockchain() {
-        let _ = gen_blockchain_with_params(100, 10);
+        let _ = gen_blockchain_with_params(100, 10, &mut thread_rng());
     }
 }

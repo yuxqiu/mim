@@ -13,6 +13,8 @@ use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64};
 use ark_relations::r1cs::ConstraintSystem;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use sig::{
     bc::block::gen_blockchain_with_params,
     bls::Parameters,
@@ -34,13 +36,14 @@ use folding_schemes::{
 };
 
 use std::fs::{self, File};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn load_or_generate<T, F, S, D>(
-    path: &str,
+    path: &PathBuf,
     generate_fn: F,
     ser_fn: S,
     deser_fn: D,
+    deser: bool,
 ) -> Result<T, Error>
 where
     F: FnOnce() -> Result<T, Error>,
@@ -49,8 +52,13 @@ where
 {
     let path = Path::new(path);
 
-    if let Ok(mut file) = File::open(path) {
-        return deser_fn(&mut file);
+    if deser {
+        if let Ok(mut file) = File::open(path) {
+            tracing::info!("found data at {}. loading ...", path.to_string_lossy());
+            let val = deser_fn(&mut file)?;
+            tracing::info!("finish loading {}", path.to_string_lossy());
+            return Ok(val);
+        }
     }
 
     if let Some(parent) = path.parent() {
@@ -60,10 +68,11 @@ where
     let val = generate_fn()?;
     let mut file = File::create(path)?;
     ser_fn(&val, &mut file)?;
-    Ok(val)
+    return Ok(val);
 }
 
 fn main() -> Result<(), Error> {
+    // setup tracing
     tracing_subscriber::registry()
         .with(
             HierarchicalLayer::new(2)
@@ -97,11 +106,12 @@ fn main() -> Result<(), Error> {
     let f_circuit = BCCircuitNoMerkle::<Fr>::new(Parameters::setup())?;
 
     // use Nova as FoldingScheme
-    type N = Nova<G1, G2, BCCircuitNoMerkle<Fr>, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
+    type FC = BCCircuitNoMerkle<Fr>;
+    type N = Nova<G1, G2, FC, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
     type D = NovaDecider<
         G1,
         G2,
-        BCCircuitNoMerkle<Fr>,
+        FC,
         KZG<'static, MNT4>,
         KZG<'static, MNT6>,
         Groth16<MNT4>,
@@ -109,15 +119,16 @@ fn main() -> Result<(), Error> {
         N, // here we define the FoldingScheme to use
     >;
 
+    let data_path = Path::new("../data");
     let poseidon_config = poseidon_canonical_config::<Fr>();
-    let mut rng = rand::rngs::OsRng;
+    let mut rng = StdRng::from_seed([42; 32]); // deterministic seeding
 
     // prepare the Nova prover & verifier params
     // - can serialize this when the circuit is stable
     tracing::info!("nova folding preprocess");
     let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
     let nova_params = load_or_generate(
-        "data/nova_folding_params.dat",
+        &data_path.join("nova_folding_params.dat"),
         || N::preprocess(&mut rng, &nova_preprocess_params),
         |val, writer| Ok(val.serialize_compressed(writer)?),
         |reader| {
@@ -126,69 +137,127 @@ fn main() -> Result<(), Error> {
                     &mut *reader,
                     Compress::Yes,
                     Validate::No,
-                    <BCCircuitNoMerkle<Fr> as FCircuit<Fr>>::Params::setup(),
+                    <FC as FCircuit<Fr>>::Params::setup(),
                 )?,
                 N::vp_deserialize_with_mode(
                     reader,
                     Compress::Yes,
                     Validate::No,
-                    <BCCircuitNoMerkle<Fr> as FCircuit<Fr>>::Params::setup(),
+                    <FC as FCircuit<Fr>>::Params::setup(),
                 )?,
             ))
         },
+        true,
     )?;
+
     // prepare num steps and blockchain
     tracing::info!("generate blockchain instance");
-    let n_steps = 2;
-    let committee_size = 25; // needs to <= MAX_COMMITTEE_SIZE
-    let bc = gen_blockchain_with_params(n_steps + 1, committee_size);
+    const N_STEPS_TO_PROVE: usize = 2;
 
-    let cs = ConstraintSystem::new_ref();
-    let z_0 = {
-        let mut z_0: Vec<_> = CommitteeVar::new_constant(cs, bc.get(0).unwrap().committee.clone())?
-            .to_constraint_field()?
-            .iter()
-            .map(|fpvar| fpvar.value().unwrap())
-            .collect();
-        z_0.push(
-            UInt64::constant(bc.get(0).unwrap().epoch)
-                .to_fp()?
-                .value()
-                .unwrap(),
-        );
-        z_0
-    };
+    let n_steps_proven = load_or_generate(
+        &data_path.join("n_steps_prover.dat"),
+        || Ok(0_usize),
+        |_, _| Ok(()),
+        |reader| {
+            let mut buf = String::new();
+            reader.read_to_string(&mut buf)?;
+            Ok(buf.trim().parse().expect("invalid usize"))
+        },
+        true,
+    )?;
+
+    tracing::info!("already prove {} steps", n_steps_proven);
+
+    let committee_size = 25; // needs to <= MAX_COMMITTEE_SIZE
+    let bc = gen_blockchain_with_params(
+        n_steps_proven + N_STEPS_TO_PROVE + 1,
+        committee_size,
+        &mut rng,
+    );
 
     // initialize the folding scheme engine, in our case we use Nova
     tracing::info!("nova init");
-    let mut nova = N::init(&nova_params, f_circuit, z_0)?;
+    let mut nova = load_or_generate(
+        &data_path.join("nova_folding_state.dat"),
+        || {
+            let cs = ConstraintSystem::new_ref();
+            let z_0 = {
+                let mut z_0: Vec<_> = CommitteeVar::new_constant(
+                    cs,
+                    bc.get(n_steps_proven).unwrap().committee.clone(),
+                )?
+                .to_constraint_field()?
+                .iter()
+                .map(|fpvar| fpvar.value().unwrap())
+                .collect();
+                z_0.push(
+                    UInt64::constant(bc.get(0).unwrap().epoch)
+                        .to_fp()?
+                        .value()
+                        .unwrap(),
+                );
+                z_0
+            };
+            N::init(&nova_params, f_circuit, z_0)
+        },
+        |_, _| Ok(()),
+        |reader| {
+            <N as FoldingScheme<G1, G2, FC>>::from_ivc_proof(
+                <<N as FoldingScheme<G1, G2, FC>>::IVCProof>::deserialize_compressed(reader)?,
+                <FC as FCircuit<Fr>>::Params::setup(),
+                nova_params.clone(), // unfortunately, `FoldingScheme` API requires us to `clone` here
+            )
+        },
+        true,
+    )?;
 
-    // run n steps of the folding iteration
+    // run `N_STEPS_TO_PROVE` steps of the folding iteration
     tracing::info!("nova folding prove step");
-    for (i, block) in (0..n_steps).zip(bc.into_blocks().skip(1)) {
+    for (i, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(n_steps_proven + 1)) {
         let start = Instant::now();
-        nova.prove_step(rng, block, None)?;
-        tracing::info!("Nova::prove_step {}: {:?}", i, start.elapsed());
+        nova.prove_step(&mut rng, block, None)?;
+        tracing::info!(
+            "Nova::prove_step {}: {:?}",
+            n_steps_proven + i,
+            start.elapsed()
+        );
     }
+
+    // ser number of steps proven and nova states
+    load_or_generate(
+        &data_path.join("n_steps_prover.dat"),
+        || Ok(n_steps_proven + N_STEPS_TO_PROVE),
+        |val, writer| Ok(writer.write_all(&val.to_string().into_bytes())?),
+        |_| Ok(0),
+        false,
+    )?;
+    load_or_generate(
+        &data_path.join("nova_folding_state.dat"),
+        || Ok(&nova),
+        |val, writer| Ok(val.ivc_proof().serialize_compressed(writer)?),
+        |_| Ok(&nova), // this is just a placehold deser fn
+        false,
+    )?;
 
     // prepare the Decider prover & verifier params
     // - can serialize this when the circuit is stable
     tracing::info!("nova decider preprocess");
     let (decider_pp, decider_vp) = load_or_generate(
-        "data/nova_decider_params.dat",
-        || D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len())),
+        &data_path.join("nova_decider_params.dat"),
+        || D::preprocess(&mut rng, (nova_params, f_circuit.state_len())),
         |val, writer| Ok(val.serialize_compressed(writer)?),
         |reader| {
             Ok(<(
-                <D as Decider<G1, G2, BCCircuitNoMerkle<Fr>, N>>::ProverParam,
-                <D as Decider<G1, G2, BCCircuitNoMerkle<Fr>, N>>::VerifierParam,
+                <D as Decider<G1, G2, FC, N>>::ProverParam,
+                <D as Decider<G1, G2, FC, N>>::VerifierParam,
             )>::deserialize_compressed(reader)?)
         },
+        true,
     )?;
 
     tracing::info!("nova decider prove");
     let start = Instant::now();
-    let proof = D::prove(rng, decider_pp, nova.clone())?;
+    let proof = D::prove(&mut rng, decider_pp, nova.clone())?;
     tracing::info!("generated decider proof: {:?}", start.elapsed());
 
     let verified = D::verify(
