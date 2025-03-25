@@ -13,6 +13,7 @@ use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64};
 use ark_relations::r1cs::ConstraintSystem;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
+use memmap2::Mmap;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use sig::{
@@ -20,6 +21,7 @@ use sig::{
     bls::Parameters,
     folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
 };
+use std::io::Read;
 use std::time::Instant;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use tracing_tree::HierarchicalLayer;
@@ -38,6 +40,29 @@ use folding_schemes::{
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
+// `Read` wrapper for `Mmap` to interop with `ark_serialize`
+struct MmapReader {
+    mmap: Mmap,
+    position: usize,
+}
+
+impl MmapReader {
+    fn new(file: File) -> std::io::Result<Self> {
+        let mmap = unsafe { Mmap::map(&file)? };
+        Ok(Self { mmap, position: 0 })
+    }
+}
+
+impl Read for MmapReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let remaining = &self.mmap[self.position..];
+        let len = remaining.len().min(buf.len());
+        buf[..len].copy_from_slice(&remaining[..len]);
+        self.position += len;
+        Ok(len)
+    }
+}
+
 fn load_or_generate<T, F, S, D>(
     path: &PathBuf,
     generate_fn: F,
@@ -53,9 +78,10 @@ where
     let path = Path::new(path);
 
     if deser {
-        if let Ok(mut file) = File::open(path) {
+        if let Ok(file) = File::open(path) {
             tracing::info!("found data at {}. loading ...", path.to_string_lossy());
-            let val = deser_fn(&mut file)?;
+            let mut mmap_reader = MmapReader::new(file)?;
+            let val = deser_fn(&mut mmap_reader)?;
             tracing::info!("finish loading {}", path.to_string_lossy());
             return Ok(val);
         }
