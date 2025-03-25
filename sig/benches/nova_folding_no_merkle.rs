@@ -181,7 +181,7 @@ fn main() -> Result<(), Error> {
     const N_STEPS_TO_PROVE: usize = 2;
 
     let n_steps_proven = load_or_generate(
-        &data_path.join("n_steps_prover.dat"),
+        &data_path.join("n_steps_proven.dat"),
         || Ok(0_usize),
         |_, _| Ok(()),
         |reader| {
@@ -251,7 +251,7 @@ fn main() -> Result<(), Error> {
 
     // ser number of steps proven and nova states
     load_or_generate(
-        &data_path.join("n_steps_prover.dat"),
+        &data_path.join("n_steps_proven.dat"),
         || Ok(n_steps_proven + N_STEPS_TO_PROVE),
         |val, writer| Ok(writer.write_all(&val.to_string().into_bytes())?),
         |_| Ok(0),
