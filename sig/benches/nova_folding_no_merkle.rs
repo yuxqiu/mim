@@ -274,7 +274,7 @@ fn main() -> Result<(), Error> {
             Ok(<(
                 <D as Decider<G1, G2, FC, N>>::ProverParam,
                 <D as Decider<G1, G2, FC, N>>::VerifierParam,
-            )>::deserialize_compressed(reader)?)
+            )>::deserialize_uncompressed(reader)?)
         },
         true,
     )?;
