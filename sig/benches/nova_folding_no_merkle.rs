@@ -156,18 +156,18 @@ fn main() -> Result<(), Error> {
     let nova_params = load_or_generate(
         &data_path.join("nova_folding_params.dat"),
         || N::preprocess(&mut rng, &nova_preprocess_params),
-        |val, writer| Ok(val.serialize_compressed(writer)?),
+        |val, writer| Ok(val.serialize_uncompressed(writer)?),
         |reader| {
             Ok((
                 N::pp_deserialize_with_mode(
                     &mut *reader,
-                    Compress::Yes,
+                    Compress::No,
                     Validate::No,
                     <FC as FCircuit<Fr>>::Params::setup(),
                 )?,
                 N::vp_deserialize_with_mode(
                     reader,
-                    Compress::Yes,
+                    Compress::No,
                     Validate::No,
                     <FC as FCircuit<Fr>>::Params::setup(),
                 )?,
@@ -229,7 +229,7 @@ fn main() -> Result<(), Error> {
         |_, _| Ok(()),
         |reader| {
             <N as FoldingScheme<G1, G2, FC>>::from_ivc_proof(
-                <<N as FoldingScheme<G1, G2, FC>>::IVCProof>::deserialize_compressed(reader)?,
+                <<N as FoldingScheme<G1, G2, FC>>::IVCProof>::deserialize_uncompressed(reader)?,
                 <FC as FCircuit<Fr>>::Params::setup(),
                 nova_params.clone(), // unfortunately, `FoldingScheme` API requires us to `clone` here
             )
@@ -260,7 +260,7 @@ fn main() -> Result<(), Error> {
     load_or_generate(
         &data_path.join("nova_folding_state.dat"),
         || Ok(&nova),
-        |val, writer| Ok(val.ivc_proof().serialize_compressed(writer)?),
+        |val, writer| Ok(val.ivc_proof().serialize_uncompressed(writer)?),
         |_| Ok(&nova), // this is just a placehold deser fn
         false,
     )?;
@@ -271,7 +271,7 @@ fn main() -> Result<(), Error> {
     let (decider_pp, decider_vp) = load_or_generate(
         &data_path.join("nova_decider_params.dat"),
         || D::preprocess(&mut rng, (nova_params, f_circuit.state_len())),
-        |val, writer| Ok(val.serialize_compressed(writer)?),
+        |val, writer| Ok(val.serialize_uncompressed(writer)?),
         |reader| {
             Ok(<(
                 <D as Decider<G1, G2, FC, N>>::ProverParam,
