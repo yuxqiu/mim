@@ -75,8 +75,6 @@ where
     S: FnOnce(&T, &mut dyn ark_serialize::Write) -> Result<(), Error>,
     D: FnOnce(&mut dyn ark_serialize::Read) -> Result<T, Error>,
 {
-    let path = Path::new(path);
-
     if deser {
         if let Ok(file) = File::open(path) {
             tracing::info!("found data at {}. loading ...", path.to_string_lossy());
