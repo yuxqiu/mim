@@ -199,7 +199,11 @@ fn main() -> Result<(), Error> {
         |_, _| Ok(()),
         |reader| {
             <N as FoldingScheme<G1, G2, FC>>::from_ivc_proof(
-                <<N as FoldingScheme<G1, G2, FC>>::IVCProof>::deserialize_uncompressed(reader)?,
+                <<N as FoldingScheme<G1, G2, FC>>::IVCProof>::deserialize_with_mode(
+                    reader,
+                    Compress::No,
+                    Validate::No,
+                )?,
                 <FC as FCircuit<Fr>>::Params::setup(),
                 nova_params.clone(), // unfortunately, `FoldingScheme` API requires us to `clone` here
             )
@@ -246,7 +250,9 @@ fn main() -> Result<(), Error> {
             Ok(<(
                 <D as Decider<G1, G2, FC, N>>::ProverParam,
                 <D as Decider<G1, G2, FC, N>>::VerifierParam,
-            )>::deserialize_uncompressed(reader)?)
+            )>::deserialize_with_mode(
+                reader, Compress::No, Validate::No
+            )?)
         },
         true,
     )?;
