@@ -4,6 +4,8 @@
 /// - generate a `DeciderEthCircuit` final proof
 ///
 /// It's adapted from `sonobe/examples/full_flow.rs`
+mod utils;
+
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
 
@@ -22,7 +24,6 @@ use sig::{
     folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
 };
 use std::io::Read;
-use std::time::Instant;
 
 use folding_schemes::{
     commitment::kzg::KZG,
@@ -76,14 +77,10 @@ where
     if deser {
         if let Ok(file) = File::open(path) {
             println!("found data at {}. loading ...", path.to_string_lossy());
-            let start = Instant::now();
-            let mut mmap_reader = MmapReader::new(file)?;
-            let val = deser_fn(&mut mmap_reader)?;
-            println!(
-                "finish loading {}. take {:?}",
-                path.to_string_lossy(),
-                start.elapsed()
-            );
+            let val = timeit!(format!("load {}", path.to_string_lossy()), {
+                let mut mmap_reader = MmapReader::new(file)?;
+                deser_fn(&mut mmap_reader)?
+            });
             return Ok(val);
         }
     }
@@ -214,13 +211,9 @@ fn main() -> Result<(), Error> {
     // run `N_STEPS_TO_PROVE` steps of the folding iteration
     println!("nova folding prove step");
     for (i, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(n_steps_proven + 1)) {
-        let start = Instant::now();
-        nova.prove_step(&mut rng, block, None)?;
-        println!(
-            "Nova::prove_step {}: {:?}",
-            n_steps_proven + i,
-            start.elapsed()
-        );
+        timeit!(format!("nova::prove_step {}", n_steps_proven + i), {
+            nova.prove_step(&mut rng, block, None)?;
+        })
     }
 
     // ser number of steps proven and nova states
@@ -258,19 +251,21 @@ fn main() -> Result<(), Error> {
     )?;
 
     println!("nova decider prove");
-    let start = Instant::now();
-    let proof = D::prove(&mut rng, decider_pp, nova.clone())?;
-    println!("generated decider proof: {:?}", start.elapsed());
+    let proof = timeit!("generate decider proof", {
+        D::prove(&mut rng, decider_pp, nova.clone())?
+    });
 
-    let verified = D::verify(
-        decider_vp,
-        nova.i,
-        nova.z_0.clone(),
-        nova.z_i.clone(),
-        &nova.U_i.get_commitments(),
-        &nova.u_i.get_commitments(),
-        &proof,
-    )?;
+    let verified = timeit!("verify decider proof", {
+        D::verify(
+            decider_vp,
+            nova.i,
+            nova.z_0.clone(),
+            nova.z_i.clone(),
+            &nova.U_i.get_commitments(),
+            &nova.u_i.get_commitments(),
+            &proof,
+        )?
+    });
     assert!(verified);
     println!("decider proof verification: {verified}");
 

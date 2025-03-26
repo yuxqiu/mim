@@ -1,21 +1,11 @@
+mod utils;
+
 use ark_ec::{bls12::Bls12Config, pairing::Pairing};
 use ark_groth16::Groth16;
 use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
 use ark_snark::{CircuitSpecificSetupSNARK, SNARK};
 use rand::thread_rng;
 use sig::bls::{get_bls_instance, BLSCircuit};
-
-#[macro_export]
-macro_rules! timeit {
-    ($label:expr, $block:block) => {{
-        use std::time::Instant;
-        let start = Instant::now();
-        let result = $block;
-        let duration = start.elapsed();
-        println!("Time elapsed in {}: {:?}", $label, duration);
-        result
-    }};
-}
 
 fn bench_groth16() {
     type BlsSigConfig = ark_bls12_381::Config;
