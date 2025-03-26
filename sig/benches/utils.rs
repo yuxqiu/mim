@@ -41,7 +41,7 @@ macro_rules! timeit {
         let start = Instant::now();
         let result = $block;
         let duration = start.elapsed();
-        println!("Time elapsed in {}: {:?}", $label, duration);
+        println!("{}: {:?}", $label, duration);
         result
     }};
 }

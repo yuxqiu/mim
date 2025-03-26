@@ -77,7 +77,7 @@ where
     if deser {
         if let Ok(file) = File::open(path) {
             println!("found data at {}. loading ...", path.to_string_lossy());
-            let val = timeit!(format!("load {}", path.to_string_lossy()), {
+            let val = timeit!(format!("deserialize from {}", path.to_string_lossy()), {
                 let mut mmap_reader = MmapReader::new(file)?;
                 deser_fn(&mut mmap_reader)?
             });
@@ -91,7 +91,9 @@ where
 
     let val = generate_fn()?;
     let mut file = File::create(path)?;
-    ser_fn(&val, &mut file)?;
+    timeit!(format!("serialize to {}", path.to_string_lossy()), {
+        ser_fn(&val, &mut file)?
+    });
     return Ok(val);
 }
 
@@ -122,7 +124,11 @@ fn main() -> Result<(), Error> {
     let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
     let nova_params = load_or_generate(
         &data_path.join("nova_folding_params.dat"),
-        || N::preprocess(&mut rng, &nova_preprocess_params),
+        || {
+            timeit!("generate nova folding preprocess params", {
+                N::preprocess(&mut rng, &nova_preprocess_params)
+            })
+        },
         |val, writer| Ok(val.serialize_uncompressed(writer)?),
         |reader| {
             Ok((
@@ -191,7 +197,10 @@ fn main() -> Result<(), Error> {
                 );
                 z_0
             };
-            N::init(&nova_params, f_circuit, z_0)
+
+            timeit!("nova folding init", {
+                N::init(&nova_params, f_circuit, z_0)
+            })
         },
         |_, _| Ok(()),
         |reader| {
@@ -211,7 +220,7 @@ fn main() -> Result<(), Error> {
     // run `N_STEPS_TO_PROVE` steps of the folding iteration
     println!("nova folding prove step");
     for (i, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(n_steps_proven + 1)) {
-        timeit!(format!("nova::prove_step {}", n_steps_proven + i), {
+        timeit!(format!("nova prove_step {}", n_steps_proven + i), {
             nova.prove_step(&mut rng, block, None)?;
         })
     }
@@ -237,7 +246,11 @@ fn main() -> Result<(), Error> {
     println!("nova decider preprocess");
     let (decider_pp, decider_vp) = load_or_generate(
         &data_path.join("nova_decider_params.dat"),
-        || D::preprocess(&mut rng, (nova_params, f_circuit.state_len())),
+        || {
+            timeit!("nova decider preprocess", {
+                D::preprocess(&mut rng, (nova_params, f_circuit.state_len()))
+            })
+        },
         |val, writer| Ok(val.serialize_uncompressed(writer)?),
         |reader| {
             Ok(<(
@@ -254,7 +267,6 @@ fn main() -> Result<(), Error> {
     let proof = timeit!("generate decider proof", {
         D::prove(&mut rng, decider_pp, nova.clone())?
     });
-
     let verified = timeit!("verify decider proof", {
         D::verify(
             decider_vp,
