@@ -23,8 +23,6 @@ use sig::{
 };
 use std::io::Read;
 use std::time::Instant;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
-use tracing_tree::HierarchicalLayer;
 
 use folding_schemes::{
     commitment::kzg::KZG,
@@ -77,10 +75,15 @@ where
 {
     if deser {
         if let Ok(file) = File::open(path) {
-            tracing::info!("found data at {}. loading ...", path.to_string_lossy());
+            println!("found data at {}. loading ...", path.to_string_lossy());
+            let start = Instant::now();
             let mut mmap_reader = MmapReader::new(file)?;
             let val = deser_fn(&mut mmap_reader)?;
-            tracing::info!("finish loading {}", path.to_string_lossy());
+            println!(
+                "finish loading {}. take {:?}",
+                path.to_string_lossy(),
+                start.elapsed()
+            );
             return Ok(val);
         }
     }
@@ -96,37 +99,6 @@ where
 }
 
 fn main() -> Result<(), Error> {
-    // setup tracing
-    tracing_subscriber::registry()
-        .with(
-            HierarchicalLayer::new(2)
-                .with_indent_amount(4)
-                // for old tracing_subscriber::fmt::layer
-                // treat span enter/exit as an event
-                // .with_span_events(
-                //     tracing_subscriber::fmt::format::FmtSpan::EXIT
-                //         | tracing_subscriber::fmt::format::FmtSpan::ENTER,
-                // )
-                // .without_time()
-                .with_ansi(false)
-                // log functions inside our crate + pairing
-                .with_filter(tracing_subscriber::filter::FilterFn::new(|metadata| {
-                    // 1. target filtering - include target that has sig
-                    metadata.target().contains("sig")
-                        // 2. name filtering - include name that contains `miller_loop` and `final_exponentiation`
-                        || ["miller_loop", "final_exponentiation"]
-                            .into_iter()
-                            .any(|s| metadata.name().contains(s))
-                        // 3. event filtering
-                        // - to ensure all events from spans match above rules are included
-                        // - events from spans that do not match either of the above two rules will not be considered
-                        //   because as long as the spans of these events do not match the first two rules, their children
-                        //   events will not be triggered.
-                        || metadata.is_event()
-                })),
-        )
-        .init();
-
     let f_circuit = BCCircuitNoMerkle::<Fr>::new(Parameters::setup())?;
 
     // use Nova as FoldingScheme
@@ -149,7 +121,7 @@ fn main() -> Result<(), Error> {
 
     // prepare the Nova prover & verifier params
     // - can serialize this when the circuit is stable
-    tracing::info!("nova folding preprocess");
+    println!("nova folding preprocess");
     let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
     let nova_params = load_or_generate(
         &data_path.join("nova_folding_params.dat"),
@@ -175,7 +147,7 @@ fn main() -> Result<(), Error> {
     )?;
 
     // prepare num steps and blockchain
-    tracing::info!("generate blockchain instance");
+    println!("generate blockchain instance");
     const N_STEPS_TO_PROVE: usize = 2;
 
     let n_steps_proven = load_or_generate(
@@ -190,7 +162,7 @@ fn main() -> Result<(), Error> {
         true,
     )?;
 
-    tracing::info!("already prove {} steps", n_steps_proven);
+    println!("already prove {} steps", n_steps_proven);
 
     let committee_size = 25; // needs to <= MAX_COMMITTEE_SIZE
     let bc = gen_blockchain_with_params(
@@ -200,7 +172,7 @@ fn main() -> Result<(), Error> {
     );
 
     // initialize the folding scheme engine, in our case we use Nova
-    tracing::info!("nova init");
+    println!("nova init");
     let mut nova = load_or_generate(
         &data_path.join("nova_folding_state.dat"),
         || {
@@ -236,11 +208,11 @@ fn main() -> Result<(), Error> {
     )?;
 
     // run `N_STEPS_TO_PROVE` steps of the folding iteration
-    tracing::info!("nova folding prove step");
+    println!("nova folding prove step");
     for (i, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(n_steps_proven + 1)) {
         let start = Instant::now();
         nova.prove_step(&mut rng, block, None)?;
-        tracing::info!(
+        println!(
             "Nova::prove_step {}: {:?}",
             n_steps_proven + i,
             start.elapsed()
@@ -265,7 +237,7 @@ fn main() -> Result<(), Error> {
 
     // prepare the Decider prover & verifier params
     // - can serialize this when the circuit is stable
-    tracing::info!("nova decider preprocess");
+    println!("nova decider preprocess");
     let (decider_pp, decider_vp) = load_or_generate(
         &data_path.join("nova_decider_params.dat"),
         || D::preprocess(&mut rng, (nova_params, f_circuit.state_len())),
@@ -279,10 +251,10 @@ fn main() -> Result<(), Error> {
         true,
     )?;
 
-    tracing::info!("nova decider prove");
+    println!("nova decider prove");
     let start = Instant::now();
     let proof = D::prove(&mut rng, decider_pp, nova.clone())?;
-    tracing::info!("generated decider proof: {:?}", start.elapsed());
+    println!("generated decider proof: {:?}", start.elapsed());
 
     let verified = D::verify(
         decider_vp,
@@ -294,7 +266,7 @@ fn main() -> Result<(), Error> {
         &proof,
     )?;
     assert!(verified);
-    tracing::info!("decider proof verification: {verified}");
+    println!("decider proof verification: {verified}");
 
     Ok(())
 }
