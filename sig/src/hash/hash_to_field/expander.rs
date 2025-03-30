@@ -1,4 +1,3 @@
-use ark_crypto_primitives::prf::PRFGadget;
 use ark_ff::{
     field_hashers::expander::{LONG_DST_PREFIX, MAX_DST_LENGTH, Z_PAD},
     PrimeField,
@@ -7,6 +6,8 @@ use ark_r1cs_std::{prelude::ToBytesGadget, uint8::UInt8, R1CSVar};
 use ark_relations::r1cs::SynthesisError;
 use arrayvec::ArrayVec;
 use core::{marker::PhantomData, ops::BitXor};
+
+use crate::hash::prf::constraints::PRFGadget;
 
 struct DSTGadget<F: PrimeField>(ArrayVec<UInt8<F>, MAX_DST_LENGTH>);
 
@@ -126,7 +127,6 @@ impl<H: PRFGadget<F> + Default, F: PrimeField> ExpanderXmdGadget<H, F> {
 mod test {
     use core::marker::PhantomData;
 
-    use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
     use ark_ff::field_hashers::{
         expander::{Expander, ExpanderXmd},
         get_len_per_elem,
@@ -135,6 +135,8 @@ mod test {
     use ark_relations::r1cs::ConstraintSystem;
     use blake2::{digest::Update, Blake2s256, Digest};
     use rand::{thread_rng, Rng};
+
+    use crate::hash::prf::blake2s::constraints::StatefulBlake2sGadget;
 
     use super::ExpanderXmdGadget;
 
@@ -176,7 +178,7 @@ mod test {
             block_size: len_per_base_elem,
         };
 
-        let hasher: PhantomData<Blake2sGadget<F>> = PhantomData;
+        let hasher: PhantomData<StatefulBlake2sGadget<F>> = PhantomData;
         let expander_gadget = ExpanderXmdGadget {
             hasher,
             dst: dst
@@ -226,7 +228,7 @@ mod test {
             block_size: len_per_base_elem,
         };
 
-        let hasher: PhantomData<Blake2sGadget<F>> = PhantomData;
+        let hasher: PhantomData<StatefulBlake2sGadget<F>> = PhantomData;
         let expander_gadget = ExpanderXmdGadget {
             hasher,
             dst: dst

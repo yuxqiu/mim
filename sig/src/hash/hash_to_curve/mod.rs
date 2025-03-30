@@ -113,7 +113,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
     use ark_ec::{
         hashing::{curve_maps::wb::WBMap, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
         CurveConfig, CurveGroup,
@@ -127,6 +126,7 @@ mod test {
     use crate::hash::{
         hash_to_curve::MapToCurveBasedHasherGadget,
         hash_to_field::default_hasher::DefaultFieldHasherGadget, map_to_curve::wb::WBMapGadget,
+        prf::blake2s::constraints::StatefulBlake2sGadget,
     };
 
     macro_rules! generate_hash_to_curve_tests {
@@ -141,7 +141,7 @@ mod test {
                 type Hasher = MapToCurveBasedHasher<$curve, FieldHasher, CurveMap>;
 
                 type FieldHasherGadget = DefaultFieldHasherGadget<
-                    Blake2sGadget<BasePrimeField>,
+                    StatefulBlake2sGadget<BasePrimeField>,
                     BaseField,
                     BasePrimeField,
                     $field_var,

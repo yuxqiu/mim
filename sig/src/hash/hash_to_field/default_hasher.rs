@@ -1,10 +1,11 @@
 use core::marker::PhantomData;
 
+use crate::hash::prf::constraints::PRFGadget;
+
 use super::{
     expander::ExpanderXmdGadget, from_base_field::FromBaseFieldVarGadget,
     from_base_field::FromBitsGadget, HashToFieldGadget,
 };
-use ark_crypto_primitives::prf::PRFGadget;
 use ark_ff::{field_hashers::get_len_per_elem, Field, PrimeField};
 use ark_r1cs_std::{fields::FieldVar, prelude::ToBitsGadget, uint8::UInt8, R1CSVar};
 use ark_relations::r1cs::SynthesisError;
@@ -94,14 +95,16 @@ impl<
 
 #[cfg(test)]
 mod test {
-    use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
     use ark_ff::field_hashers::{DefaultFieldHasher, HashToField};
     use ark_r1cs_std::{alloc::AllocVar, fields::fp::FpVar, uint8::UInt8, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
     use blake2::Blake2s256;
     use rand::{thread_rng, Rng};
 
-    use crate::hash::hash_to_field::{default_hasher::DefaultFieldHasherGadget, HashToFieldGadget};
+    use crate::hash::{
+        hash_to_field::{default_hasher::DefaultFieldHasherGadget, HashToFieldGadget},
+        prf::blake2s::constraints::StatefulBlake2sGadget,
+    };
 
     #[test]
     fn test_hash_to_field_constant() {
@@ -114,7 +117,7 @@ mod test {
 
         let hasher = <DefaultFieldHasher<Blake2s256, 128> as HashToField<F>>::new(&dst);
         let hasher_gadget =
-            DefaultFieldHasherGadget::<Blake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
+            DefaultFieldHasherGadget::<StatefulBlake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
 
         let input_lens = (0..32).chain(32..256).filter(|a| a % 8 == 0);
 
@@ -147,7 +150,7 @@ mod test {
 
         let hasher = <DefaultFieldHasher<Blake2s256, 128> as HashToField<F>>::new(&dst);
         let hasher_gadget =
-            DefaultFieldHasherGadget::<Blake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
+            DefaultFieldHasherGadget::<StatefulBlake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
 
         let input_lens = (0..32).chain(32..128).filter(|a| a % 16 == 0);
 

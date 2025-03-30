@@ -1,9 +1,7 @@
-use crate::prf::constraints::PRFGadget;
+use crate::hash::prf::constraints::PRFGadget;
 use ark_ff::PrimeField;
 use ark_r1cs_std::prelude::*;
 use ark_relations::r1cs::SynthesisError;
-#[cfg(not(feature = "std"))]
-use ark_std::vec::Vec;
 
 // 2.1.  Parameters
 // The following table summarizes various parameters and their ranges:
@@ -313,7 +311,7 @@ impl<ConstraintF: PrimeField> Blake2sState<ConstraintF> {
     }
 }
 
-pub struct Blake2sGadget<F: PrimeField> {
+pub struct StatefulBlake2sGadget<F: PrimeField> {
     state: Blake2sState<F>,
 }
 #[derive(Clone, Debug)]
@@ -357,7 +355,7 @@ impl<ConstraintF: PrimeField> ToBytesGadget<ConstraintF> for OutputVar<Constrain
     }
 }
 
-impl<F: PrimeField> PRFGadget<F> for Blake2sGadget<F> {
+impl<F: PrimeField> PRFGadget<F> for StatefulBlake2sGadget<F> {
     type OutputVar = OutputVar<F>;
     const OUTPUT_SIZE: usize = 32;
 
@@ -366,7 +364,9 @@ impl<F: PrimeField> PRFGadget<F> for Blake2sGadget<F> {
         self.state.update(&input_bits)
     }
 
-    fn finalize(self) -> Result<<Blake2sGadget<F> as PRFGadget<F>>::OutputVar, SynthesisError> {
+    fn finalize(
+        self,
+    ) -> Result<<StatefulBlake2sGadget<F> as PRFGadget<F>>::OutputVar, SynthesisError> {
         let result: Vec<_> = self
             .state
             .finalize()?
@@ -377,9 +377,9 @@ impl<F: PrimeField> PRFGadget<F> for Blake2sGadget<F> {
     }
 }
 
-impl<F: PrimeField> Default for Blake2sGadget<F> {
+impl<F: PrimeField> Default for StatefulBlake2sGadget<F> {
     fn default() -> Self {
-        Blake2sGadget {
+        StatefulBlake2sGadget {
             state: Blake2sState::new().unwrap(),
         }
     }
@@ -387,19 +387,19 @@ impl<F: PrimeField> Default for Blake2sGadget<F> {
 
 #[cfg(test)]
 mod test {
-    use ark_ed_on_bls12_381::Fq as Fr;
+    use ark_bls12_381::Fq as Fr;
     use ark_std::rand::Rng;
+    use blake2::digest;
 
-    use crate::prf::blake2s::constraints::blake2s_compression;
-    use crate::prf::blake2s::constraints::Blake2sState;
-    use crate::prf::blake2s::Blake2s as B2SPRF;
+    use crate::hash::prf::blake2s::constraints::Blake2sState;
+    use crate::hash::prf::blake2s::constraints::OutputVar;
     use ark_ff::PrimeField;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_relations::r1cs::SynthesisError;
     use blake2::Blake2s256;
     use digest::{Digest, FixedOutput};
 
-    use super::Blake2sGadget;
+    use super::StatefulBlake2sGadget;
     use ark_r1cs_std::prelude::*;
 
     fn evaluate_blake2s<ConstraintF: PrimeField>(
@@ -426,7 +426,7 @@ mod test {
 
     #[test]
     fn test_blake2s_prf() {
-        use crate::prf::{PRFGadget, PRF};
+        use crate::hash::prf::constraints::PRFGadget;
 
         let mut rng = ark_std::test_rng();
         let cs = ConstraintSystem::<Fr>::new_ref();
@@ -436,14 +436,16 @@ mod test {
 
         let input_var =
             UInt8::new_witness_vec(ark_relations::ns!(cs, "declare_input"), &input).unwrap();
-        let out = B2SPRF::evaluate(&input).unwrap();
-        let actual_out_var = <Blake2sGadget<Fr> as PRFGadget<_, Fr>>::OutputVar::new_witness(
-            ark_relations::ns!(cs, "declare_output"),
-            || Ok(out),
-        )
-        .unwrap();
+        let out: [u8; 32] = {
+            let mut h = Blake2s256::new();
+            h.update(&input);
+            h.finalize().into()
+        };
+        let actual_out_var = OutputVar(
+            UInt8::new_witness_vec(ark_relations::ns!(cs, "declare_output"), &out).unwrap(),
+        );
 
-        let mut hasher = Blake2sGadget::default();
+        let mut hasher = StatefulBlake2sGadget::default();
         hasher.update(&input_var).unwrap();
         let output_var = hasher.finalize().unwrap();
         output_var.enforce_equal(&actual_out_var).unwrap();

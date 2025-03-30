@@ -1,7 +1,6 @@
 use core::borrow::Borrow;
 use std::marker::PhantomData;
 
-use ark_crypto_primitives::prf::blake2s::constraints::Blake2sGadget;
 use ark_ec::bls12::{Bls12, Bls12Config};
 use ark_ec::hashing::curve_maps::wb::WBConfig;
 use ark_ec::pairing::Pairing;
@@ -25,6 +24,7 @@ use derivative::Derivative;
 use crate::hash::hash_to_curve::cofactor::CofactorGadget;
 use crate::hash::hash_to_curve::MapToCurveBasedHasherGadget;
 use crate::hash::hash_to_field::default_hasher::DefaultFieldHasherGadget;
+use crate::hash::prf::blake2s::constraints::StatefulBlake2sGadget;
 use crate::hash::{
     hash_to_field::from_base_field::FromBaseFieldVarGadget,
     map_to_curve::{sqrt::SqrtGadget, to_base_field::ToBaseFieldVarGadget, wb::WBMapGadget},
@@ -196,7 +196,7 @@ where
             <HashCurveConfig<SigCurveConfig> as CurveConfig>::BaseField;
 
         type FieldHasherGadget<SigCurveConfig, FV, CF> = DefaultFieldHasherGadget<
-            Blake2sGadget<CF>,
+            StatefulBlake2sGadget<CF>,
             HashGroupBaseField<SigCurveConfig>,
             CF,
             HashCurveVar<SigCurveConfig, FV, CF>,

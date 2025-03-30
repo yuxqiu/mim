@@ -8,7 +8,6 @@ members = [
 
 [patch.crates-io]
 ark-r1cs-std = { path = "./third_party/r1cs-std" }
-ark-crypto-primitives = { path = "./third_party/crypto-primitives" }
 ark-ff = { path = "./third_party/ark-ff" }
 
 [profile.dev-debug]

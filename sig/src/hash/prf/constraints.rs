@@ -2,8 +2,6 @@ use ark_ff::Field;
 use ark_r1cs_std::prelude::*;
 use ark_relations::r1cs::SynthesisError;
 use ark_std::fmt::Debug;
-#[cfg(not(feature = "std"))]
-use ark_std::vec::Vec;
 
 pub trait PRFGadget<F: Field> {
     type OutputVar: EqGadget<F> + ToBytesGadget<F> + Clone + Debug;

@@ -6,11 +6,10 @@ edition = "2021"
 [dependencies]
 ark-bls12-377 = "0.5.0"
 ark-bls12-381 = "0.5.0"
-ark-crypto-primitives = { version = "0.0.0", features = [
-    "r1cs",
-    "prf",
+ark-crypto-primitives = { version = "0.5.0", features = [
+    "crh",
     "parallel",
-    "sponge",
+    "r1cs",
 ] }
 ark-ec = { version = "0.5.0", features = ["parallel"] }
 ark-ff = { version = "0.5.0", features = ["parallel"] }
@@ -18,6 +17,7 @@ ark-groth16 = { version = "0.5.0", features = ["parallel"] }
 ark-r1cs-std = { version = "0.5.0", features = ["parallel"] }
 ark-relations = "0.5.1"
 ark-serialize = { version = "0.5.0", features = ["parallel"] }
+ark-std = { version = "0.5.0", features = ["parallel"] }
 array-util = "1.0.2"
 arrayvec = "0.7.6"
 bincode = "1.3.3"
@@ -27,6 +27,7 @@ derivative = "2.2.0"
 folding-schemes = { git = "https://github.com/privacy-scaling-explorations/sonobe", package = "folding-schemes" }
 rand = "0.8.5"
 serde = { version = "1.0.217", features = ["derive"] }
+thiserror = "2.0.12"
 tracing = "0.1.41"
 
 [dev-dependencies]
