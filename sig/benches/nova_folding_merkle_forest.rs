@@ -21,7 +21,7 @@ use rand::SeedableRng;
 use sig::{
     bc::block::gen_blockchain_with_params,
     bls::Parameters,
-    folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
+    folding::{bc::CommitteeVar, circuit::BCCircuitMerkleForest},
 };
 use std::io::Read;
 
@@ -98,10 +98,14 @@ where
 }
 
 fn main() -> Result<(), Error> {
-    let f_circuit = BCCircuitNoMerkle::<Fr>::new(Parameters::setup())?;
+    // maximum chain size we can prove
+    const N: usize = 16;
+    let circuit_params = (Parameters::setup(), N);
+
+    let f_circuit = BCCircuitMerkleForest::<Fr>::new(circuit_params)?;
 
     // use Nova as FoldingScheme
-    type FC = BCCircuitNoMerkle<Fr>;
+    type FC = BCCircuitMerkleForest<Fr>;
     type N = Nova<G1, G2, FC, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
     type D = NovaDecider<
         G1,
@@ -114,14 +118,14 @@ fn main() -> Result<(), Error> {
         N, // here we define the FoldingScheme to use
     >;
 
-    let data_path = Path::new("../data/nova-no-merkle");
+    let data_path = Path::new("../data/nova-merkle-forest");
     let poseidon_config = poseidon_canonical_config::<Fr>();
     let mut rng = StdRng::from_seed([42; 32]); // deterministic seeding
 
     // prepare the Nova prover & verifier params
     // - can serialize this when the circuit is stable
     println!("nova folding preprocess");
-    let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit);
+    let nova_preprocess_params = PreprocessorParam::new(poseidon_config, f_circuit.clone());
     let nova_params = load_or_generate(
         &data_path.join("nova_folding_params.dat"),
         || {
@@ -136,14 +140,9 @@ fn main() -> Result<(), Error> {
                     &mut *reader,
                     Compress::No,
                     Validate::No,
-                    <FC as FCircuit<Fr>>::Params::setup(),
+                    circuit_params,
                 )?,
-                N::vp_deserialize_with_mode(
-                    reader,
-                    Compress::No,
-                    Validate::No,
-                    <FC as FCircuit<Fr>>::Params::setup(),
-                )?,
+                N::vp_deserialize_with_mode(reader, Compress::No, Validate::No, circuit_params)?,
             ))
         },
         true,
@@ -199,7 +198,7 @@ fn main() -> Result<(), Error> {
             };
 
             timeit!("nova folding init", {
-                N::init(&nova_params, f_circuit, z_0)
+                N::init(&nova_params, f_circuit.clone(), z_0)
             })
         },
         |_, _| Ok(()),
@@ -210,7 +209,7 @@ fn main() -> Result<(), Error> {
                     Compress::No,
                     Validate::No,
                 )?,
-                <FC as FCircuit<Fr>>::Params::setup(),
+                circuit_params,
                 nova_params.clone(), // unfortunately, `FoldingScheme` API requires us to `clone` here
             )
         },
