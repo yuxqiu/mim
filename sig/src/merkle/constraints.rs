@@ -256,9 +256,9 @@ fn div_rem_power_of_2<F: PrimeField>(
             Ok(F::from(v))
         })
     })?;
-    let rem = v - &div;
+    let rem = v - &div * FpVar::Constant(F::from(p2 as u64));
     rem.enforce_cmp(
-        &FpVar::Constant(F::from(<F as PrimeField>::BigInt::from(p2 as u64))),
+        &FpVar::Constant(F::from(p2 as u64)),
         std::cmp::Ordering::Less,
         false,
     )?;
