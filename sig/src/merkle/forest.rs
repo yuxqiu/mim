@@ -1,10 +1,7 @@
 use std::{cmp::max, collections::HashMap};
 
 use ark_crypto_primitives::{
-    crh::{
-        poseidon::{TwoToOneCRH as PoseidonTwoToOne, CRH as Poseidon},
-        CRHScheme, TwoToOneCRHScheme,
-    },
+    crh::{poseidon::CRH as Poseidon, CRHScheme},
     sponge::poseidon::PoseidonConfig,
 };
 use derivative::Derivative;
@@ -46,6 +43,14 @@ pub struct MerkleForestProof<P: MerkleConfig> {
     pub num_leaves_per_tree: usize,
 }
 
+#[derive(Derivative)]
+#[derivative(Debug(bound = ""))]
+pub struct MerkleForestVariableLengthProof<P: MerkleConfig> {
+    pub siblings: Vec<P::BasePrimeField>,
+    pub leaf_index: usize,
+    pub num_leaves_per_tree: usize,
+}
+
 impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     #[inline]
     fn num_leaves_per_tree(&self) -> usize {
@@ -55,11 +60,6 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     #[inline]
     fn max_leaves(&self) -> usize {
         self.num_leaves_per_tree().pow(self.trees.len() as u32)
-    }
-
-    #[inline]
-    const fn is_left_node(index: usize) -> bool {
-        index & 1 == 0
     }
 
     pub fn new(
@@ -159,20 +159,89 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let mut hash = Poseidon::evaluate(params, leaf).map_err(|_| MerkleTreeError::CRHError)?;
 
         let mut index = proof.leaf_index;
+        let leaf_start = proof.num_leaves_per_tree - 1;
+        let tree_height = proof.num_leaves_per_tree.ilog2();
 
-        for sibling in proof.siblings {
-            let idx_within_tree = index % proof.num_leaves_per_tree;
-            if Self::is_left_node(idx_within_tree) {
-                hash = PoseidonTwoToOne::evaluate(params, hash, sibling)
-                    .map_err(|_| MerkleTreeError::CRHError)?;
-            } else {
-                hash = PoseidonTwoToOne::evaluate(params, sibling, hash)
-                    .map_err(|_| MerkleTreeError::CRHError)?;
-            }
+        // chunk by tree_height to get siblings for each tree
+        for siblings in proof.siblings.chunks(tree_height as usize) {
+            // We need to offset the idx by `leaf_start` to be able to use MerkleTree's `hash_path` algorithm.
+            let idx_within_tree = leaf_start + index % proof.num_leaves_per_tree;
+            hash = MerkleTree::<P>::hash_path(params, hash, idx_within_tree, siblings)?;
             index /= proof.num_leaves_per_tree;
         }
 
         Ok(hash == root)
+    }
+
+    pub fn prove_variable(
+        &self,
+        leaf_index: usize,
+    ) -> Result<MerkleForestVariableLengthProof<P>, MerkleForestError> {
+        if leaf_index >= self.size {
+            return Err(MerkleForestError::IndexOutOfBound);
+        }
+
+        let num_leaves = self.num_leaves_per_tree();
+        let n = self.max_leaves();
+        let diff = n - leaf_index;
+        let state_idx = diff.ilog(num_leaves);
+
+        let mut forest_proof = vec![];
+        let mut idx = leaf_index;
+
+        // only need to generate proof for state with index <= state_idx
+        let num_leaves_per_tree = self.num_leaves_per_tree();
+        for i in 0..state_idx as usize + 1 {
+            let idx_within_tree = idx % num_leaves_per_tree;
+            idx /= num_leaves_per_tree;
+            let s = self.states[i]
+                .get(&idx)
+                .expect("state exists because leaf index is in bound");
+            let (siblings, _) = s.prove(idx_within_tree)?;
+            forest_proof.extend(siblings);
+        }
+
+        Ok(MerkleForestVariableLengthProof {
+            siblings: forest_proof,
+            leaf_index,
+            num_leaves_per_tree,
+        })
+    }
+
+    pub fn verify_variable(
+        params: &PoseidonConfig<P::BasePrimeField>,
+        states: &[MerkleTree<P>],
+        capacity_per_tree: usize,
+        num_tree: usize,
+        leaf: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
+        proof: MerkleForestVariableLengthProof<P>,
+    ) -> Result<bool, MerkleForestError> {
+        let (root, adjusted_index) = {
+            let num_leaves = (capacity_per_tree + 1) / 2;
+            let n = num_leaves.pow(num_tree as u32);
+            let diff = n - proof.leaf_index;
+            let state_idx = diff.ilog(num_leaves);
+
+            // adjust the index so that only the lower `log(num_leaves) * (state_idx + 1)` bits are kept
+            // - this is not needed as `Self::verify` only relies on siblings length to determine
+            //   how many hashes to do.
+            // - this means only the lower `log(num_leaves) * (state_idx + 1)` will be used in `verify`
+            //
+            // let adjusted_index = proof.leaf_index & (num_leaves.pow(state_idx + 1) - 1);
+
+            (states[state_idx as usize].root(), proof.leaf_index)
+        };
+
+        Self::verify(
+            params,
+            root,
+            leaf,
+            MerkleForestProof {
+                siblings: proof.siblings,
+                leaf_index: adjusted_index,
+                num_leaves_per_tree: proof.num_leaves_per_tree,
+            },
+        )
     }
 
     pub fn root(&self) -> P::BasePrimeField {
@@ -180,6 +249,10 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
             .last()
             .expect("forest should not be empty")
             .root()
+    }
+
+    pub fn states(&self) -> &[MerkleTree<P>] {
+        &self.trees
     }
 }
 
@@ -360,6 +433,7 @@ mod tests {
         let verify_result =
             LeveledMerkleForest::<TestConfig>::verify(&params, root, &[values[leaf_index]], proof);
         assert!(verify_result.is_ok());
+        assert_eq!(verify_result.unwrap(), true);
     }
 
     #[test]
@@ -393,6 +467,88 @@ mod tests {
         let verify_result =
             LeveledMerkleForest::<TestConfig>::verify(&params, root, &[values[leaf_index]], proof);
         assert!(verify_result.is_ok());
+        assert_eq!(verify_result.unwrap(), true);
+    }
+
+    #[test]
+    fn test_prove_and_verify_large_capacity_variable() {
+        let params = poseidon_params();
+        let capacity_per_tree = 8 - 1;
+        let num_tree = 3;
+        let mut forest =
+            LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params).unwrap();
+
+        let mut values = vec![];
+        for _ in 0..forest.max_leaves() {
+            let val = {
+                let mut rng = thread_rng();
+                Fr::rand(&mut rng)
+            };
+            values.push(val);
+            let add_result = forest.add(&[val]);
+            assert!(add_result.is_ok());
+        }
+
+        let leaf_index = forest.max_leaves() - 1; // Index of the leaf we want to prove
+        let proof_result = forest.prove_variable(leaf_index);
+
+        assert!(proof_result.is_ok());
+        let proof = proof_result.unwrap();
+        assert_eq!(proof.leaf_index, leaf_index);
+
+        // Verify the proof
+        let verify_result = LeveledMerkleForest::<TestConfig>::verify_variable(
+            &params,
+            forest.states(),
+            capacity_per_tree,
+            num_tree,
+            &[values[leaf_index]],
+            proof,
+        );
+
+        dbg!(forest.trees);
+
+        assert!(verify_result.is_ok());
+        assert_eq!(verify_result.unwrap(), true);
+    }
+
+    #[test]
+    fn test_prove_and_verify_small_capacity_variable() {
+        let params = poseidon_params();
+        let capacity_per_tree = 4 - 1;
+        let num_tree = 3;
+        let mut forest =
+            LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params).unwrap();
+
+        let mut values = vec![];
+        for _ in 0..forest.max_leaves() {
+            let val = {
+                let mut rng = thread_rng();
+                Fr::rand(&mut rng)
+            };
+            values.push(val);
+            let add_result = forest.add(&[val]);
+            assert!(add_result.is_ok());
+        }
+
+        let leaf_index = forest.max_leaves() - 1; // Index of the leaf we want to prove
+        let proof_result = forest.prove_variable(leaf_index);
+
+        assert!(proof_result.is_ok());
+        let proof = proof_result.unwrap();
+        assert_eq!(proof.leaf_index, leaf_index);
+
+        // Verify the proof
+        let verify_result = LeveledMerkleForest::<TestConfig>::verify_variable(
+            &params,
+            forest.states(),
+            capacity_per_tree,
+            num_tree,
+            &[values[leaf_index]],
+            proof,
+        );
+        assert!(verify_result.is_ok());
+        assert_eq!(verify_result.unwrap(), true);
     }
 
     #[test]

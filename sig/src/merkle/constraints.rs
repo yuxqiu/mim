@@ -13,7 +13,7 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-use super::{forest::MerkleForestError, tree::MerkleTreeError, MerkleConfig};
+use super::{forest::MerkleForestError, left, right, tree::MerkleTreeError, MerkleConfig};
 
 pub struct MerkleTreeVar<'a, P: MerkleConfig> {
     nodes: Vec<FpVar<P::BasePrimeField>>,
@@ -120,19 +120,9 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
         capacity
     }
 
-    #[inline]
-    const fn left(index: usize) -> usize {
-        2 * index + 1
-    }
-
-    #[inline]
-    const fn right(index: usize) -> usize {
-        2 * index + 2
-    }
-
     fn update_state(&mut self, index: usize) -> Result<(), SynthesisError> {
-        let left_child = &self.nodes[Self::left(index)];
-        let right_child = &self.nodes[Self::right(index)];
+        let left_child = &self.nodes[left(index)];
+        let right_child = &self.nodes[right(index)];
         // Note: I originally thought we can select between hash and the
         // old tree hash. But, in either case, we need to compute a hash.
         // So, to avoid waste constraints to select, we can just use the new hash to

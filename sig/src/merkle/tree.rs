@@ -8,7 +8,7 @@ use ark_crypto_primitives::{
 use derivative::Derivative;
 use thiserror::Error;
 
-use super::MerkleConfig;
+use super::{is_left_node, left, parent, right, MerkleConfig};
 
 #[derive(Derivative)]
 #[derivative(Debug(bound = ""))]
@@ -83,7 +83,7 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         while index > 0 {
             let sibling = Self::sibling(index);
             proof.push(self.states[sibling]);
-            index = Self::parent(index);
+            index = parent(index);
         }
         Ok((proof, self.leaf_start() + leaf_index))
     }
@@ -142,21 +142,28 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
             return Err(MerkleTreeError::PathLenMismatch);
         }
 
-        let mut hash = Poseidon::evaluate(params, leaf).map_err(|_| MerkleTreeError::CRHError)?;
+        let hash = Poseidon::evaluate(params, leaf).map_err(|_| MerkleTreeError::CRHError)?;
+        let hash = Self::hash_path(params, hash, leaf_index, &siblings)?;
+        Ok(hash == root)
+    }
 
-        let mut index = leaf_index;
+    pub(crate) fn hash_path(
+        params: &PoseidonConfig<P::BasePrimeField>,
+        mut hash: P::BasePrimeField,
+        mut index: usize,
+        siblings: &[P::BasePrimeField],
+    ) -> Result<P::BasePrimeField, MerkleTreeError> {
         for sibling in siblings {
-            if Self::is_left_node(index) {
-                hash = PoseidonTwoToOne::evaluate(params, hash, sibling)
+            if is_left_node(index) {
+                hash = PoseidonTwoToOne::evaluate(params, hash, *sibling)
                     .map_err(|_| MerkleTreeError::CRHError)?;
             } else {
-                hash = PoseidonTwoToOne::evaluate(params, sibling, hash)
+                hash = PoseidonTwoToOne::evaluate(params, sibling, &hash)
                     .map_err(|_| MerkleTreeError::CRHError)?;
             }
-            index = Self::parent(index);
+            index = parent(index);
         }
-
-        Ok(hash == root)
+        Ok(hash)
     }
 
     const fn sibling(index: usize) -> usize {
@@ -168,28 +175,8 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
     }
 
     #[inline]
-    const fn parent(index: usize) -> usize {
-        (index - 1) / 2
-    }
-
-    #[inline]
-    const fn left(index: usize) -> usize {
-        2 * index + 1
-    }
-
-    #[inline]
-    const fn right(index: usize) -> usize {
-        2 * index + 2
-    }
-
-    #[inline]
     fn leaf_start(&self) -> usize {
         (self.capacity() + 1) / 2 - 1
-    }
-
-    #[inline]
-    const fn is_left_node(index: usize) -> bool {
-        index & 1 == 1
     }
 
     #[inline]
@@ -198,8 +185,8 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
     }
 
     fn update_state(&mut self, index: usize) -> Result<(), MerkleTreeError> {
-        let left = Self::left(index);
-        let right = Self::right(index);
+        let left = left(index);
+        let right = right(index);
         self.states[index] =
             PoseidonTwoToOne::evaluate(self.params, self.states[left], self.states[right])
                 .map_err(|_| MerkleTreeError::CRHError)?;
@@ -232,7 +219,7 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         let mut index = self.leaf_start() + leaf_index;
         self.states[index] = val;
         while index > 0 {
-            index = Self::parent(index);
+            index = parent(index);
             self.update_state(index)?;
         }
 
