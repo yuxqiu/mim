@@ -102,7 +102,7 @@ impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
         let committee = f();
 
         let committee_var = Vec::<SignerVar<CF>>::new_variable(
-            cs.clone(),
+            cs,
             || {
                 committee
                     .as_ref()
@@ -162,7 +162,7 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
         )?;
 
         let signers = Vec::<Boolean<CF>>::new_variable(
-            cs.clone(),
+            cs,
             || {
                 quorum_signature
                     .as_ref()

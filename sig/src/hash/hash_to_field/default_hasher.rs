@@ -117,7 +117,9 @@ mod test {
 
         let hasher = <DefaultFieldHasher<Blake2s256, 128> as HashToField<F>>::new(&dst);
         let hasher_gadget =
-            DefaultFieldHasherGadget::<StatefulBlake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
+            DefaultFieldHasherGadget::<StatefulBlake2sGadget<F>, F, F, FpVar<F>, 128>::new(
+                &dst_var,
+            );
 
         let input_lens = (0..32).chain(32..256).filter(|a| a % 8 == 0);
 
@@ -150,7 +152,9 @@ mod test {
 
         let hasher = <DefaultFieldHasher<Blake2s256, 128> as HashToField<F>>::new(&dst);
         let hasher_gadget =
-            DefaultFieldHasherGadget::<StatefulBlake2sGadget<F>, F, F, FpVar<F>, 128>::new(&dst_var);
+            DefaultFieldHasherGadget::<StatefulBlake2sGadget<F>, F, F, FpVar<F>, 128>::new(
+                &dst_var,
+            );
 
         let input_lens = (0..32).chain(32..128).filter(|a| a % 16 == 0);
 

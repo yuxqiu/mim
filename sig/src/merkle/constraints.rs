@@ -116,17 +116,17 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
         })
     }
 
-    pub fn num_constraint_var_needed(capacity: usize) -> usize {
+    pub const fn num_constraint_var_needed(capacity: usize) -> usize {
         capacity
     }
 
     #[inline]
-    fn left(index: usize) -> usize {
+    const fn left(index: usize) -> usize {
         2 * index + 1
     }
 
     #[inline]
-    fn right(index: usize) -> usize {
+    const fn right(index: usize) -> usize {
         2 * index + 2
     }
 
@@ -216,7 +216,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
         })
     }
 
-    pub fn num_constraint_var_needed(capacity_per_tree: usize, num_tree: usize) -> usize {
+    pub const fn num_constraint_var_needed(capacity_per_tree: usize, num_tree: usize) -> usize {
         num_tree * MerkleTreeVar::<P>::num_constraint_var_needed(capacity_per_tree)
     }
 
@@ -247,13 +247,13 @@ fn div_rem_power_of_2<F: PrimeField>(
     p2: usize,
 ) -> Result<(FpVar<F>, FpVar<F>), SynthesisError> {
     let cs = v.cs();
-    let div = FpVar::new_witness(cs.clone(), || {
-        v.value().and_then(|v| {
+    let div = FpVar::new_witness(cs, || {
+        v.value().map(|v| {
             let mut v = v.into_bigint();
             for _ in 0..p2.ilog2() {
                 v.div2();
             }
-            Ok(F::from(v))
+            F::from(v)
         })
     })?;
     let rem = v - &div * FpVar::Constant(F::from(p2 as u64));

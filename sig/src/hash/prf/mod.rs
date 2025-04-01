@@ -3,8 +3,8 @@ use ark_crypto_primitives::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{fmt::Debug, hash::Hash};
 
-pub mod constraints;
 pub mod blake2s;
+pub mod constraints;
 
 pub trait PRF {
     type Input: CanonicalDeserialize + Default;

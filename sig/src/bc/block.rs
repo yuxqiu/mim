@@ -327,6 +327,7 @@ fn select_strong_committee<R: Rng>(
 }
 
 /// Generate a blockchain with effective committee size `committee_size`.
+///
 /// By effective, it means in the returned blockchain, every block has a committee size of `MAX_COMMITTEE_SIZE`,
 /// but only `committee_size` of them has non-zero weights.
 #[must_use]

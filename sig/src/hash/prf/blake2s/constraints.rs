@@ -174,7 +174,7 @@ fn blake2s_compression<ConstraintF: PrimeField>(
     v[13] ^= (t >> 32) as u32;
 
     if f {
-        v[14] ^= u32::max_value();
+        v[14] ^= u32::MAX;
     }
 
     for i in 0..10 {
@@ -245,7 +245,7 @@ impl<ConstraintF: PrimeField> Blake2sState<ConstraintF> {
             UInt32::constant(0x5BE0CD19),
         ];
 
-        Ok(Blake2sState {
+        Ok(Self {
             h,
             buffer: Vec::new(),
             t: 0,
@@ -265,7 +265,6 @@ impl<ConstraintF: PrimeField> Blake2sState<ConstraintF> {
         for block in self.buffer[..buffer_end].chunks(512) {
             let this_block: Vec<_> = block
                 .chunks(32)
-                .into_iter()
                 .map(UInt32::from_bits_le)
                 .collect();
 
@@ -366,7 +365,7 @@ impl<F: PrimeField> PRFGadget<F> for StatefulBlake2sGadget<F> {
 
     fn finalize(
         self,
-    ) -> Result<<StatefulBlake2sGadget<F> as PRFGadget<F>>::OutputVar, SynthesisError> {
+    ) -> Result<<Self as PRFGadget<F>>::OutputVar, SynthesisError> {
         let result: Vec<_> = self
             .state
             .finalize()?
@@ -379,7 +378,7 @@ impl<F: PrimeField> PRFGadget<F> for StatefulBlake2sGadget<F> {
 
 impl<F: PrimeField> Default for StatefulBlake2sGadget<F> {
     fn default() -> Self {
-        StatefulBlake2sGadget {
+        Self {
             state: Blake2sState::new().unwrap(),
         }
     }

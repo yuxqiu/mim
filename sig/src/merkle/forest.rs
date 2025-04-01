@@ -58,7 +58,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     }
 
     #[inline]
-    fn is_left_node(index: usize) -> bool {
+    const fn is_left_node(index: usize) -> bool {
         index & 1 == 0
     }
 
@@ -145,8 +145,8 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
 
         Ok(MerkleForestProof {
             siblings: forest_proof,
-            leaf_index: leaf_index,
-            num_leaves_per_tree: num_leaves_per_tree,
+            leaf_index,
+            num_leaves_per_tree,
         })
     }
 
@@ -156,17 +156,17 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         leaf: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
         proof: MerkleForestProof<P>,
     ) -> Result<bool, MerkleForestError> {
-        let mut hash = Poseidon::evaluate(&params, leaf).map_err(|_| MerkleTreeError::CRHError)?;
+        let mut hash = Poseidon::evaluate(params, leaf).map_err(|_| MerkleTreeError::CRHError)?;
 
         let mut index = proof.leaf_index;
 
         for sibling in proof.siblings {
             let idx_within_tree = index % proof.num_leaves_per_tree;
             if Self::is_left_node(idx_within_tree) {
-                hash = PoseidonTwoToOne::evaluate(&params, hash, sibling)
+                hash = PoseidonTwoToOne::evaluate(params, hash, sibling)
                     .map_err(|_| MerkleTreeError::CRHError)?;
             } else {
-                hash = PoseidonTwoToOne::evaluate(&params, sibling, hash)
+                hash = PoseidonTwoToOne::evaluate(params, sibling, hash)
                     .map_err(|_| MerkleTreeError::CRHError)?;
             }
             index /= proof.num_leaves_per_tree;
@@ -222,10 +222,10 @@ pub fn optimal_forest_params(n: usize) -> (usize, usize) {
 
     // minimize log2(2N/q)/log2(q/2)*q with respect to q
     let a = n.ilog2() as f64;
-    let q = 2_f64.powf((2. + a - (a * a - 4. * a / std::f64::consts::LN_2).sqrt()) / 2.);
+    let q = ((2. + a - a.mul_add(a, -(4. * a / std::f64::consts::LN_2)).sqrt()) / 2.).exp2();
     let q = (q.ceil() as usize).next_power_of_two() - 1;
     let q = max(q, 3);
-    let k = ((2. * n as f64) / q as f64).log2() / (q as f64 / 2.).log2();
+    let k = ((2. * n as f64) / q as f64).log(q as f64 / 2.);
     (q, k.ceil() as usize)
 }
 

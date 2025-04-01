@@ -94,7 +94,7 @@ where
     timeit!(format!("serialize to {}", path.to_string_lossy()), {
         ser_fn(&val, &mut file)?
     });
-    return Ok(val);
+    Ok(val)
 }
 
 fn main() -> Result<(), Error> {
