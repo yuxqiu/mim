@@ -3,15 +3,12 @@ use ark_crypto_primitives::{
         poseidon::{TwoToOneCRH as PoseidonTwoToOne, CRH as Poseidon},
         CRHScheme, TwoToOneCRHScheme,
     },
-    sponge::{poseidon::PoseidonConfig, Absorb},
+    sponge::poseidon::PoseidonConfig,
 };
-use ark_ff::PrimeField;
 use derivative::Derivative;
 use thiserror::Error;
 
-pub trait MerkleConfig {
-    type BasePrimeField: PrimeField + Absorb;
-}
+use super::MerkleConfig;
 
 #[derive(Derivative)]
 #[derivative(Debug(bound = ""))]

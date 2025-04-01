@@ -10,12 +10,15 @@ use ark_crypto_primitives::{
 use derivative::Derivative;
 use thiserror::Error;
 
-use super::tree::{MerkleConfig, MerkleTree, MerkleTreeError};
+use super::{
+    tree::{MerkleTree, MerkleTreeError},
+    MerkleConfig,
+};
 
 #[derive(Derivative)]
 #[derivative(Debug(bound = ""))]
 pub struct LeveledMerkleForest<'a, P: MerkleConfig> {
-    merkle_trees: Vec<MerkleTree<'a, P>>,
+    trees: Vec<MerkleTree<'a, P>>,
     states: Vec<HashMap<usize, MerkleTree<'a, P>>>,
     size: usize,
 }
@@ -46,13 +49,12 @@ pub struct MerkleForestProof<P: MerkleConfig> {
 impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     #[inline]
     fn num_leaves_per_tree(&self) -> usize {
-        self.merkle_trees[0].num_leaves()
+        self.trees[0].num_leaves()
     }
 
     #[inline]
-    fn max_leaf_node(&self) -> usize {
-        self.num_leaves_per_tree()
-            .pow(self.merkle_trees.len() as u32)
+    fn max_leaves(&self) -> usize {
+        self.num_leaves_per_tree().pow(self.trees.len() as u32)
     }
 
     #[inline]
@@ -73,7 +75,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let states = vec![HashMap::new(); num_tree];
 
         Ok(Self {
-            merkle_trees: trees,
+            trees,
             states,
             size: 0,
         })
@@ -83,38 +85,38 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         &mut self,
         val: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
     ) -> Result<(), MerkleForestError> {
-        if self.size == self.max_leaf_node() {
+        if self.size == self.max_leaves() {
             return Err(MerkleForestError::ForestIsFull);
         }
 
-        let mut is_prev_tree_full = self.merkle_trees[0].is_full();
+        let mut is_prev_tree_full = self.trees[0].is_full();
         if is_prev_tree_full {
-            self.merkle_trees[0].reset_size();
+            self.trees[0].reset_size();
         }
-        self.merkle_trees[0].add(val)?;
+        self.trees[0].add(val)?;
 
         // update Merkle trees
-        let mut node = self.merkle_trees[0].root();
-        for i in 1..self.merkle_trees.len() {
-            let is_cur_tree_full = self.merkle_trees[i].is_full();
+        let mut node = self.trees[0].root();
+        for i in 1..self.trees.len() {
+            let is_cur_tree_full = self.trees[i].is_full();
             if is_cur_tree_full {
-                self.merkle_trees[i].reset_size();
+                self.trees[i].reset_size();
             }
-            if is_prev_tree_full || self.merkle_trees[i].is_empty() {
-                self.merkle_trees[i].add_with_hash(node)?;
+            if is_prev_tree_full || self.trees[i].is_empty() {
+                self.trees[i].add_with_hash(node)?;
             } else {
-                let idx = self.merkle_trees[i].last_idx();
-                self.merkle_trees[i].update_with_hash(idx, node)?;
+                let idx = self.trees[i].last_idx();
+                self.trees[i].update_with_hash(idx, node)?;
             }
-            node = self.merkle_trees[i].root();
+            node = self.trees[i].root();
             is_prev_tree_full = is_cur_tree_full;
         }
 
         // update states
         let num_leaves_per_tree = self.num_leaves_per_tree();
         let mut idx = self.size / num_leaves_per_tree;
-        for i in 0..self.merkle_trees.len() {
-            self.states[i].insert(idx, self.merkle_trees[i].clone());
+        for i in 0..self.trees.len() {
+            self.states[i].insert(idx, self.trees[i].clone());
             idx /= num_leaves_per_tree;
         }
 
@@ -131,7 +133,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let mut idx = leaf_index;
 
         let num_leaves_per_tree = self.num_leaves_per_tree();
-        for i in 0..self.merkle_trees.len() {
+        for i in 0..self.trees.len() {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
             let s = self.states[i]
@@ -174,7 +176,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     }
 
     pub fn root(&self) -> P::BasePrimeField {
-        self.merkle_trees
+        self.trees
             .last()
             .expect("forest should not be empty")
             .root()
@@ -253,7 +255,7 @@ mod tests {
         let forest = LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params);
         assert!(forest.is_ok());
         let forest = forest.unwrap();
-        assert_eq!(forest.merkle_trees.len(), num_tree);
+        assert_eq!(forest.trees.len(), num_tree);
         assert_eq!(forest.num_leaves_per_tree(), 4);
     }
 
@@ -266,7 +268,7 @@ mod tests {
         let forest = LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params);
         assert!(forest.is_ok());
         let forest = forest.unwrap();
-        assert_eq!(forest.merkle_trees.len(), num_tree);
+        assert_eq!(forest.trees.len(), num_tree);
     }
 
     #[test]

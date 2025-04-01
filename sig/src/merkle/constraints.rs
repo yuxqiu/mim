@@ -13,10 +13,7 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-use super::{
-    forest::MerkleForestError,
-    tree::{MerkleConfig, MerkleTreeError},
-};
+use super::{forest::MerkleForestError, tree::MerkleTreeError, MerkleConfig};
 
 pub struct MerkleTreeVar<'a, P: MerkleConfig> {
     nodes: Vec<FpVar<P::BasePrimeField>>,
@@ -48,6 +45,10 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
         Ok(s)
     }
 
+    /// Update the Merkle tree with the `new_leaf` at `index`.
+    ///
+    /// Note: caller of this method should ensure `index` is within the acceptable
+    /// range of the Merkle tree.
     pub fn update(
         &mut self,
         index: FpVar<P::BasePrimeField>,
@@ -56,6 +57,10 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
         self.update_with_hash(index, Poseidon::evaluate(self.hash_params, new_leaf)?)
     }
 
+    /// Update the Merkle tree with the `new_leaf` at `index`.
+    ///
+    /// Note: caller of this method should ensure `index` is within the acceptable
+    /// range of the Merkle tree.
     pub fn update_with_hash(
         &mut self,
         index: FpVar<P::BasePrimeField>,
@@ -97,19 +102,22 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
     }
 
     pub fn from_constraint_field(
-        mut self,
         iter: impl Iterator<Item = FpVar<P::BasePrimeField>>,
+        capacity: usize,
+        params: &'a PoseidonParams<P::BasePrimeField>,
     ) -> Result<Self, SynthesisError> {
-        let lens = self.nodes.len();
-        self.nodes = iter.take(lens).collect();
-        if self.nodes.len() != lens {
+        let nodes: Vec<_> = iter.take(capacity).collect();
+        if nodes.len() != capacity {
             return Err(SynthesisError::Unsatisfiable);
         }
-        Ok(self)
+        Ok(Self {
+            nodes,
+            hash_params: params,
+        })
     }
 
-    pub fn num_constraint_var_needed(&self) -> usize {
-        self.nodes.len()
+    pub fn num_constraint_var_needed(capacity: usize) -> usize {
+        capacity
     }
 
     #[inline]
@@ -171,6 +179,10 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
         })
     }
 
+    /// Update the Merkle forest with the `new_leaf` at `index`.
+    ///
+    /// Note: caller of this method should ensure `index` is within the acceptable
+    /// range of the Merkle tree.
     pub fn update(
         &mut self,
         index: FpVar<P::BasePrimeField>,
@@ -190,13 +202,13 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
     }
 
     pub fn from_constraint_field(
-        self,
         mut iter: impl Iterator<Item = FpVar<P::BasePrimeField>>,
+        capacity_per_tree: usize,
+        num_tree: usize,
+        params: &'a PoseidonParams<P::BasePrimeField>,
     ) -> Result<Self, SynthesisError> {
-        let trees = self
-            .trees
-            .into_iter()
-            .map(|tree| tree.from_constraint_field(iter.by_ref()))
+        let trees = (0..num_tree)
+            .map(|_| MerkleTreeVar::from_constraint_field(iter.by_ref(), capacity_per_tree, params))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             trees,
@@ -204,8 +216,8 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
         })
     }
 
-    pub fn num_constraint_var_needed(&self) -> usize {
-        self.trees.len() * self.trees[0].num_constraint_var_needed()
+    pub fn num_constraint_var_needed(capacity_per_tree: usize, num_tree: usize) -> usize {
+        num_tree * MerkleTreeVar::<P>::num_constraint_var_needed(capacity_per_tree)
     }
 
     pub fn root(&self) -> FpVar<P::BasePrimeField> {
@@ -215,6 +227,18 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
     #[inline]
     fn num_leaves_per_tree(&self) -> usize {
         self.trees[0].num_leaves()
+    }
+}
+
+impl<'a, P: MerkleConfig> ToConstraintFieldGadget<P::BasePrimeField>
+    for LeveledMerkleForestVar<'a, P>
+{
+    fn to_constraint_field(&self) -> Result<Vec<FpVar<P::BasePrimeField>>, SynthesisError> {
+        self.trees
+            .iter()
+            .map(|tree| tree.to_constraint_field())
+            .collect::<Result<Vec<_>, _>>()
+            .map(|vecs| vecs.into_iter().flatten().collect::<Vec<_>>())
     }
 }
 
