@@ -6,8 +6,8 @@
 /// It's adapted from `sonobe/examples/full_flow.rs`
 mod utils;
 
-use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
-use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
+use ark_mnt4_298::{Fr, G1Projective as G1, MNT4_298 as MNT4};
+use ark_mnt6_298::{G1Projective as G2, MNT6_298 as MNT6};
 
 use ark_groth16::Groth16;
 use ark_r1cs_std::convert::ToConstraintFieldGadget;
