@@ -350,10 +350,6 @@ impl<TargetF: PrimeField, BaseF: PrimeField> AllocatedEmulatedFpVar<TargetF, Bas
     /// (without reduction) This intermediate representations can be added
     /// with each other, and they can later be reduced back to the
     /// `EmulatedFpVar`.
-    ///
-    /// Note: this is a non-optimal implementation of mul. xJsnark has a O(n)
-    /// multiplication method. See sonobe's implementation:
-    /// - https://github.com/grandchildrice/sonobe/blob/aa324450f58894d2621af9aabe2a5cf6bac63c12/folding-schemes/src/folding/circuits/nonnative/uint.rs#L637
     #[tracing::instrument(target = "r1cs")]
     pub fn mul_without_reduce(
         &self,
@@ -906,11 +902,11 @@ impl<TargetF: PrimeField, BaseF: PrimeField> ToConstraintFieldGadget<BaseF>
         // step 1: convert it into a bit sequence
         let bits = self.to_bits_le()?;
 
-        // step 2: obtain the parameters for weight-optimized (often, fewer limbs)
+        // step 2: obtain the parameters
         let params = get_params(
             TargetF::MODULUS_BIT_SIZE as usize,
             BaseF::MODULUS_BIT_SIZE as usize,
-            OptimizationType::Weight,
+            self.get_optimization_type(),
         );
 
         // step 3: assemble the limbs

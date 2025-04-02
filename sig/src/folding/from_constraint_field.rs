@@ -11,7 +11,7 @@ use ark_r1cs_std::{
     uint64::UInt64,
     R1CSVar,
 };
-use ark_relations::r1cs::SynthesisError;
+use ark_relations::r1cs::{OptimizationGoal, SynthesisError};
 
 use crate::{
     bc::params::MAX_COMMITTEE_SIZE,
@@ -25,22 +25,25 @@ use super::bc::{CommitteeVar, SignerVar};
 ///
 /// It should be able to interrop with `ToConstraintFieldGadget` trait to support serialization and deserialization for any variable.
 pub trait FromConstraintFieldGadget<CF: PrimeField>: Sized {
-    fn num_constraint_var_needed() -> usize;
+    fn num_constraint_var_needed(optim: OptimizationGoal) -> usize;
 
     /// Converts from `Vec<FpVar<ConstraintF>>` to `Self`.
-    fn from_constraint_field(iter: impl Iterator<Item = FpVar<CF>>)
-        -> Result<Self, SynthesisError>;
+    fn from_constraint_field(
+        iter: impl Iterator<Item = FpVar<CF>>,
+        optim: OptimizationGoal,
+    ) -> Result<Self, SynthesisError>;
 }
 
 impl<CF: PrimeField> FromConstraintFieldGadget<CF> for UInt64<CF> {
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
+        _: OptimizationGoal,
     ) -> Result<Self, SynthesisError> {
         let (num, _) = Self::from_fp(&iter.next().ok_or(SynthesisError::Unsatisfiable)?)?;
         Ok(num)
     }
 
-    fn num_constraint_var_needed() -> usize {
+    fn num_constraint_var_needed(_: OptimizationGoal) -> usize {
         1
     }
 }
@@ -50,15 +53,24 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF>
 {
     fn from_constraint_field(
         iter: impl Iterator<Item = FpVar<CF>>,
+        optim: OptimizationGoal,
     ) -> Result<Self, SynthesisError> {
-        // `OptimizationType::Weight` is used because it results in fewer constraint field elements
+        let optim = match optim {
+            OptimizationGoal::None => OptimizationType::Constraints,
+            OptimizationGoal::Constraints => OptimizationType::Constraints,
+            OptimizationGoal::Weight => OptimizationType::Weight,
+        };
+
         let params = get_params(
             <BlsSigField<BlsSigConfig> as PrimeField>::MODULUS_BIT_SIZE as usize,
             CF::MODULUS_BIT_SIZE as usize,
-            OptimizationType::Weight,
+            optim,
         );
 
         let limbs = Vec::from_iter(iter.take(params.num_limbs));
+        if limbs.len() != params.num_limbs {
+            return Err(SynthesisError::Unsatisfiable);
+        }
 
         // `to_constraint_field` promises to give a normal repr of EmulatedFpVar
         Ok(Self::Var(AllocatedEmulatedFpVar {
@@ -70,11 +82,17 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF>
         }))
     }
 
-    fn num_constraint_var_needed() -> usize {
+    fn num_constraint_var_needed(optim: OptimizationGoal) -> usize {
+        let optim = match optim {
+            OptimizationGoal::None => OptimizationType::Constraints,
+            OptimizationGoal::Constraints => OptimizationType::Constraints,
+            OptimizationGoal::Weight => OptimizationType::Weight,
+        };
+
         let params = get_params(
             <BlsSigField<BlsSigConfig> as PrimeField>::MODULUS_BIT_SIZE as usize,
             CF::MODULUS_BIT_SIZE as usize,
-            OptimizationType::Weight,
+            optim,
         );
         params.num_limbs
     }
@@ -85,6 +103,7 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF>
 {
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
+        optim: OptimizationGoal,
     ) -> Result<Self, SynthesisError> {
         // There are no checks to ensure this point is on the curve and the prime order subgroup.
         // This is safe because all the reconstructed `PublicKeyVar` are either public input or
@@ -92,15 +111,15 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF>
         // we don't need to perform additional check here.
         Ok(Self {
             pub_key: G1Var::<BlsSigConfig, EmulatedFpVar<BlsSigField<BlsSigConfig>, CF>, CF>::new(
-                EmulatedFpVar::from_constraint_field(iter.by_ref())?,
-                EmulatedFpVar::from_constraint_field(iter.by_ref())?,
-                EmulatedFpVar::from_constraint_field(iter.by_ref())?,
+                EmulatedFpVar::from_constraint_field(iter.by_ref(), optim)?,
+                EmulatedFpVar::from_constraint_field(iter.by_ref(), optim)?,
+                EmulatedFpVar::from_constraint_field(iter.by_ref(), optim)?,
             ),
         })
     }
 
-    fn num_constraint_var_needed() -> usize {
-        3 * EmulatedFpVar::<BlsSigField<BlsSigConfig>, CF>::num_constraint_var_needed()
+    fn num_constraint_var_needed(optim: OptimizationGoal) -> usize {
+        3 * EmulatedFpVar::<BlsSigField<BlsSigConfig>, CF>::num_constraint_var_needed(optim)
     }
 }
 
@@ -127,34 +146,36 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF>
 impl<CF: PrimeField> FromConstraintFieldGadget<CF> for SignerVar<CF> {
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
+        optim: OptimizationGoal,
     ) -> Result<Self, SynthesisError> {
         Ok(Self {
-            pk: PublicKeyVar::from_constraint_field(iter.by_ref())?,
-            weight: UInt64::from_constraint_field(iter.by_ref())?,
+            pk: PublicKeyVar::from_constraint_field(iter.by_ref(), optim)?,
+            weight: UInt64::from_constraint_field(iter.by_ref(), optim)?,
         })
     }
 
-    fn num_constraint_var_needed() -> usize {
-        PublicKeyVar::<BlsSigConfig, EmulatedFpVar<BlsSigField<BlsSigConfig>, CF>, CF>::num_constraint_var_needed() + UInt64::<CF>::num_constraint_var_needed()
+    fn num_constraint_var_needed(optim: OptimizationGoal) -> usize {
+        PublicKeyVar::<BlsSigConfig, EmulatedFpVar<BlsSigField<BlsSigConfig>, CF>, CF>::num_constraint_var_needed(optim) + UInt64::<CF>::num_constraint_var_needed(optim)
     }
 }
 
 impl<CF: PrimeField> FromConstraintFieldGadget<CF> for CommitteeVar<CF> {
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
+        optim: OptimizationGoal,
     ) -> Result<Self, SynthesisError> {
         let mut committee = Vec::new();
         committee.reserve_exact(MAX_COMMITTEE_SIZE);
 
         for _ in 0..MAX_COMMITTEE_SIZE {
-            let signer = SignerVar::from_constraint_field(iter.by_ref())?;
+            let signer = SignerVar::from_constraint_field(iter.by_ref(), optim)?;
             committee.push(signer);
         }
 
         Ok(Self { committee })
     }
 
-    fn num_constraint_var_needed() -> usize {
-        SignerVar::<CF>::num_constraint_var_needed() * MAX_COMMITTEE_SIZE
+    fn num_constraint_var_needed(optim: OptimizationGoal) -> usize {
+        SignerVar::<CF>::num_constraint_var_needed(optim) * MAX_COMMITTEE_SIZE
     }
 }

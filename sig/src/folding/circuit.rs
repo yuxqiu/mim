@@ -11,7 +11,7 @@ use ark_r1cs_std::{
     prelude::Boolean,
     uint64::UInt64,
 };
-use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
+use ark_relations::r1cs::{ConstraintSystemRef, OptimizationGoal, SynthesisError};
 use derivative::Derivative;
 use folding_schemes::{frontend::FCircuit, transcript::poseidon::poseidon_canonical_config, Error};
 
@@ -64,7 +64,8 @@ impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
     }
 
     fn state_len(&self) -> usize {
-        CommitteeVar::<CF>::num_constraint_var_needed() + 1
+        CommitteeVar::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
+            + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
     }
 
     /// generates the constraints for the step of F for the given z_i
@@ -78,10 +79,12 @@ impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
     ) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         tracing::info!("start reconstructing committee and epoch");
 
+        let optim = cs.optimization_goal();
+
         // 1. Reconstruct epoch and committee from z_i
         let mut iter = z_i.into_iter();
-        let committee = CommitteeVar::from_constraint_field(iter.by_ref())?;
-        let epoch = UInt64::from_constraint_field(iter.by_ref())?;
+        let committee = CommitteeVar::from_constraint_field(iter.by_ref(), optim)?;
+        let epoch = UInt64::from_constraint_field(iter.by_ref(), optim)?;
 
         tracing::info!(num_constraints = cs.num_constraints());
 
@@ -127,8 +130,8 @@ impl<CF: PrimeField + Absorb> FCircuit<CF> for BCCircuitMerkleForest<CF> {
     }
 
     fn state_len(&self) -> usize {
-        CommitteeVar::<CF>::num_constraint_var_needed()
-            + 1
+        CommitteeVar::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
+            + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
             + LeveledMerkleForestVar::<Config<CF>>::num_constraint_var_needed(
                 self.capacity_per_tree,
                 self.num_tree,
@@ -146,10 +149,12 @@ impl<CF: PrimeField + Absorb> FCircuit<CF> for BCCircuitMerkleForest<CF> {
     ) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         tracing::info!("start reconstructing committee and epoch");
 
+        let optim = cs.optimization_goal();
+
         // 1. Reconstruct epoch and committee from z_i
         let mut iter = z_i.into_iter();
-        let committee = CommitteeVar::from_constraint_field(iter.by_ref())?;
-        let epoch = UInt64::from_constraint_field(iter.by_ref())?;
+        let committee = CommitteeVar::from_constraint_field(iter.by_ref(), optim)?;
+        let epoch = UInt64::from_constraint_field(iter.by_ref(), optim)?;
         let mut forest = LeveledMerkleForestVar::<Config<CF>>::from_constraint_field(
             iter.by_ref(),
             self.capacity_per_tree,
