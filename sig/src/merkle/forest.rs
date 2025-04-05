@@ -59,20 +59,22 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
 
     #[inline]
     fn max_leaves(&self) -> usize {
+        // safe conversion as trees.len() is limited to be <= 2^32 - 1
+        #[allow(clippy::cast_possible_truncation)]
         self.num_leaves_per_tree().pow(self.trees.len() as u32)
     }
 
     pub fn new(
-        capacity_per_tree: usize,
-        num_tree: usize,
+        capacity_per_tree: u32,
+        num_tree: u32,
         params: &'a PoseidonConfig<P::BasePrimeField>,
     ) -> Result<Self, MerkleForestError> {
         if num_tree == 0 {
             return Err(MerkleForestError::InvalidNumTree);
         }
 
-        let trees = vec![MerkleTree::new(capacity_per_tree, params)?; num_tree];
-        let states = vec![HashMap::new(); num_tree];
+        let trees = vec![MerkleTree::new(capacity_per_tree as usize, params)?; num_tree as usize];
+        let states = vec![HashMap::new(); num_tree as usize];
 
         Ok(Self {
             trees,
@@ -191,7 +193,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
 
         // only need to generate proof for state with index <= state_idx
         let num_leaves_per_tree = self.num_leaves_per_tree();
-        for i in 0..state_idx as usize + 1 {
+        for i in 0..=(state_idx as usize) {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
             let s = self.states[i]
@@ -211,15 +213,15 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     pub fn verify_variable(
         params: &PoseidonConfig<P::BasePrimeField>,
         states: &[MerkleTree<P>],
-        capacity_per_tree: usize,
-        num_tree: usize,
+        capacity_per_tree: u32,
+        num_tree: u32,
         leaf: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
         proof: MerkleForestVariableLengthProof<P>,
     ) -> Result<bool, MerkleForestError> {
         let (root, adjusted_index) = {
-            let num_leaves = (capacity_per_tree + 1) / 2;
-            let n = num_leaves.pow(num_tree as u32);
-            let diff = n - proof.leaf_index;
+            let num_leaves = (u64::from(capacity_per_tree) + 1) / 2;
+            let n = num_leaves.pow(num_tree);
+            let diff = n - proof.leaf_index as u64;
             let state_idx = diff.ilog(num_leaves);
 
             // adjust the index so that only the lower `log(num_leaves) * (state_idx + 1)` bits are kept
@@ -256,50 +258,78 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     }
 }
 
-pub fn forest_stats(capacity_per_tree: usize, num_tree: usize) -> (usize, usize, usize) {
+#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_sign_loss)]
+pub fn forest_stats(capacity_per_tree: u32, num_tree: u32) -> (u64, u64, u128) {
+    // reserve space for mul
+    let capacity_per_tree = u64::from(capacity_per_tree);
+    let num_tree = u64::from(num_tree);
+
     assert!(
         (capacity_per_tree + 1).is_power_of_two(),
         "capacity + 1 must be a power of 2"
     );
     assert!(capacity_per_tree >= 3, "capacity must be >= 3");
 
-    let proof_size = ((capacity_per_tree + 1) / 2).ilog2() as usize * num_tree;
+    let proof_size = u64::from(((capacity_per_tree + 1) / 2).ilog2()) * num_tree;
     let forest_state_size = capacity_per_tree * num_tree;
 
+    #[allow(clippy::cast_possible_truncation)]
     let n = ((capacity_per_tree + 1) / 2).pow(num_tree as u32);
 
-    // the following is upper bounded when setting `r = 2 / capacity_per_tree`
+    // The following is upper bounded when setting `r = 2 / capacity_per_tree`
+    // safety: capacity_per_tree + 1 <= 2^32
     let r = 2. / (capacity_per_tree + 1) as f64;
-    let max_permanent_state_size =
-        capacity_per_tree as f64 * n as f64 * ((1. - r.powi(num_tree as i32 + 1)) / (1. - r) - 1.);
+    #[allow(clippy::cast_possible_truncation)]
+    let max_permanent_state_size = f64::from(capacity_per_tree as u32)
+        * n as f64
+        * ((1. - r.powi(i32::try_from(num_tree).expect("num_tree is too large for i32") + 1))
+            / (1. - r)
+            - 1.);
 
     println!(
         "proof size: {}",
-        ((capacity_per_tree + 1) / 2).ilog2() as usize * num_tree
+        u64::from(((capacity_per_tree + 1) / 2).ilog2()) * num_tree
     );
     println!("forest state size: {}", forest_state_size);
     println!("max permanent state size: {}", max_permanent_state_size);
     println!("plain merkle tree size: {}", 2 * n - 1);
 
-    (
-        proof_size,
-        forest_state_size,
-        max_permanent_state_size.ceil() as usize,
-    )
+    let max_permanent_state_size = max_permanent_state_size.ceil();
+    #[allow(clippy::cast_possible_truncation)]
+    let max_permanent_state_size_r = max_permanent_state_size.ceil() as u128;
+    assert_eq!(
+        max_permanent_state_size_r as f64, max_permanent_state_size,
+        "max_permanent_state_size is too large for u128"
+    );
+
+    (proof_size, forest_state_size, max_permanent_state_size_r)
 }
 
 /// Find the optimal forest parameters for a given `n` with respect to the forest state size
-pub fn optimal_forest_params(n: usize) -> (usize, usize) {
+pub fn optimal_forest_params(n: usize) -> (u32, u32) {
     // round n to the next power of 2
     let n = n.next_power_of_two();
 
     // minimize log2(2N/q)/log2(q/2)*q with respect to q
-    let a = n.ilog2() as f64;
+    let a = f64::from(n.ilog2());
     let q = ((2. + a - a.mul_add(a, -(4. * a / std::f64::consts::LN_2)).sqrt()) / 2.).exp2();
-    let q = (q.ceil() as usize).next_power_of_two() - 1;
+    // safe: as q is <= 4/ln2
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
+    let q = (q.ceil() as u32).next_power_of_two() - 1;
     let q = max(q, 3);
-    let k = ((2. * n as f64) / q as f64).log(q as f64 / 2.);
-    (q, k.ceil() as usize)
+    // safe: as n is a power of 2
+    #[allow(clippy::cast_precision_loss)]
+    let k = ((2. * n as f64) / f64::from(q)).log(f64::from(q) / 2.);
+
+    let k = k.ceil();
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
+    let kr = k as u32;
+    assert_eq!(f64::from(kr), k, "k is too large for u32");
+
+    (q, kr)
 }
 
 #[cfg(test)]
@@ -328,7 +358,7 @@ mod tests {
         let forest = LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params);
         assert!(forest.is_ok());
         let forest = forest.unwrap();
-        assert_eq!(forest.trees.len(), num_tree);
+        assert_eq!(forest.trees.len(), num_tree as usize);
         assert_eq!(forest.num_leaves_per_tree(), 4);
     }
 
@@ -341,7 +371,7 @@ mod tests {
         let forest = LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params);
         assert!(forest.is_ok());
         let forest = forest.unwrap();
-        assert_eq!(forest.trees.len(), num_tree);
+        assert_eq!(forest.trees.len(), num_tree as usize);
     }
 
     #[test]
@@ -599,7 +629,7 @@ mod tests {
         let (proof_size, _, max_permanent_state_size) = forest_stats(capacity_per_tree, num_tree);
 
         let proof = forest.prove(0).unwrap();
-        assert_eq!(proof_size, proof.siblings.len());
+        assert_eq!(proof_size as usize, proof.siblings.len());
 
         // populate the forest
         for _ in 0..((capacity_per_tree + 1) / 2).pow(num_tree as u32) - 1 {
@@ -608,11 +638,14 @@ mod tests {
 
         // count permanent state size
         let mut actual_permanent_state_size = 0;
-        for i in 0..num_tree {
-            actual_permanent_state_size += forest.states[i].len() * capacity_per_tree;
+        for i in 0..num_tree as usize {
+            actual_permanent_state_size += forest.states[i].len() * capacity_per_tree as usize;
         }
 
-        assert_eq!(max_permanent_state_size, actual_permanent_state_size);
+        assert_eq!(
+            max_permanent_state_size as usize,
+            actual_permanent_state_size
+        );
     }
 
     #[test]

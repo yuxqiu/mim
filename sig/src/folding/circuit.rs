@@ -42,8 +42,8 @@ pub struct BCCircuitMerkleForest<CF: PrimeField + Absorb> {
     sig_params: Parameters<BlsSigConfig>,
 
     // Merkle Forest params
-    capacity_per_tree: usize,
-    num_tree: usize,
+    capacity_per_tree: u32,
+    num_tree: u32,
 
     #[derivative(Debug = "ignore")]
     hash_params: CRHParametersVar<CF>,

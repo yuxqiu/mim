@@ -150,8 +150,8 @@ pub struct LeveledMerkleForestVar<'a, P: MerkleConfig> {
 
 impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
     pub fn new(
-        capacity_per_tree: usize,
-        num_tree: usize,
+        capacity_per_tree: u32,
+        num_tree: u32,
         params: &'a PoseidonParams<P::BasePrimeField>,
     ) -> Result<Self, MerkleForestError> {
         if num_tree == 0 {
@@ -160,7 +160,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
 
         let mut trees = vec![];
         for _ in 0..num_tree {
-            trees.push(MerkleTreeVar::new(capacity_per_tree, params)?);
+            trees.push(MerkleTreeVar::new(capacity_per_tree as usize, params)?);
         }
 
         Ok(Self {
@@ -193,10 +193,11 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
 
     pub fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<P::BasePrimeField>>,
-        capacity_per_tree: usize,
-        num_tree: usize,
+        capacity_per_tree: u32,
+        num_tree: u32,
         params: &'a PoseidonParams<P::BasePrimeField>,
     ) -> Result<Self, SynthesisError> {
+        let capacity_per_tree = capacity_per_tree as usize;
         let trees = (0..num_tree)
             .map(|_| MerkleTreeVar::from_constraint_field(iter.by_ref(), capacity_per_tree, params))
             .collect::<Result<Vec<_>, _>>()?;
@@ -206,8 +207,9 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
         })
     }
 
-    pub const fn num_constraint_var_needed(capacity_per_tree: usize, num_tree: usize) -> usize {
-        num_tree * MerkleTreeVar::<P>::num_constraint_var_needed(capacity_per_tree)
+    pub const fn num_constraint_var_needed(capacity_per_tree: u32, num_tree: u32) -> usize {
+        num_tree as usize
+            * MerkleTreeVar::<P>::num_constraint_var_needed(capacity_per_tree as usize)
     }
 
     pub fn root(&self) -> FpVar<P::BasePrimeField> {

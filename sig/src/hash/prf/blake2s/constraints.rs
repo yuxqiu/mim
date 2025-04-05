@@ -141,6 +141,7 @@ fn mixing_g<ConstraintF: PrimeField>(
 // END FUNCTION.
 //
 
+#[allow(clippy::cast_possible_truncation)]
 fn blake2s_compression<ConstraintF: PrimeField>(
     h: &mut [UInt32<ConstraintF>],
     m: &[UInt32<ConstraintF>],
