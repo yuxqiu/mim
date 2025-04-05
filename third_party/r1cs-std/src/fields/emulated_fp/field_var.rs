@@ -436,7 +436,13 @@ impl<TargetF: PrimeField, BaseF: PrimeField> ToConstraintFieldGadget<BaseF>
         match self {
             Self::Constant(c) => Ok(AllocatedEmulatedFpVar::get_limbs_representations(
                 c,
-                OptimizationType::Weight,
+                match self.cs().optimization_goal() {
+                    ark_relations::r1cs::OptimizationGoal::None => OptimizationType::Constraints,
+                    ark_relations::r1cs::OptimizationGoal::Constraints => {
+                        OptimizationType::Constraints
+                    },
+                    ark_relations::r1cs::OptimizationGoal::Weight => OptimizationType::Weight,
+                },
             )?
             .into_iter()
             .map(FpVar::constant)
