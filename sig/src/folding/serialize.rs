@@ -87,11 +87,8 @@ impl<CF: PrimeField> SerializeGadget<CF> for [SignerVar<CF>] {
 impl<CF: PrimeField> SerializeGadget<CF> for QuorumSignatureVar<CF> {
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let mut sig = self.sig.serialize()?;
-        // `bincode` serializes `usize` as `u64`
-        let signers_len = UInt64::constant(self.signers.len() as u64).serialize()?;
         let signers = self.signers.serialize()?;
 
-        sig.extend(signers_len);
         sig.extend(signers);
         Ok(sig)
     }
@@ -99,12 +96,7 @@ impl<CF: PrimeField> SerializeGadget<CF> for QuorumSignatureVar<CF> {
 
 impl<CF: PrimeField> SerializeGadget<CF> for CommitteeVar<CF> {
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
-        // `bincode` serializes `usize` as `u64`
-        let mut committee_len = UInt64::constant(self.committee.len() as u64).serialize()?;
-        let committee = self.committee.serialize()?;
-
-        committee_len.extend(committee);
-        Ok(committee_len)
+        self.committee.serialize()
     }
 }
 
