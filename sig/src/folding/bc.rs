@@ -166,7 +166,7 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
             || {
                 quorum_signature
                     .as_ref()
-                    .map(|qsig| qsig.borrow().signers.clone())
+                    .map(|qsig| qsig.borrow().signers)
                     .map_err(SynthesisError::clone)
             },
             mode,

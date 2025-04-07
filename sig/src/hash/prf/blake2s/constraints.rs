@@ -264,10 +264,7 @@ impl<ConstraintF: PrimeField> Blake2sState<ConstraintF> {
         }
 
         for block in self.buffer[..buffer_end].chunks(512) {
-            let this_block: Vec<_> = block
-                .chunks(32)
-                .map(UInt32::from_bits_le)
-                .collect();
+            let this_block: Vec<_> = block.chunks(32).map(UInt32::from_bits_le).collect();
 
             self.t += 64;
             blake2s_compression(&mut self.h, &this_block, self.t, false)?;
@@ -364,9 +361,7 @@ impl<F: PrimeField> PRFGadget<F> for StatefulBlake2sGadget<F> {
         self.state.update(&input_bits)
     }
 
-    fn finalize(
-        self,
-    ) -> Result<<Self as PRFGadget<F>>::OutputVar, SynthesisError> {
+    fn finalize(self) -> Result<<Self as PRFGadget<F>>::OutputVar, SynthesisError> {
         let result: Vec<_> = self
             .state
             .finalize()?
