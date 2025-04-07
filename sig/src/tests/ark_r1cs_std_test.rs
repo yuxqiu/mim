@@ -212,11 +212,11 @@ mod test {
                 BlsSigConfig,
                 EmulatedFpVar<BaseSigCurveField, BaseSNARKField>,
                 BaseSNARKField,
-            >::from_group_var(&pk_var.pub_key)
+            >::from_group_var(&pk_var.into())
             .unwrap(),
         ];
         let qs: [G2PreparedVar<BlsSigConfig, _, _>; 2] = [
-            G2PreparedVar::from_group_var(&sig_var.signature).unwrap(),
+            G2PreparedVar::from_group_var(&sig_var.into()).unwrap(),
             G2PreparedVar::from_group_var(&params_var.g2_generator).unwrap(),
         ];
 

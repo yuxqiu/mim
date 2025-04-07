@@ -20,7 +20,7 @@ use crate::{
         block::{Block, QuorumSignature},
         params::STRONG_THRESHOLD,
     },
-    bls::{BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar, PublicKeyVar},
+    bls::{BLSAggregateSignatureVerifyGadget, Parameters, ParametersVar},
     folding::bc::{CommitteeVar, QuorumSignatureVar},
     merkle::{constraints::LeveledMerkleForestVar, forest::optimal_forest_params, Config},
     params::BlsSigConfig,
@@ -224,16 +224,14 @@ fn bc_generate_constraints<CF: PrimeField>(
     let mut aggregate_pk = G1Var::<BlsSigConfig, EmulatedFpVar<_, CF>, CF>::zero();
     for (signed, signer) in signers.iter().zip(committee.committee) {
         let pk = signed.select(
-            &(signer.pk.pub_key),
+            &(signer.pk.into()),
             &G1Var::<BlsSigConfig, EmulatedFpVar<_, CF>, CF>::zero(),
         )?;
         let w = signed.select(&(signer.weight), &UInt64::constant(0))?;
         aggregate_pk += pk;
         weight.wrapping_add_in_place(&w);
     }
-    let aggregate_pk = PublicKeyVar {
-        pub_key: aggregate_pk,
-    };
+    let aggregate_pk = aggregate_pk.into();
 
     tracing::info!(num_constraints = cs.num_constraints());
 

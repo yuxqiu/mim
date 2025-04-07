@@ -21,9 +21,10 @@ where
         FieldOpsBounds<'a, BlsSigField<BlsSigConfig>, EmulatedFpVar<F, CF>>,
 {
     fn to_constraint_field(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
-        let mut x = self.pub_key.x.to_constraint_field()?;
-        x.extend(self.pub_key.y.to_constraint_field()?);
-        x.extend(self.pub_key.z.to_constraint_field()?);
+        let pub_key = self.as_ref();
+        let mut x = pub_key.x.to_constraint_field()?;
+        x.extend(pub_key.y.to_constraint_field()?);
+        x.extend(pub_key.z.to_constraint_field()?);
         Ok(x)
     }
 }

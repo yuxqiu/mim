@@ -50,7 +50,7 @@ impl<CF: PrimeField> SerializeGadget<CF>
     for SignatureVar<BlsSigConfig, EmulatedFpVar<BlsSigField<BlsSigConfig>, CF>, CF>
 {
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
-        self.signature.to_bytes_le()
+        self.as_ref().to_bytes_le()
     }
 }
 
@@ -58,7 +58,7 @@ impl<CF: PrimeField> SerializeGadget<CF>
     for PublicKeyVar<BlsSigConfig, EmulatedFpVar<BlsSigField<BlsSigConfig>, CF>, CF>
 {
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
-        self.pub_key.to_bytes_le()
+        self.as_ref().to_bytes_le()
     }
 }
 

@@ -24,6 +24,10 @@ bincode = "1.3.3"
 blake2 = "0.10.6"
 delegate = "0.13.2"
 derivative = "2.2.0"
+# right now, can only use the following
+# but once the generic bound can be ignored, we can derive a wide range of traits
+# see: https://github.com/JelteF/derive_more/issues/439
+derive_more = { version = "2", features = ["from", "into", "constructor", "as_ref"] }
 folding-schemes = { git = "https://github.com/privacy-scaling-explorations/sonobe", package = "folding-schemes" }
 rand = "0.8.5"
 serde = { version = "1.0.217", features = ["derive"] }

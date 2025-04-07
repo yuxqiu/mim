@@ -1,4 +1,5 @@
 use core::ops::Mul;
+use std::ops::Add;
 
 use ark_ec::{
     bls12::{self, Bls12Config},
@@ -14,13 +15,14 @@ use ark_ff::{field_hashers::DefaultFieldHasher, AdditiveGroup, UniformRand};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blake2::Blake2s256;
 use derivative::Derivative;
+use derive_more::{AsRef, Constructor, From, Into};
 use rand::Rng;
 
 use crate::bls::params::{HashCurveConfig, HashCurveGroup};
 
 use super::params::{SecretKeyScalarField, G1, G2};
 
-#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize, Constructor)]
 #[derivative(
     Clone(bound = ""),
     Copy(bound = ""),
@@ -32,7 +34,7 @@ pub struct Parameters<SigCurveConfig: Bls12Config> {
     pub g2_generator: G2<SigCurveConfig>,
 }
 
-#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize, From, Into, AsRef)]
 #[derivative(
     Clone(bound = ""),
     Copy(bound = ""),
@@ -40,7 +42,7 @@ pub struct Parameters<SigCurveConfig: Bls12Config> {
     Default(bound = "")
 )]
 pub struct PublicKey<SigCurveConfig: Bls12Config> {
-    pub pub_key: G1<SigCurveConfig>,
+    pub_key: G1<SigCurveConfig>,
 }
 
 #[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
@@ -51,10 +53,10 @@ pub struct PublicKey<SigCurveConfig: Bls12Config> {
     Default(bound = "")
 )]
 pub struct SecretKey<SigCurveConfig: Bls12Config> {
-    pub secret_key: SecretKeyScalarField<SigCurveConfig>,
+    secret_key: SecretKeyScalarField<SigCurveConfig>,
 }
 
-#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize, From, Into, AsRef)]
 #[derivative(
     Clone(bound = ""),
     Copy(bound = ""),
@@ -62,7 +64,33 @@ pub struct SecretKey<SigCurveConfig: Bls12Config> {
     Default(bound = "")
 )]
 pub struct Signature<SigCurveConfig: Bls12Config> {
-    pub signature: G2<SigCurveConfig>,
+    signature: G2<SigCurveConfig>,
+}
+
+impl<SigCurveConfig: Bls12Config> Add for PublicKey<SigCurveConfig> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        (self.pub_key + rhs.pub_key).into()
+    }
+}
+
+impl<SigCurveConfig: Bls12Config> Add for SecretKey<SigCurveConfig> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            secret_key: self.secret_key + rhs.secret_key,
+        }
+    }
+}
+
+impl<SigCurveConfig: Bls12Config> Add for Signature<SigCurveConfig> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        (self.signature + rhs.signature).into()
+    }
 }
 
 impl<SigCurveConfig: Bls12Config> Parameters<SigCurveConfig> {
@@ -84,7 +112,7 @@ impl<SigCurveConfig: Bls12Config> PublicKey<SigCurveConfig> {
         params: &Parameters<SigCurveConfig>,
     ) -> Self {
         let pub_key = params.g1_generator.mul(secret_key.secret_key);
-        Self { pub_key }
+        pub_key.into()
     }
 }
 
@@ -121,7 +149,7 @@ where
     ) -> Self {
         let hashed_message = Self::hash_to_curve(message);
         let signature = hashed_message.mul(secret_key.secret_key);
-        Self { signature }
+        signature.into()
     }
 
     #[must_use]
@@ -151,9 +179,7 @@ where
         let mut sigs = secret_keys.iter().map(|sk| Self::sign(message, sk, params));
         let first_sig = sigs.next()?;
 
-        Some(sigs.fold(first_sig, |acc, new_sig| Self {
-            signature: acc.signature + new_sig.signature,
-        }))
+        Some(sigs.fold(first_sig, |acc, new_sig| acc + new_sig))
     }
 
     #[must_use]

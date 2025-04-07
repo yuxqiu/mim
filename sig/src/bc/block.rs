@@ -1,5 +1,5 @@
 use ark_ec::{
-    short_weierstrass::{Affine, SWCurveConfig},
+    short_weierstrass::{Affine, Projective, SWCurveConfig},
     CurveGroup,
 };
 use ark_serialize::CanonicalSerialize;
@@ -101,7 +101,7 @@ impl Serialize for AuthorityAggregatedSignature {
     where
         S: serde::Serializer,
     {
-        let affine = self.signature.into_affine();
+        let affine = Into::<Projective<_>>::into(*self).into_affine();
         serialize_curve_point(affine, serializer)
     }
 }
@@ -112,7 +112,7 @@ impl Serialize for AuthorityPublicKey {
     where
         S: serde::Serializer,
     {
-        let affine = self.pub_key.into_affine();
+        let affine = Into::<Projective<_>>::into(*self).into_affine();
         serialize_curve_point(affine, serializer)
     }
 }
@@ -182,14 +182,7 @@ impl Block {
             .filter(|(i, _)| self.sig.signers[*i])
             .map(|(_, signer_info)| signer_info)
             .copied()
-            .reduce(|acc, e| {
-                (
-                    AuthorityPublicKey {
-                        pub_key: acc.0.pub_key + e.0.pub_key,
-                    },
-                    acc.1 + e.1,
-                )
-            });
+            .reduce(|acc, e| (acc.0 + e.0, acc.1 + e.1));
 
         // prepare the msg used in signing
         let mut self_clone = self.clone();

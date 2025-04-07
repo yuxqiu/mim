@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use ark_ec::bls12::{Bls12, Bls12Config};
 use ark_ec::hashing::curve_maps::wb::WBConfig;
 use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::SWCurveConfig;
+use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ec::{CurveConfig, CurveGroup};
 use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
@@ -20,6 +20,7 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 // Assuming the sig is running on BLS12 family of curves
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
 use derivative::Derivative;
+use derive_more::{AsRef, From, Into};
 
 use crate::hash::hash_to_curve::cofactor::CofactorGadget;
 use crate::hash::hash_to_curve::MapToCurveBasedHasherGadget;
@@ -31,7 +32,7 @@ use crate::hash::{
 };
 use crate::params::BlsSigField;
 
-use super::params::{HashCurveConfig, HashCurveGroup, HashCurveVar};
+use super::params::{HashCurveConfig, HashCurveGroup, HashCurveVar, G1};
 use super::{Parameters, PublicKey, Signature};
 
 #[derive(Derivative)]
@@ -47,7 +48,7 @@ pub struct ParametersVar<
     pub g2_generator: G2Var<SigCurveConfig, FV, CF>,
 }
 
-#[derive(Derivative)]
+#[derive(Derivative, From, Into, AsRef)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct PublicKeyVar<
     SigCurveConfig: Bls12Config,
@@ -56,10 +57,10 @@ pub struct PublicKeyVar<
 > where
     for<'a> &'a FV: FieldOpsBounds<'a, BlsSigField<SigCurveConfig>, FV>,
 {
-    pub pub_key: G1Var<SigCurveConfig, FV, CF>,
+    pub_key: G1Var<SigCurveConfig, FV, CF>,
 }
 
-#[derive(Derivative)]
+#[derive(Derivative, From, Into, AsRef)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct SignatureVar<
     SigCurveConfig: Bls12Config,
@@ -68,7 +69,7 @@ pub struct SignatureVar<
 > where
     for<'a> &'a FV: FieldOpsBounds<'a, BlsSigField<SigCurveConfig>, FV>,
 {
-    pub signature: G2Var<SigCurveConfig, FV, CF>,
+    signature: G2Var<SigCurveConfig, FV, CF>,
 }
 
 pub struct BLSAggregateSignatureVerifyGadget<
@@ -244,7 +245,7 @@ where
         Ok(Self {
             signature: G2Var::<SigCurveConfig, _, _>::new_variable(
                 cs,
-                || f().map(|value| value.borrow().signature),
+                || f().map(|value| Into::<Projective<_>>::into(*value.borrow())),
                 mode,
             )?,
         })
@@ -266,9 +267,9 @@ where
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
         Ok(Self {
-            pub_key: G1Var::<SigCurveConfig, _, _>::new_variable(
+            pub_key: G1Var::<SigCurveConfig, FV, _>::new_variable(
                 cs,
-                || f().map(|value| value.borrow().pub_key),
+                || f().map(|value| Into::<G1<SigCurveConfig>>::into(*value.borrow())),
                 mode,
             )?,
         })
@@ -291,7 +292,7 @@ where
         Ok(Self {
             pub_key: G1Var::<SigCurveConfig, _, _>::new_variable_omit_on_curve_check(
                 cs,
-                || f().map(|value| value.borrow().pub_key),
+                || f().map(|value| Into::<G1<SigCurveConfig>>::into(*value.borrow())),
                 mode,
             )?,
         })
