@@ -1,5 +1,4 @@
 use core::ops::Mul;
-use std::ops::Add;
 
 use ark_ec::{
     bls12::{self, Bls12Config},
@@ -15,14 +14,15 @@ use ark_ff::{field_hashers::DefaultFieldHasher, AdditiveGroup, UniformRand};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blake2::Blake2s256;
 use derivative::Derivative;
-use derive_more::{AsRef, Constructor, From, Into};
+use derive_more::{AsRef, From, Into};
+use gen_ops::gen_ops_ex;
 use rand::Rng;
 
 use crate::bls::params::{HashCurveConfig, HashCurveGroup};
 
 use super::params::{SecretKeyScalarField, G1, G2};
 
-#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize, Constructor)]
+#[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
 #[derivative(
     Clone(bound = ""),
     Copy(bound = ""),
@@ -67,31 +67,34 @@ pub struct Signature<SigCurveConfig: Bls12Config> {
     signature: G2<SigCurveConfig>,
 }
 
-impl<SigCurveConfig: Bls12Config> Add for PublicKey<SigCurveConfig> {
-    type Output = Self;
+gen_ops_ex!(
+    <SigCurveConfig>;
+    types mut PublicKey<SigCurveConfig>, mut PublicKey<SigCurveConfig> => PublicKey<SigCurveConfig>;
+    for + call |a: &PublicKey<SigCurveConfig>, b: &PublicKey<SigCurveConfig>| {
+        (a.pub_key + b.pub_key).into()
+    };
+    where SigCurveConfig: Bls12Config
+);
 
-    fn add(self, rhs: Self) -> Self::Output {
-        (self.pub_key + rhs.pub_key).into()
-    }
-}
-
-impl<SigCurveConfig: Bls12Config> Add for SecretKey<SigCurveConfig> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            secret_key: self.secret_key + rhs.secret_key,
+gen_ops_ex!(
+    <SigCurveConfig>;
+    types mut SecretKey<SigCurveConfig>, mut SecretKey<SigCurveConfig> => SecretKey<SigCurveConfig>;
+    for + call |a: &SecretKey<SigCurveConfig>, b: &SecretKey<SigCurveConfig>| {
+        SecretKey {
+            secret_key: a.secret_key + b.secret_key,
         }
-    }
-}
+    };
+    where SigCurveConfig: Bls12Config
+);
 
-impl<SigCurveConfig: Bls12Config> Add for Signature<SigCurveConfig> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        (self.signature + rhs.signature).into()
-    }
-}
+gen_ops_ex!(
+    <SigCurveConfig>;
+    types mut Signature<SigCurveConfig>, mut Signature<SigCurveConfig> => Signature<SigCurveConfig>;
+    for + call |a: &Signature<SigCurveConfig>, b: &Signature<SigCurveConfig>| {
+        (a.signature + b.signature).into()
+    };
+    where SigCurveConfig: Bls12Config
+);
 
 impl<SigCurveConfig: Bls12Config> Parameters<SigCurveConfig> {
     #[must_use]

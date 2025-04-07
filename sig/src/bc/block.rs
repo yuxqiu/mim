@@ -18,16 +18,16 @@ use super::params::{
     Weight, HASH_OUTPUT_SIZE, STRONG_THRESHOLD, TOTAL_VOTING_POWER,
 };
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Default, Clone)]
 pub struct QuorumSignature {
     pub sig: AuthorityAggregatedSignature,
     // a roaring bitmap is a better alternative, but for easy impl of R1CS circuit, we use Vec<bool>
-    pub signers: Vec<bool>,
+    pub signers: [bool; MAX_COMMITTEE_SIZE],
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Default, Clone)]
 pub struct Committee {
-    pub signers: Vec<(AuthorityPublicKey, Weight)>,
+    pub signers: [(AuthorityPublicKey, Weight); MAX_COMMITTEE_SIZE],
 }
 
 #[derive(Serialize, Debug, Default, Clone)]
@@ -48,25 +48,6 @@ pub struct Block {
 pub struct Blockchain {
     blocks: Vec<Block>,
     params: AuthoritySigParams,
-}
-
-impl Default for QuorumSignature {
-    // a default quorum signature contains `MAX_COMMITTEE_SIZE` signers
-    fn default() -> Self {
-        Self {
-            sig: Default::default(),
-            signers: vec![bool::default(); MAX_COMMITTEE_SIZE],
-        }
-    }
-}
-
-impl Default for Committee {
-    // a default committee contains `MAX_COMMITTEE_SIZE` signers
-    fn default() -> Self {
-        Self {
-            signers: vec![(AuthorityPublicKey::default(), Weight::default()); MAX_COMMITTEE_SIZE],
-        }
-    }
 }
 
 fn serialize_curve_point<Config: SWCurveConfig, S: Serializer>(
@@ -160,7 +141,9 @@ impl Block {
 
         block.sig = QuorumSignature {
             sig: sig.expect("at least one secret key is provided"),
-            signers: bitmap.to_owned(),
+            signers: bitmap
+                .try_into()
+                .expect("bitmap should match the size of the committee"),
         };
 
         Ok(block)
@@ -292,7 +275,14 @@ fn generate_committee<R: Rng>(
         .map(|(sk, weight)| (AuthorityPublicKey::new(sk, params), weight))
         .collect::<Vec<_>>();
 
-    (csk, Committee { signers: committee })
+    (
+        csk,
+        Committee {
+            signers: committee
+                .try_into()
+                .expect("committee size is guaranteed to == MAX_COMMITTEE_SIZE"),
+        },
+    )
 }
 
 fn select_strong_committee<R: Rng>(

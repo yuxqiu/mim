@@ -16,6 +16,7 @@ use ark_r1cs_std::prelude::{Boolean, PairingVar};
 use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use gen_ops::gen_ops_ex;
 
 // Assuming the sig is running on BLS12 family of curves
 use ark_r1cs_std::groups::bls12::{G1PreparedVar, G1Var, G2PreparedVar, G2Var};
@@ -71,6 +72,24 @@ pub struct SignatureVar<
 {
     signature: G2Var<SigCurveConfig, FV, CF>,
 }
+
+gen_ops_ex!(
+    <SigCurveConfig, FV, CF>;
+    types mut PublicKeyVar<SigCurveConfig, FV, CF>, mut PublicKeyVar<SigCurveConfig, FV, CF> => PublicKeyVar<SigCurveConfig, FV, CF>;
+    for + call |a: &PublicKeyVar<SigCurveConfig, FV, CF>, b: &PublicKeyVar<SigCurveConfig, FV, CF>| {
+        (&a.pub_key + &b.pub_key).into()
+    };
+    where SigCurveConfig: Bls12Config, FV: FieldVar<BlsSigField<SigCurveConfig>, CF>, CF: PrimeField, for<'a> &'a FV: FieldOpsBounds<'a, <SigCurveConfig as Bls12Config>::Fp, FV>
+);
+
+gen_ops_ex!(
+    <SigCurveConfig, FV, CF>;
+    types mut SignatureVar<SigCurveConfig, FV, CF>, mut SignatureVar<SigCurveConfig, FV, CF> => SignatureVar<SigCurveConfig, FV, CF>;
+    for + call |a: &SignatureVar<SigCurveConfig, FV, CF>, b: &SignatureVar<SigCurveConfig, FV, CF>| {
+        (&a.signature + &b.signature).into()
+    };
+    where SigCurveConfig: Bls12Config, FV: FieldVar<BlsSigField<SigCurveConfig>, CF>, CF: PrimeField, for<'a> &'a FV: FieldOpsBounds<'a, <SigCurveConfig as Bls12Config>::Fp, FV>
+);
 
 pub struct BLSAggregateSignatureVerifyGadget<
     SigCurveConfig: Bls12Config,
@@ -177,13 +196,10 @@ where
         signature: &SignatureVar<SigCurveConfig, FV, CF>,
     ) -> Result<(), SynthesisError> {
         // Aggregate all public keys
-        let aggregated_pk =
-            public_keys
-                .iter()
-                .skip(1)
-                .fold(public_keys[0].clone(), |acc, new_pk| PublicKeyVar {
-                    pub_key: acc.pub_key + &new_pk.pub_key,
-                });
+        let aggregated_pk = public_keys
+            .iter()
+            .skip(1)
+            .fold(public_keys[0].clone(), |acc, new_pk| acc + new_pk);
 
         // Verify e(signature, G) == e(aggregated_pk, H(m))
         Self::verify(parameters, &aggregated_pk, message, signature)
