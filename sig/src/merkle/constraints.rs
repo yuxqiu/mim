@@ -217,6 +217,13 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
     }
 
     #[inline]
+    pub fn max_leaves(&self) -> usize {
+        // safe conversion as trees.len() is limited to be <= 2^32 - 1
+        #[allow(clippy::cast_possible_truncation)]
+        self.num_leaves_per_tree().pow(self.trees.len() as u32)
+    }
+
+    #[inline]
     fn num_leaves_per_tree(&self) -> usize {
         self.trees[0].num_leaves()
     }

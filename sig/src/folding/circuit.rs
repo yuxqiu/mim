@@ -180,11 +180,18 @@ impl<CF: PrimeField + Absorb> FCircuit<CF> for BCCircuitMerkleForest<CF> {
             &external_inputs.committee.to_constraint_field()?,
         )?;
 
+        // 2.2 Ensure the new epoch is < max # of leaves the tree can store
+        let epoch = external_inputs.epoch.to_fp()?;
+        epoch.enforce_cmp(
+            &FpVar::Constant((forest.max_leaves() as u64).into()),
+            Ordering::Less,
+            false,
+        )?;
+
         // 3. Return the new state
         tracing::info!("start returning the new state");
 
         let mut committee = external_inputs.committee.to_constraint_field()?;
-        let epoch = external_inputs.epoch.to_fp()?;
         committee.push(epoch);
         committee.extend(forest.to_constraint_field()?);
 
