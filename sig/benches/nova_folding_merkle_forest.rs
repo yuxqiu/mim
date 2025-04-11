@@ -85,10 +85,6 @@ where
         }
     }
 
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
     let val = generate_fn()?;
     let mut file = File::create(path)?;
     timeit!(format!("serialize to {}", path.to_string_lossy()), {
@@ -119,6 +115,8 @@ fn main() -> Result<(), Error> {
     >;
 
     let data_path = Path::new("../data/nova-merkle-forest");
+    fs::create_dir_all(data_path)?;
+
     let poseidon_config = poseidon_canonical_config::<Fr>();
     let mut rng = StdRng::from_seed([42; 32]); // deterministic seeding
 

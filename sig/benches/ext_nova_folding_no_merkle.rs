@@ -37,7 +37,7 @@ use sig::{
     bls::Parameters as BlsParameters,
     folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
 };
-use std::fs::File;
+use std::fs::{self, File};
 use std::ops::Mul;
 use std::path::Path;
 
@@ -166,6 +166,8 @@ fn measure_bc_circuit_constraints(data_path: &Path) -> Result<usize, Error> {
 
 fn main() -> Result<(), Error> {
     let data_path = Path::new("../exp/nova-no-merkle");
+    fs::create_dir_all(data_path)?;
+
     let poseidon_config = poseidon_canonical_config::<Fr>();
     let mut rng = StdRng::from_seed([42; 32]);
 
