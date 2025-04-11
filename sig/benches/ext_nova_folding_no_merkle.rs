@@ -48,13 +48,15 @@ struct ExperimentConfig {
 }
 
 // Timing results for each experiment
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 struct ExperimentResult {
     constraint_count: usize,
-    param_gen_time: f64,    // seconds
-    folding_step_time: f64, // seconds
-    snark_prove_time: f64,  // seconds
-    snark_verify_time: f64, // seconds,
+    nova_param_gen_time: f64,     // seconds
+    nova_init_time: f64,          // seconds
+    snark_param_gen_time: f64,    // seconds
+    folding_step_times: Vec<f64>, // seconds
+    snark_prove_time: f64,        // seconds
+    snark_verify_time: f64,       // seconds,
 }
 
 #[derive(Clone, Derivative)]
@@ -176,7 +178,7 @@ fn main() -> Result<(), Error> {
 
     // Define experiment parameters
     let constraint_points = vec![1 << 13, 1 << 15, 1 << 17, 1 << 19, 1 << 21, 1 << 23];
-    const N_STEPS_TO_PROVE: usize = 2;
+    const N_STEPS_TO_PROVE: usize = 3;
     let results_path = data_path.join("experiment_results.json");
 
     // Load existing results
@@ -224,14 +226,14 @@ fn main() -> Result<(), Error> {
         println!("Generating Nova parameters");
         let nova_preprocess_params =
             PreprocessorParam::new(poseidon_config.clone(), f_circuit.clone());
-        let param_gen_start = std::time::Instant::now();
+        let nova_param_start = std::time::Instant::now();
         let nova_params = N::preprocess(&mut rng, &nova_preprocess_params)?;
-        let param_gen_time = param_gen_start.elapsed().as_secs_f64();
+        let nova_param_time = nova_param_start.elapsed().as_secs_f64();
 
         // Initialize blockchain
         let bc = gen_blockchain_with_params(N_STEPS_TO_PROVE + 1, MAX_COMMITTEE_SIZE, &mut rng);
 
-        // Initialize Nova
+        // Prepare data to init Nova
         let cs = ConstraintSystem::new_ref();
         let z_0: Vec<_> =
             CommitteeVar::new_constant(cs.clone(), bc.get(0).unwrap().committee.clone())?
@@ -245,22 +247,29 @@ fn main() -> Result<(), Error> {
                         .unwrap(),
                 ))
                 .collect();
+
+        // Initialize Nova
+        println!("Nova init");
+        let nova_init_start = std::time::Instant::now();
         let mut nova = N::init(&nova_params, f_circuit.clone(), z_0)?;
+        let nova_init_time = nova_init_start.elapsed().as_secs_f64();
 
         // Run folding steps
         println!("Running folding steps");
-        let folding_start = std::time::Instant::now();
+        let mut folding_step_times = vec![];
         for (_, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(1)) {
+            let folding_start = std::time::Instant::now();
             nova.prove_step(&mut rng, block, None)?;
+            let folding_step_time = folding_start.elapsed().as_secs_f64();
+            folding_step_times.push(folding_step_time);
         }
-        let folding_step_time = folding_start.elapsed().as_secs_f64() / N_STEPS_TO_PROVE as f64;
 
         // Generate Decider parameters
         println!("Generating Decider parameters");
-        let decider_start = std::time::Instant::now();
+        let snark_start = std::time::Instant::now();
         let (decider_pp, decider_vp) =
             D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len()))?;
-        let decider_param_time = decider_start.elapsed().as_secs_f64();
+        let snark_param_time = snark_start.elapsed().as_secs_f64();
 
         // Generate SNARK proof
         println!("Generating SNARK proof");
@@ -286,12 +295,14 @@ fn main() -> Result<(), Error> {
         // Record results
         let result = ExperimentResult {
             constraint_count: target_constraints,
-            param_gen_time: param_gen_time + decider_param_time,
-            folding_step_time,
+            nova_param_gen_time: nova_param_time,
+            nova_init_time: nova_init_time,
+            snark_param_gen_time: snark_param_time,
+            folding_step_times,
             snark_prove_time,
             snark_verify_time,
         };
-        results.push(result);
+        results.push(result.clone());
 
         // Save results
         let mut file = File::create(&results_path)?;
@@ -300,10 +311,22 @@ fn main() -> Result<(), Error> {
 
         // Print results
         println!("\nResults for {} constraints:", target_constraints);
-        println!("- Parameter generation time: {:.2}s", result.param_gen_time);
         println!(
-            "- Folding step time (avg): {:.2}s",
-            result.folding_step_time
+            "- Nova parameter generation time: {:.2}s",
+            result.nova_param_gen_time
+        );
+        println!("- Nova init time: {:.2}s", result.nova_init_time);
+        print!("- Folding step times: ",);
+        for (i, num) in result.folding_step_times.iter().enumerate() {
+            if i > 0 {
+                print!(", ");
+            }
+            print!("{:.2}s", num);
+        }
+        println!();
+        println!(
+            "- SNARK parameter generation time: {:.2}s",
+            result.snark_param_gen_time
         );
         println!("- SNARK prove time: {:.2}s", result.snark_prove_time);
         println!("- SNARK verify time: {:.2}s", result.snark_verify_time);
@@ -319,10 +342,12 @@ fn main() -> Result<(), Error> {
     println!("{}", "-".repeat(85));
     for result in &results {
         println!(
-            "{:>15} | {:>15.2} | {:>15.2} | {:>15.2} | {:>15.2}",
+            "{:>15} | {:>15.2} | {:>15.2} | {:>15.2} | {:>15.2} | {:>15.2} | {:>15.2}",
             result.constraint_count,
-            result.param_gen_time,
-            result.folding_step_time,
+            result.nova_param_gen_time,
+            result.nova_init_time,
+            result.folding_step_times.iter().sum::<f64>() / result.folding_step_times.len() as f64,
+            result.snark_param_gen_time,
             result.snark_prove_time,
             result.snark_verify_time
         );
