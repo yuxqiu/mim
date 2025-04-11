@@ -4,11 +4,15 @@
 /// - Stores and prints results for extrapolation
 mod utils;
 
+use ark_ff::PrimeField;
 use ark_groth16::Groth16;
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
 use ark_r1cs_std::convert::ToConstraintFieldGadget;
 use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
+use ark_r1cs_std::prelude::Boolean;
+use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::{alloc::AllocVar, fields::fp::FpVar, uint64::UInt64};
 use ark_relations::r1cs::{
@@ -28,7 +32,9 @@ use folding_schemes::{
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
-use sig::bc::params::MAX_COMMITTEE_SIZE;
+use sig::bc::block::QuorumSignature;
+use sig::bc::params::{HASH_OUTPUT_SIZE, MAX_COMMITTEE_SIZE};
+use sig::bls::SignatureVar;
 use sig::folding::bc::BlockVar;
 use sig::folding::from_constraint_field::FromConstraintFieldGadget;
 use sig::params::BlsSigConfig;
@@ -77,15 +83,120 @@ impl<CF: ark_ff::PrimeField> MockBCCircuit<CF> {
     }
 }
 
+#[derive(Clone, Debug)]
+struct DummyQuorumSignatureVar;
+
+#[derive(Clone, Debug)]
+struct DummyBlockVar;
+
+impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for DummyQuorumSignatureVar {
+    fn new_variable<T: std::borrow::Borrow<QuorumSignature>>(
+        cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: ark_r1cs_std::prelude::AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let cs = cs.into();
+
+        let quorum_signature = f();
+
+        let _ =
+            SignatureVar::<BlsSigConfig, EmulatedFpVar<_, _>, _>::new_variable_omit_on_curve_check(
+                cs.clone(),
+                || {
+                    quorum_signature
+                        .as_ref()
+                        .map(|qsig| qsig.borrow().sig)
+                        .map_err(SynthesisError::clone)
+                },
+                mode,
+            )?;
+
+        let _ = Vec::<Boolean<CF>>::new_variable(
+            cs,
+            || {
+                quorum_signature
+                    .as_ref()
+                    .map(|qsig| qsig.borrow().signers)
+                    .map_err(SynthesisError::clone)
+            },
+            mode,
+        )?;
+
+        Ok(Self)
+    }
+}
+
+impl<CF: PrimeField> AllocVar<Block, CF> for DummyBlockVar {
+    fn new_variable<T: std::borrow::Borrow<Block>>(
+        cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
+        f: impl FnOnce() -> Result<T, ark_relations::r1cs::SynthesisError>,
+        mode: ark_r1cs_std::prelude::AllocationMode,
+    ) -> Result<Self, ark_relations::r1cs::SynthesisError> {
+        let cs = cs.into();
+
+        let block = f();
+
+        let _ = UInt64::new_variable(
+            cs.clone(),
+            || {
+                block
+                    .as_ref()
+                    .map(|block| block.borrow().epoch)
+                    .map_err(SynthesisError::clone)
+            },
+            mode,
+        )?;
+
+        let _ =
+            <[UInt8<CF>; HASH_OUTPUT_SIZE] as AllocVar<[u8; HASH_OUTPUT_SIZE], CF>>::new_variable(
+                cs.clone(),
+                || {
+                    block
+                        .as_ref()
+                        .map(|block| block.borrow().prev_digest)
+                        .map_err(SynthesisError::clone)
+                },
+                mode,
+            )?;
+
+        let _ = DummyQuorumSignatureVar::new_variable(
+            cs.clone(),
+            || {
+                block
+                    .as_ref()
+                    .map(|block| block.borrow().sig.clone())
+                    .map_err(SynthesisError::clone)
+            },
+            mode,
+        )?;
+
+        let _ = CommitteeVar::new_variable(
+            cs,
+            || {
+                block
+                    .as_ref()
+                    .map(|block| {
+                        let block = block.borrow();
+                        block.committee.clone()
+                    })
+                    .map_err(SynthesisError::clone)
+            },
+            mode,
+        )?;
+
+        Ok(Self)
+    }
+}
+
 impl<CF: ark_ff::PrimeField> FCircuit<CF> for MockBCCircuit<CF> {
     type Params = BlsParameters<BlsSigConfig>;
     type ExternalInputs = Block;
-    type ExternalInputsVar = BlockVar<CF>;
+    type ExternalInputsVar = DummyBlockVar;
 
     fn new(params: Self::Params) -> Result<Self, Error> {
         Ok(Self {
             params,
-            target_constraints: 10000, // default, overridden in experiments
+            target_constraints: 0, // default, overridden in experiments
             _cf: std::marker::PhantomData,
         })
     }
@@ -167,6 +278,12 @@ fn measure_bc_circuit_constraints(data_path: &Path) -> Result<usize, Error> {
 }
 
 fn main() -> Result<(), Error> {
+    let num_base_constraints = {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        DummyBlockVar::new_witness(cs.clone(), || Ok(Block::default()))?;
+        cs.num_constraints()
+    };
+
     let data_path = Path::new("../exp/nova-no-merkle");
     fs::create_dir_all(data_path)?;
 
@@ -177,7 +294,15 @@ fn main() -> Result<(), Error> {
     let bc_constraints = measure_bc_circuit_constraints(data_path)?;
 
     // Define experiment parameters
-    let constraint_points = vec![1 << 13, 1 << 15, 1 << 17, 1 << 19, 1 << 21, 1 << 23];
+    // - num_constraints should >= 32968
+    let constraint_points = vec![1 << 16, 1 << 18, 1 << 20, 1 << 22, 1 << 24];
+    if constraint_points.iter().any(|v| v < &num_base_constraints) {
+        panic!(
+            "num_constraints in constraint_points should be at least {}",
+            num_base_constraints
+        );
+    }
+
     const N_STEPS_TO_PROVE: usize = 3;
     let results_path = data_path.join("experiment_results.json");
 

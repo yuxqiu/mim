@@ -33,7 +33,7 @@ use crate::hash::{
 };
 use crate::params::BlsSigField;
 
-use super::params::{HashCurveConfig, HashCurveGroup, HashCurveVar, G1};
+use super::params::{HashCurveConfig, HashCurveGroup, HashCurveVar, G1, G2};
 use super::{Parameters, PublicKey, Signature};
 
 #[derive(Derivative)]
@@ -309,6 +309,29 @@ where
             pub_key: G1Var::<SigCurveConfig, _, _>::new_variable_omit_on_curve_check(
                 cs,
                 || f().map(|value| Into::<G1<SigCurveConfig>>::into(*value.borrow())),
+                mode,
+            )?,
+        })
+    }
+}
+
+impl<
+        SigCurveConfig: Bls12Config,
+        FV: FieldVar<BlsSigField<SigCurveConfig>, SNARKField>,
+        SNARKField: PrimeField,
+    > SignatureVar<SigCurveConfig, FV, SNARKField>
+where
+    for<'a> &'a FV: FieldOpsBounds<'a, BlsSigField<SigCurveConfig>, FV>,
+{
+    pub fn new_variable_omit_on_curve_check<T: Borrow<Signature<SigCurveConfig>>>(
+        cs: impl Into<Namespace<SNARKField>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        Ok(Self {
+            signature: G2Var::<SigCurveConfig, _, _>::new_variable_omit_on_curve_check(
+                cs,
+                || f().map(|value| Into::<G2<SigCurveConfig>>::into(*value.borrow())),
                 mode,
             )?,
         })
