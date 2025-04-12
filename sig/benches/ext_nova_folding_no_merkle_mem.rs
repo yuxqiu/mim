@@ -59,7 +59,7 @@ fn measure_bc_circuit_constraints<const MAX_COMMITTEE_SIZE: usize>(
     data_path: &Path,
 ) -> Result<usize, Error> {
     let config_path = data_path.join("experiment_config.json");
-    let f_circuit = BCCircuitNoMerkle::<Fr, { MAX_COMMITTEE_SIZE }>::new(BlsParameters::setup())?;
+    let f_circuit = BCCircuitNoMerkle::<Fr, MAX_COMMITTEE_SIZE>::new(BlsParameters::setup())?;
 
     // Try to load existing config
     if let Ok(file) = File::open(&config_path) {
@@ -102,12 +102,11 @@ fn measure_bc_circuit_constraints<const MAX_COMMITTEE_SIZE: usize>(
 }
 
 fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Error> {
+    println!("Start exp with MAX_COMMITTEE_SIZE = {}", MAX_COMMITTEE_SIZE);
+
     let num_base_constraints = {
         let cs = ConstraintSystem::<Fr>::new_ref();
-        DummyBlockVar::new_witness(
-            cs.clone(),
-            || Ok(Block::<{ MAX_COMMITTEE_SIZE }>::default()),
-        )?;
+        DummyBlockVar::new_witness(cs.clone(), || Ok(Block::<MAX_COMMITTEE_SIZE>::default()))?;
         cs.num_constraints()
     };
 
@@ -115,7 +114,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
     let mut rng = StdRng::from_seed([42; 32]);
 
     // Measure BCCircuit constraints
-    let bc_constraints = measure_bc_circuit_constraints::<{ MAX_COMMITTEE_SIZE }>(data_path)?;
+    let bc_constraints = measure_bc_circuit_constraints::<MAX_COMMITTEE_SIZE>(data_path)?;
 
     // Define experiment parameters
     // - num_constraints should >= 32968
@@ -159,23 +158,23 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
         );
 
         // Use MockBCCircuit
-        type FC<const MAX_COMMITTEE_SIZE: usize> = MockBCCircuit<Fr, { MAX_COMMITTEE_SIZE }>;
+        type FC<const MAX_COMMITTEE_SIZE: usize> = MockBCCircuit<Fr, MAX_COMMITTEE_SIZE>;
         type N<const MAX_COMMITTEE_SIZE: usize> =
-            Nova<G1, G2, FC<{ MAX_COMMITTEE_SIZE }>, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
+            Nova<G1, G2, FC<MAX_COMMITTEE_SIZE>, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
         type D<const MAX_COMMITTEE_SIZE: usize> = NovaDecider<
             G1,
             G2,
-            FC<{ MAX_COMMITTEE_SIZE }>,
+            FC<MAX_COMMITTEE_SIZE>,
             KZG<'static, MNT4>,
             KZG<'static, MNT6>,
             Groth16<MNT4>,
             Groth16<MNT6>,
-            N<{ MAX_COMMITTEE_SIZE }>,
+            N<MAX_COMMITTEE_SIZE>,
         >;
 
         let mem = MemRecorder::start();
 
-        let f_circuit = MockBCCircuit::<Fr, { MAX_COMMITTEE_SIZE }>::new(
+        let f_circuit = MockBCCircuit::<Fr, MAX_COMMITTEE_SIZE>::new(
             BlsParameters::setup(),
             target_constraints,
         )?;
@@ -216,20 +215,20 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
 
         // Generate Decider parameters
         println!("Generating Decider parameters");
-        let (decider_pp, decider_vp) = D::<{ MAX_COMMITTEE_SIZE }>::preprocess(
+        let (decider_pp, decider_vp) = D::<MAX_COMMITTEE_SIZE>::preprocess(
             &mut rng,
             (nova_params.clone(), f_circuit.state_len()),
         )?;
 
         // Generate SNARK proof
         println!("Generating SNARK proof");
-        let proof = D::<{ MAX_COMMITTEE_SIZE }>::prove(&mut rng, decider_pp, nova.clone())?;
+        let proof = D::<MAX_COMMITTEE_SIZE>::prove(&mut rng, decider_pp, nova.clone())?;
 
         let peak_mem = mem.end();
 
         // Verify SNARK proof
         println!("Verifying SNARK proof");
-        let verified = D::<{ MAX_COMMITTEE_SIZE }>::verify(
+        let verified = D::<MAX_COMMITTEE_SIZE>::verify(
             decider_vp,
             nova.i,
             nova.z_0.clone(),
