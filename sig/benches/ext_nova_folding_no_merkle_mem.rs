@@ -58,7 +58,7 @@ struct ExperimentResult {
 fn measure_bc_circuit_constraints<const MAX_COMMITTEE_SIZE: usize>(
     data_path: &Path,
 ) -> Result<usize, Error> {
-    let config_path = data_path.join("experiment_config.json");
+    let config_path = data_path.join(format!("experiment_config_{}.json", MAX_COMMITTEE_SIZE));
     let f_circuit = BCCircuitNoMerkle::<Fr, MAX_COMMITTEE_SIZE>::new(BlsParameters::setup())?;
 
     // Try to load existing config
@@ -118,13 +118,23 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
 
     // Define experiment parameters
     // - num_constraints should >= 32968
-    let constraint_points = vec![1 << 16, 1 << 18, 1 << 20, 1 << 22, 1 << 24];
-    if constraint_points.iter().any(|v| v < &num_base_constraints) {
-        panic!(
-            "num_constraints in constraint_points should be at least {}",
-            num_base_constraints
-        );
-    }
+    let constraint_points = vec![
+        1 << 16,
+        1 << 17,
+        1 << 18,
+        1 << 19,
+        1 << 20,
+        1 << 21,
+        1 << 22,
+        1 << 23,
+        1 << 24,
+    ];
+    let constraint_points: Vec<_> = constraint_points
+        .into_iter()
+        .filter(|v| *v >= num_base_constraints)
+        // tale 5 data points
+        .take(5)
+        .collect();
 
     const N_STEPS_TO_PROVE: usize = 3;
     let results_path = data_path.join(format!(
