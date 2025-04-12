@@ -9,7 +9,7 @@ use derivative::Derivative;
 use crate::{
     bc::{
         block::{Block, Committee, QuorumSignature},
-        params::{HASH_OUTPUT_SIZE, MAX_COMMITTEE_SIZE},
+        params::HASH_OUTPUT_SIZE,
     },
     bls::{PublicKey, PublicKeyVar, SignatureVar},
     params::{BlsSigConfig, BlsSigField},
@@ -28,7 +28,7 @@ pub struct SignerVar<CF: PrimeField> {
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
-pub struct CommitteeVar<CF: PrimeField> {
+pub struct CommitteeVar<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> {
     pub committee: Vec<SignerVar<CF>>,
 }
 
@@ -42,7 +42,7 @@ pub struct QuorumSignatureVar<CF: PrimeField> {
 /// Copied from `sig/src/bc/block.rs`
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
-pub struct BlockVar<CF: PrimeField> {
+pub struct BlockVar<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> {
     pub epoch: UInt64<CF>,
     pub prev_digest: [UInt8<CF>; HASH_OUTPUT_SIZE],
     pub sig: QuorumSignatureVar<CF>,
@@ -53,7 +53,7 @@ pub struct BlockVar<CF: PrimeField> {
     /// all the checks because the committee/blockchain consensus is responsible for ensuring the security
     /// (pks reside on the curve and the prime order subgroup) of the first committee and new blocks signed
     /// by the majority of the committee.
-    pub committee: CommitteeVar<CF>,
+    pub committee: CommitteeVar<CF, MAX_COMMITTEE_SIZE>,
 }
 
 impl<CF: PrimeField> AllocVar<(PublicKey<BlsSigConfig>, u64), CF> for SignerVar<CF> {
@@ -91,8 +91,10 @@ impl<CF: PrimeField> AllocVar<(PublicKey<BlsSigConfig>, u64), CF> for SignerVar<
     }
 }
 
-impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
-    fn new_variable<T: std::borrow::Borrow<Committee>>(
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> AllocVar<Committee<MAX_COMMITTEE_SIZE>, CF>
+    for CommitteeVar<CF, MAX_COMMITTEE_SIZE>
+{
+    fn new_variable<T: std::borrow::Borrow<Committee<MAX_COMMITTEE_SIZE>>>(
         cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -140,8 +142,10 @@ impl<CF: PrimeField> AllocVar<Committee, CF> for CommitteeVar<CF> {
     }
 }
 
-impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
-    fn new_variable<T: std::borrow::Borrow<QuorumSignature>>(
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize>
+    AllocVar<QuorumSignature<MAX_COMMITTEE_SIZE>, CF> for QuorumSignatureVar<CF>
+{
+    fn new_variable<T: std::borrow::Borrow<QuorumSignature<MAX_COMMITTEE_SIZE>>>(
         cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -195,8 +199,10 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for QuorumSignatureVar<CF> {
     }
 }
 
-impl<CF: PrimeField> AllocVar<Block, CF> for BlockVar<CF> {
-    fn new_variable<T: std::borrow::Borrow<Block>>(
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> AllocVar<Block<MAX_COMMITTEE_SIZE>, CF>
+    for BlockVar<CF, MAX_COMMITTEE_SIZE>
+{
+    fn new_variable<T: std::borrow::Borrow<Block<MAX_COMMITTEE_SIZE>>>(
         cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
         f: impl FnOnce() -> Result<T, ark_relations::r1cs::SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,

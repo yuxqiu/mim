@@ -147,8 +147,10 @@ struct DummyQuorumSignatureVar;
 #[derive(Clone, Debug)]
 pub struct DummyBlockVar;
 
-impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for DummyQuorumSignatureVar {
-    fn new_variable<T: std::borrow::Borrow<QuorumSignature>>(
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize>
+    AllocVar<QuorumSignature<MAX_COMMITTEE_SIZE>, CF> for DummyQuorumSignatureVar
+{
+    fn new_variable<T: std::borrow::Borrow<QuorumSignature<MAX_COMMITTEE_SIZE>>>(
         cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -184,8 +186,10 @@ impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for DummyQuorumSignatureVar {
     }
 }
 
-impl<CF: PrimeField> AllocVar<Block, CF> for DummyBlockVar {
-    fn new_variable<T: std::borrow::Borrow<Block>>(
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> AllocVar<Block<MAX_COMMITTEE_SIZE>, CF>
+    for DummyBlockVar
+{
+    fn new_variable<T: std::borrow::Borrow<Block<MAX_COMMITTEE_SIZE>>>(
         cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
         f: impl FnOnce() -> Result<T, ark_relations::r1cs::SynthesisError>,
         mode: ark_r1cs_std::prelude::AllocationMode,
@@ -248,13 +252,15 @@ impl<CF: PrimeField> AllocVar<Block, CF> for DummyBlockVar {
 
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
-pub struct MockBCCircuit<CF: ark_ff::PrimeField> {
+pub struct MockBCCircuit<CF: ark_ff::PrimeField, const MAX_COMMITTEE_SIZE: usize> {
     params: BlsParameters<BlsSigConfig>,
     target_constraints: usize,
     _cf: std::marker::PhantomData<CF>,
 }
 
-impl<CF: ark_ff::PrimeField> MockBCCircuit<CF> {
+impl<CF: ark_ff::PrimeField, const MAX_COMMITTEE_SIZE: usize>
+    MockBCCircuit<CF, MAX_COMMITTEE_SIZE>
+{
     #[allow(dead_code)]
     pub fn new(
         params: BlsParameters<BlsSigConfig>,
@@ -268,9 +274,11 @@ impl<CF: ark_ff::PrimeField> MockBCCircuit<CF> {
     }
 }
 
-impl<CF: ark_ff::PrimeField> FCircuit<CF> for MockBCCircuit<CF> {
+impl<CF: ark_ff::PrimeField, const MAX_COMMITTEE_SIZE: usize> FCircuit<CF>
+    for MockBCCircuit<CF, MAX_COMMITTEE_SIZE>
+{
     type Params = BlsParameters<BlsSigConfig>;
-    type ExternalInputs = Block;
+    type ExternalInputs = Block<MAX_COMMITTEE_SIZE>;
     type ExternalInputsVar = DummyBlockVar;
 
     fn new(params: Self::Params) -> Result<Self, Error> {
@@ -283,8 +291,9 @@ impl<CF: ark_ff::PrimeField> FCircuit<CF> for MockBCCircuit<CF> {
 
     fn state_len(&self) -> usize {
         // Same state length as BCCircuitNoMerkle
-        CommitteeVar::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
-            + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
+        CommitteeVar::<CF, MAX_COMMITTEE_SIZE>::num_constraint_var_needed(
+            OptimizationGoal::Constraints,
+        ) + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
     }
 
     fn generate_step_constraints(

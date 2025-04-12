@@ -24,7 +24,6 @@ use folding_schemes::{
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
-use sig::bc::params::MAX_COMMITTEE_SIZE;
 use sig::folding::bc::BlockVar;
 use sig::{
     bc::block::{gen_blockchain_with_params, Block},
@@ -61,9 +60,11 @@ struct ExperimentResult {
 }
 
 // Measure BCCircuitNoMerkle constraints
-fn measure_bc_circuit_constraints(data_path: &Path) -> Result<usize, Error> {
+fn measure_bc_circuit_constraints<const MAX_COMMITTEE_SIZE: usize>(
+    data_path: &Path,
+) -> Result<usize, Error> {
     let config_path = data_path.join("experiment_config.json");
-    let f_circuit = BCCircuitNoMerkle::<Fr>::new(BlsParameters::setup())?;
+    let f_circuit = BCCircuitNoMerkle::<Fr, { MAX_COMMITTEE_SIZE }>::new(BlsParameters::setup())?;
 
     // Try to load existing config
     if let Ok(file) = File::open(&config_path) {
@@ -105,21 +106,21 @@ fn measure_bc_circuit_constraints(data_path: &Path) -> Result<usize, Error> {
     Ok(constraints)
 }
 
-fn main() -> Result<(), Error> {
+fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Error> {
     let num_base_constraints = {
         let cs = ConstraintSystem::<Fr>::new_ref();
-        DummyBlockVar::new_witness(cs.clone(), || Ok(Block::default()))?;
+        DummyBlockVar::new_witness(
+            cs.clone(),
+            || Ok(Block::<{ MAX_COMMITTEE_SIZE }>::default()),
+        )?;
         cs.num_constraints()
     };
-
-    let data_path = Path::new("../exp/nova-no-merkle");
-    fs::create_dir_all(data_path)?;
 
     let poseidon_config = poseidon_canonical_config::<Fr>();
     let mut rng = StdRng::from_seed([42; 32]);
 
     // Measure BCCircuit constraints
-    let bc_constraints = measure_bc_circuit_constraints(data_path)?;
+    let bc_constraints = measure_bc_circuit_constraints::<{ MAX_COMMITTEE_SIZE }>(data_path)?;
 
     // Define experiment parameters
     // - num_constraints should >= 32968
@@ -132,7 +133,10 @@ fn main() -> Result<(), Error> {
     }
 
     const N_STEPS_TO_PROVE: usize = 3;
-    let results_path = data_path.join("experiment_results_time.json");
+    let results_path = data_path.join(format!(
+        "experiment_results_time_{}.json",
+        MAX_COMMITTEE_SIZE
+    ));
 
     // Load existing results
     let mut results: Vec<ExperimentResult> = if let Ok(file) = File::open(&results_path) {
@@ -160,20 +164,24 @@ fn main() -> Result<(), Error> {
         );
 
         // Use MockBCCircuit
-        type FC = MockBCCircuit<Fr>;
-        type N = Nova<G1, G2, FC, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
-        type D = NovaDecider<
+        type FC<const MAX_COMMITTEE_SIZE: usize> = MockBCCircuit<Fr, { MAX_COMMITTEE_SIZE }>;
+        type N<const MAX_COMMITTEE_SIZE: usize> =
+            Nova<G1, G2, FC<{ MAX_COMMITTEE_SIZE }>, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
+        type D<const MAX_COMMITTEE_SIZE: usize> = NovaDecider<
             G1,
             G2,
-            FC,
+            FC<{ MAX_COMMITTEE_SIZE }>,
             KZG<'static, MNT4>,
             KZG<'static, MNT6>,
             Groth16<MNT4>,
             Groth16<MNT6>,
-            N,
+            N<{ MAX_COMMITTEE_SIZE }>,
         >;
 
-        let f_circuit = MockBCCircuit::<Fr>::new(BlsParameters::setup(), target_constraints)?;
+        let f_circuit = MockBCCircuit::<Fr, { MAX_COMMITTEE_SIZE }>::new(
+            BlsParameters::setup(),
+            target_constraints,
+        )?;
 
         // Generate Nova parameters
         println!("Generating Nova parameters");
@@ -220,8 +228,10 @@ fn main() -> Result<(), Error> {
         // Generate Decider parameters
         println!("Generating Decider parameters");
         let snark_start = Timer::start();
-        let (decider_pp, decider_vp) =
-            D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len()))?;
+        let (decider_pp, decider_vp) = D::<MAX_COMMITTEE_SIZE>::preprocess(
+            &mut rng,
+            (nova_params.clone(), f_circuit.state_len()),
+        )?;
         let snark_param_time = snark_start.end();
 
         // Generate SNARK proof
@@ -233,7 +243,7 @@ fn main() -> Result<(), Error> {
         // Verify SNARK proof
         println!("Verifying SNARK proof");
         let verify_start = Timer::start();
-        let verified = D::verify(
+        let verified = D::<MAX_COMMITTEE_SIZE>::verify(
             decider_vp,
             nova.i,
             nova.z_0.clone(),
@@ -316,6 +326,18 @@ fn main() -> Result<(), Error> {
         "- Apply the model to predict times at {} constraints.",
         bc_constraints
     );
+
+    Ok(())
+}
+
+fn main() -> Result<(), Error> {
+    let data_path = Path::new("../exp/nova-no-merkle");
+    fs::create_dir_all(data_path)?;
+
+    run_exp::<128>(data_path)?;
+    run_exp::<256>(data_path)?;
+    run_exp::<512>(data_path)?;
+    run_exp::<1024>(data_path)?;
 
     Ok(())
 }

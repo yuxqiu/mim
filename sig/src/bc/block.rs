@@ -7,46 +7,67 @@ use blake2::Digest;
 use delegate::delegate;
 use rand::Rng;
 use serde::{ser::SerializeTuple, Serialize, Serializer};
+use serde_with::serde_as;
 
-use crate::{
-    bc::params::{AuthoritySecretKey, MAX_COMMITTEE_SIZE},
-    bls::Signature,
-};
+use crate::{bc::params::AuthoritySecretKey, bls::Signature};
 
 use super::params::{
     AuthorityAggregatedSignature, AuthorityPublicKey, AuthoritySigParams, HashFunc, Signers,
     Weight, HASH_OUTPUT_SIZE, STRONG_THRESHOLD, TOTAL_VOTING_POWER,
 };
 
-#[derive(Serialize, Debug, Default, Clone)]
-pub struct QuorumSignature {
+// const MAX_COMMITTEE_SIZE: usize = 1;
+
+#[serde_as]
+#[derive(Serialize, Debug, Clone)]
+pub struct QuorumSignature<const MAX_COMMITTEE_SIZE: usize> {
     pub sig: AuthorityAggregatedSignature,
     // a roaring bitmap is a better alternative, but for easy impl of R1CS circuit, we use Vec<bool>
+    #[serde_as(as = "[_; MAX_COMMITTEE_SIZE]")]
     pub signers: [bool; MAX_COMMITTEE_SIZE],
 }
 
-#[derive(Serialize, Debug, Default, Clone)]
-pub struct Committee {
+impl<const MAX_COMMITTEE_SIZE: usize> Default for QuorumSignature<MAX_COMMITTEE_SIZE> {
+    fn default() -> Self {
+        Self {
+            sig: Default::default(),
+            signers: [bool::default(); MAX_COMMITTEE_SIZE],
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Serialize, Debug, Clone)]
+pub struct Committee<const MAX_COMMITTEE_SIZE: usize> {
+    #[serde_as(as = "[_; MAX_COMMITTEE_SIZE]")]
     pub signers: [(AuthorityPublicKey, Weight); MAX_COMMITTEE_SIZE],
 }
 
+impl<const MAX_COMMITTEE_SIZE: usize> Default for Committee<MAX_COMMITTEE_SIZE> {
+    fn default() -> Self {
+        Self {
+            signers: [(AuthorityPublicKey::default(), Weight::default()); MAX_COMMITTEE_SIZE],
+        }
+    }
+}
+
 #[derive(Serialize, Debug, Default, Clone)]
-pub struct Block {
+pub struct Block<const MAX_COMMITTEE_SIZE: usize> {
     pub epoch: u64,
 
     /// hash to the previous block
     pub prev_digest: [u8; HASH_OUTPUT_SIZE],
 
-    pub sig: QuorumSignature,
+    pub sig: QuorumSignature<MAX_COMMITTEE_SIZE>,
 
     /// This is a simplification. Usually, committee is only stored at the last node of an epoch
     /// as `Committee`.
-    pub committee: Committee,
+    pub committee: Committee<MAX_COMMITTEE_SIZE>,
 }
 
 #[derive(Debug)]
-pub struct Blockchain {
-    blocks: Vec<Block>,
+pub struct Blockchain<const MAX_COMMITTEE_SIZE: usize> {
+    blocks: Vec<Block<MAX_COMMITTEE_SIZE>>,
     params: AuthoritySigParams,
 }
 
@@ -98,9 +119,9 @@ impl Serialize for AuthorityPublicKey {
     }
 }
 
-impl Block {
+impl<const MAX_COMMITTEE_SIZE: usize> Block<MAX_COMMITTEE_SIZE> {
     #[must_use]
-    pub fn genesis(data: Committee) -> Self {
+    pub fn genesis(data: Committee<MAX_COMMITTEE_SIZE>) -> Self {
         Self {
             epoch: 0,
             prev_digest: Default::default(),
@@ -111,7 +132,7 @@ impl Block {
 
     fn new(
         prev: &Self,
-        data: Committee,
+        data: Committee<MAX_COMMITTEE_SIZE>,
         signers: &Signers,
         bitmap: &[bool],
         params: &AuthoritySigParams,
@@ -150,7 +171,12 @@ impl Block {
     }
 
     #[must_use]
-    pub fn verify(&self, committee: &Committee, epoch: u64, params: &AuthoritySigParams) -> bool {
+    pub fn verify(
+        &self,
+        committee: &Committee<MAX_COMMITTEE_SIZE>,
+        epoch: u64,
+        params: &AuthoritySigParams,
+    ) -> bool {
         assert!(
             self.epoch == epoch + 1,
             "epoch mismatches: expect {} but get {}",
@@ -188,7 +214,7 @@ impl Block {
 
 /// A committee rotation chain, where each node is a block that stores a committee.
 /// This is a simplification of common light client protocols that rely on committee.
-impl Blockchain {
+impl<const MAX_COMMITTEE_SIZE: usize> Blockchain<MAX_COMMITTEE_SIZE> {
     #[must_use]
     pub const fn new(params: AuthoritySigParams) -> Self {
         Self {
@@ -202,18 +228,18 @@ impl Blockchain {
             #[must_use] pub fn is_empty(&self) -> bool;
 
             #[call(push)]
-            pub fn add_block(&mut self, value: Block);
+            pub fn add_block(&mut self, value: Block<MAX_COMMITTEE_SIZE>);
 
             #[must_use] pub fn len(&self) -> usize;
 
             fn reserve(&mut self, size: usize);
 
-            fn last(&self) -> Option<&Block>;
+            fn last(&self) -> Option<&Block<MAX_COMMITTEE_SIZE>>;
 
-            pub fn get(&self, i: usize) -> Option<&Block>;
+            pub fn get(&self, i: usize) -> Option<&Block<MAX_COMMITTEE_SIZE>>;
 
             #[call(into_iter)]
-            pub fn into_blocks(self) -> <Vec<Block> as IntoIterator>::IntoIter;
+            pub fn into_blocks(self) -> <Vec<Block<MAX_COMMITTEE_SIZE>> as IntoIterator>::IntoIter;
         }
     }
 
@@ -242,18 +268,20 @@ impl Blockchain {
     }
 }
 
-fn compute_digest(block: &Block) -> [u8; HASH_OUTPUT_SIZE] {
+fn compute_digest<const MAX_COMMITTEE_SIZE: usize>(
+    block: &Block<MAX_COMMITTEE_SIZE>,
+) -> [u8; HASH_OUTPUT_SIZE] {
     let bytes = bincode::serialize(&block).unwrap();
     let mut hasher = HashFunc::new();
     hasher.update(bytes);
     hasher.finalize().into()
 }
 
-fn generate_committee<R: Rng>(
+fn generate_committee<R: Rng, const MAX_COMMITTEE_SIZE: usize>(
     committee_size: usize,
     params: &AuthoritySigParams,
     rng: &mut R,
-) -> (Signers, Committee) {
+) -> (Signers, Committee<MAX_COMMITTEE_SIZE>) {
     let mut weights = Vec::new();
     let mut remaining_weight = TOTAL_VOTING_POWER;
     for _ in 0..committee_size - 1 {
@@ -285,8 +313,8 @@ fn generate_committee<R: Rng>(
     )
 }
 
-fn select_strong_committee<R: Rng>(
-    committee: &Committee,
+fn select_strong_committee<R: Rng, const MAX_COMMITTEE_SIZE: usize>(
+    committee: &Committee<MAX_COMMITTEE_SIZE>,
     effective_committee_size: usize,
     rng: &mut R,
 ) -> Vec<bool> {
@@ -314,11 +342,11 @@ fn select_strong_committee<R: Rng>(
 /// By effective, it means in the returned blockchain, every block has a committee size of `MAX_COMMITTEE_SIZE`,
 /// but only `committee_size` of them has non-zero weights.
 #[must_use]
-pub fn gen_blockchain_with_params<R: Rng>(
+pub fn gen_blockchain_with_params<R: Rng, const MAX_COMMITTEE_SIZE: usize>(
     num_epochs: usize,
     effective_committee_size: usize,
     rng: &mut R,
-) -> Blockchain {
+) -> Blockchain<MAX_COMMITTEE_SIZE> {
     assert!(num_epochs > 0, "num_epochs should > 0");
     assert!(
         effective_committee_size > 0,
@@ -391,8 +419,10 @@ mod test {
 
     use super::gen_blockchain_with_params;
 
+    const MAX_COMMITTEE_SIZE: usize = 25;
+
     #[test]
     fn test_gen_blockchain() {
-        let _ = gen_blockchain_with_params(100, 10, &mut thread_rng());
+        let _ = gen_blockchain_with_params::<_, MAX_COMMITTEE_SIZE>(100, 10, &mut thread_rng());
     }
 }

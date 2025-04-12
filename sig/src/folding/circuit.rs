@@ -31,14 +31,14 @@ use super::{
 };
 
 #[derive(Clone, Copy, Debug)]
-pub struct BCCircuitNoMerkle<CF: PrimeField> {
+pub struct BCCircuitNoMerkle<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> {
     sig_params: Parameters<BlsSigConfig>,
     _cf: PhantomData<CF>,
 }
 
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
-pub struct BCCircuitMerkleForest<CF: PrimeField + Absorb> {
+pub struct BCCircuitMerkleForest<CF: PrimeField + Absorb, const MAX_COMMITTEE_SIZE: usize> {
     sig_params: Parameters<BlsSigConfig>,
 
     // Merkle Forest params
@@ -51,10 +51,12 @@ pub struct BCCircuitMerkleForest<CF: PrimeField + Absorb> {
     _cf: PhantomData<CF>,
 }
 
-impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> FCircuit<CF>
+    for BCCircuitNoMerkle<CF, MAX_COMMITTEE_SIZE>
+{
     type Params = Parameters<BlsSigConfig>;
-    type ExternalInputs = Block;
-    type ExternalInputsVar = BlockVar<CF>;
+    type ExternalInputs = Block<MAX_COMMITTEE_SIZE>;
+    type ExternalInputsVar = BlockVar<CF, MAX_COMMITTEE_SIZE>;
 
     fn new(params: Self::Params) -> Result<Self, Error> {
         Ok(Self {
@@ -64,8 +66,9 @@ impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
     }
 
     fn state_len(&self) -> usize {
-        CommitteeVar::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
-            + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
+        CommitteeVar::<CF, MAX_COMMITTEE_SIZE>::num_constraint_var_needed(
+            OptimizationGoal::Constraints,
+        ) + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
     }
 
     /// generates the constraints for the step of F for the given z_i
@@ -110,10 +113,12 @@ impl<CF: PrimeField> FCircuit<CF> for BCCircuitNoMerkle<CF> {
     }
 }
 
-impl<CF: PrimeField + Absorb> FCircuit<CF> for BCCircuitMerkleForest<CF> {
+impl<CF: PrimeField + Absorb, const MAX_COMMITTEE_SIZE: usize> FCircuit<CF>
+    for BCCircuitMerkleForest<CF, MAX_COMMITTEE_SIZE>
+{
     type Params = (Parameters<BlsSigConfig>, usize);
-    type ExternalInputs = Block;
-    type ExternalInputsVar = BlockVar<CF>;
+    type ExternalInputs = Block<MAX_COMMITTEE_SIZE>;
+    type ExternalInputsVar = BlockVar<CF, MAX_COMMITTEE_SIZE>;
 
     fn new(params: Self::Params) -> Result<Self, Error> {
         let (capacity_per_tree, num_tree) = optimal_forest_params(params.1);
@@ -130,8 +135,9 @@ impl<CF: PrimeField + Absorb> FCircuit<CF> for BCCircuitMerkleForest<CF> {
     }
 
     fn state_len(&self) -> usize {
-        CommitteeVar::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
-            + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
+        CommitteeVar::<CF, MAX_COMMITTEE_SIZE>::num_constraint_var_needed(
+            OptimizationGoal::Constraints,
+        ) + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
             + LeveledMerkleForestVar::<Config<CF>>::num_constraint_var_needed(
                 self.capacity_per_tree,
                 self.num_tree,
@@ -202,11 +208,11 @@ impl<CF: PrimeField + Absorb> FCircuit<CF> for BCCircuitMerkleForest<CF> {
 }
 
 #[tracing::instrument(skip_all)]
-fn bc_generate_constraints<CF: PrimeField>(
+fn bc_generate_constraints<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize>(
     cs: ConstraintSystemRef<CF>,
-    external_inputs: &BlockVar<CF>,
+    external_inputs: &BlockVar<CF, MAX_COMMITTEE_SIZE>,
     epoch: UInt64<CF>,
-    committee: CommitteeVar<CF>,
+    committee: CommitteeVar<CF, MAX_COMMITTEE_SIZE>,
     sig_params: Parameters<BlsSigConfig>,
 ) -> Result<(), SynthesisError> {
     // 1. enforce epoch of new committee = epoch of old committee + 1
@@ -247,8 +253,10 @@ fn bc_generate_constraints<CF: PrimeField>(
 
     let params = ParametersVar::new_constant(cs.clone(), sig_params)?;
     let mut external_inputs_without_sig = external_inputs.clone();
-    external_inputs_without_sig.sig =
-        QuorumSignatureVar::new_constant(cs.clone(), QuorumSignature::default())?;
+    external_inputs_without_sig.sig = QuorumSignatureVar::new_constant(
+        cs.clone(),
+        QuorumSignature::<MAX_COMMITTEE_SIZE>::default(),
+    )?;
     BLSAggregateSignatureVerifyGadget::verify(
         &params,
         &aggregate_pk,

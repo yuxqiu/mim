@@ -14,7 +14,6 @@ use ark_r1cs_std::{
 use ark_relations::r1cs::{OptimizationGoal, SynthesisError};
 
 use crate::{
-    bc::params::MAX_COMMITTEE_SIZE,
     bls::PublicKeyVar,
     params::{BlsSigConfig, BlsSigField},
 };
@@ -160,7 +159,9 @@ impl<CF: PrimeField> FromConstraintFieldGadget<CF> for SignerVar<CF> {
     }
 }
 
-impl<CF: PrimeField> FromConstraintFieldGadget<CF> for CommitteeVar<CF> {
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> FromConstraintFieldGadget<CF>
+    for CommitteeVar<CF, MAX_COMMITTEE_SIZE>
+{
     fn from_constraint_field(
         mut iter: impl Iterator<Item = FpVar<CF>>,
         optim: OptimizationGoal,

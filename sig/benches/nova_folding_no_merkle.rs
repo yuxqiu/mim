@@ -93,11 +93,13 @@ where
     Ok(val)
 }
 
+const MAX_COMMITTEE_SIZE: usize = 25;
+
 fn main() -> Result<(), Error> {
-    let f_circuit = BCCircuitNoMerkle::<Fr>::new(Parameters::setup())?;
+    let f_circuit = BCCircuitNoMerkle::<Fr, MAX_COMMITTEE_SIZE>::new(Parameters::setup())?;
 
     // use Nova as FoldingScheme
-    type FC = BCCircuitNoMerkle<Fr>;
+    type FC = BCCircuitNoMerkle<Fr, MAX_COMMITTEE_SIZE>;
     type N = Nova<G1, G2, FC, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
     type D = NovaDecider<
         G1,

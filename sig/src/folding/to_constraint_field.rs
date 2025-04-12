@@ -52,7 +52,9 @@ impl<CF: PrimeField> ToConstraintFieldGadget<CF> for SignerVar<CF> {
     }
 }
 
-impl<CF: PrimeField> ToConstraintFieldGadget<CF> for CommitteeVar<CF> {
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> ToConstraintFieldGadget<CF>
+    for CommitteeVar<CF, MAX_COMMITTEE_SIZE>
+{
     fn to_constraint_field(&self) -> Result<Vec<FpVar<CF>>, SynthesisError> {
         self.committee
             .iter()

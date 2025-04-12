@@ -93,15 +93,17 @@ where
     Ok(val)
 }
 
+const MAX_COMMITTEE_SIZE: usize = 25;
+
 fn main() -> Result<(), Error> {
     // maximum chain size we can prove
     const N: usize = 16;
     let circuit_params = (Parameters::setup(), N);
 
-    let f_circuit = BCCircuitMerkleForest::<Fr>::new(circuit_params)?;
+    let f_circuit = BCCircuitMerkleForest::<Fr, MAX_COMMITTEE_SIZE>::new(circuit_params)?;
 
     // use Nova as FoldingScheme
-    type FC = BCCircuitMerkleForest<Fr>;
+    type FC = BCCircuitMerkleForest<Fr, MAX_COMMITTEE_SIZE>;
     type N = Nova<G1, G2, FC, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
     type D = NovaDecider<
         G1,

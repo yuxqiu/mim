@@ -22,5 +22,4 @@ pub type Signers = Vec<AuthoritySecretKey>;
 
 pub const TOTAL_VOTING_POWER: u64 = 10_000;
 pub const STRONG_THRESHOLD: u64 = 6_667;
-pub const MAX_COMMITTEE_SIZE: usize = 25;
 /* ====================Committee==================== */

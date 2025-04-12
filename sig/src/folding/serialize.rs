@@ -94,13 +94,17 @@ impl<CF: PrimeField> SerializeGadget<CF> for QuorumSignatureVar<CF> {
     }
 }
 
-impl<CF: PrimeField> SerializeGadget<CF> for CommitteeVar<CF> {
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> SerializeGadget<CF>
+    for CommitteeVar<CF, MAX_COMMITTEE_SIZE>
+{
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         self.committee.serialize()
     }
 }
 
-impl<CF: PrimeField> SerializeGadget<CF> for BlockVar<CF> {
+impl<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize> SerializeGadget<CF>
+    for BlockVar<CF, MAX_COMMITTEE_SIZE>
+{
     fn serialize(&self) -> Result<Vec<UInt8<CF>>, SynthesisError> {
         let mut epoch = self.epoch.serialize()?;
         let prev_digest = self.prev_digest.serialize()?;
@@ -130,6 +134,8 @@ mod test {
     use super::SerializeGadget;
 
     type CF = BlsSigField<BlsSigConfig>;
+
+    const MAX_COMMITTEE_SIZE: usize = 25;
 
     #[test]
     fn u64_ser() {
@@ -188,7 +194,7 @@ mod test {
     fn quorum_sig_ser() {
         let cs = ConstraintSystem::<CF>::new_ref();
 
-        let x = QuorumSignature::default();
+        let x = QuorumSignature::<MAX_COMMITTEE_SIZE>::default();
         let xv = QuorumSignatureVar::new_constant(cs, x.clone()).unwrap();
 
         let xs = bincode::serialize(&x).unwrap();
@@ -227,7 +233,7 @@ mod test {
     fn committee_ser() {
         let cs = ConstraintSystem::<CF>::new_ref();
 
-        let x = Committee::default();
+        let x = Committee::<MAX_COMMITTEE_SIZE>::default();
         let xv = CommitteeVar::new_constant(cs, x.clone()).unwrap();
 
         let xs = bincode::serialize(&x).unwrap();
@@ -245,7 +251,7 @@ mod test {
     fn block_ser() {
         let cs = ConstraintSystem::<CF>::new_ref();
 
-        let x = Block::default();
+        let x = Block::<MAX_COMMITTEE_SIZE>::default();
         let xv = BlockVar::new_constant(cs, x.clone()).unwrap();
 
         let xs = bincode::serialize(&x).unwrap();
