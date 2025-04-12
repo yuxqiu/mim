@@ -48,6 +48,10 @@ serde_json = "1.0.140"
 tracing-subscriber = "0.3.19"
 tracing-tree = "0.4.0"
 
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6.0"
+tikv-jemalloc-ctl = {version = "0.6.0", features = ["stats"]}
+
 [[bench]]
 name = "bls_pairing"
 harness = false
@@ -73,5 +77,9 @@ name = "nova_folding_merkle_forest"
 harness = false
 
 [[bench]]
-name = "ext_nova_folding_no_merkle"
+name = "ext_nova_folding_no_merkle_time"
+harness = false
+
+[[bench]]
+name = "ext_nova_folding_no_merkle_mem"
 harness = false

@@ -4,21 +4,13 @@
 /// - Stores and prints results for extrapolation
 mod utils;
 
-use ark_ff::PrimeField;
 use ark_groth16::Groth16;
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
 use ark_r1cs_std::convert::ToConstraintFieldGadget;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::emulated_fp::EmulatedFpVar;
-use ark_r1cs_std::prelude::Boolean;
-use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::R1CSVar;
-use ark_r1cs_std::{alloc::AllocVar, fields::fp::FpVar, uint64::UInt64};
-use ark_relations::r1cs::{
-    ConstraintSystem, ConstraintSystemRef, OptimizationGoal, SynthesisError,
-};
-use derivative::Derivative;
+use ark_r1cs_std::{alloc::AllocVar, uint64::UInt64};
+use ark_relations::r1cs::ConstraintSystem;
 use folding_schemes::{
     commitment::kzg::KZG,
     folding::{
@@ -32,20 +24,23 @@ use folding_schemes::{
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
-use sig::bc::block::QuorumSignature;
-use sig::bc::params::{HASH_OUTPUT_SIZE, MAX_COMMITTEE_SIZE};
-use sig::bls::SignatureVar;
+use sig::bc::params::MAX_COMMITTEE_SIZE;
 use sig::folding::bc::BlockVar;
-use sig::folding::from_constraint_field::FromConstraintFieldGadget;
-use sig::params::BlsSigConfig;
 use sig::{
     bc::block::{gen_blockchain_with_params, Block},
     bls::Parameters as BlsParameters,
     folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
 };
 use std::fs::{self, File};
-use std::ops::Mul;
 use std::path::Path;
+use utils::{DummyBlockVar, MockBCCircuit, Timer};
+
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 // Configuration to store BCCircuit constraints
 #[derive(Serialize, Deserialize)]
@@ -63,173 +58,6 @@ struct ExperimentResult {
     folding_step_times: Vec<f64>, // seconds
     snark_prove_time: f64,        // seconds
     snark_verify_time: f64,       // seconds,
-}
-
-#[derive(Clone, Derivative)]
-#[derivative(Debug)]
-struct MockBCCircuit<CF: ark_ff::PrimeField> {
-    params: BlsParameters<BlsSigConfig>,
-    target_constraints: usize,
-    _cf: std::marker::PhantomData<CF>,
-}
-
-impl<CF: ark_ff::PrimeField> MockBCCircuit<CF> {
-    fn new(params: BlsParameters<BlsSigConfig>, target_constraints: usize) -> Result<Self, Error> {
-        Ok(Self {
-            params,
-            target_constraints,
-            _cf: std::marker::PhantomData,
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
-struct DummyQuorumSignatureVar;
-
-#[derive(Clone, Debug)]
-struct DummyBlockVar;
-
-impl<CF: PrimeField> AllocVar<QuorumSignature, CF> for DummyQuorumSignatureVar {
-    fn new_variable<T: std::borrow::Borrow<QuorumSignature>>(
-        cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
-        f: impl FnOnce() -> Result<T, SynthesisError>,
-        mode: ark_r1cs_std::prelude::AllocationMode,
-    ) -> Result<Self, SynthesisError> {
-        let cs = cs.into();
-
-        let quorum_signature = f();
-
-        let _ =
-            SignatureVar::<BlsSigConfig, EmulatedFpVar<_, _>, _>::new_variable_omit_on_curve_check(
-                cs.clone(),
-                || {
-                    quorum_signature
-                        .as_ref()
-                        .map(|qsig| qsig.borrow().sig)
-                        .map_err(SynthesisError::clone)
-                },
-                mode,
-            )?;
-
-        let _ = Vec::<Boolean<CF>>::new_variable(
-            cs,
-            || {
-                quorum_signature
-                    .as_ref()
-                    .map(|qsig| qsig.borrow().signers)
-                    .map_err(SynthesisError::clone)
-            },
-            mode,
-        )?;
-
-        Ok(Self)
-    }
-}
-
-impl<CF: PrimeField> AllocVar<Block, CF> for DummyBlockVar {
-    fn new_variable<T: std::borrow::Borrow<Block>>(
-        cs: impl Into<ark_relations::r1cs::Namespace<CF>>,
-        f: impl FnOnce() -> Result<T, ark_relations::r1cs::SynthesisError>,
-        mode: ark_r1cs_std::prelude::AllocationMode,
-    ) -> Result<Self, ark_relations::r1cs::SynthesisError> {
-        let cs = cs.into();
-
-        let block = f();
-
-        let _ = UInt64::new_variable(
-            cs.clone(),
-            || {
-                block
-                    .as_ref()
-                    .map(|block| block.borrow().epoch)
-                    .map_err(SynthesisError::clone)
-            },
-            mode,
-        )?;
-
-        let _ =
-            <[UInt8<CF>; HASH_OUTPUT_SIZE] as AllocVar<[u8; HASH_OUTPUT_SIZE], CF>>::new_variable(
-                cs.clone(),
-                || {
-                    block
-                        .as_ref()
-                        .map(|block| block.borrow().prev_digest)
-                        .map_err(SynthesisError::clone)
-                },
-                mode,
-            )?;
-
-        let _ = DummyQuorumSignatureVar::new_variable(
-            cs.clone(),
-            || {
-                block
-                    .as_ref()
-                    .map(|block| block.borrow().sig.clone())
-                    .map_err(SynthesisError::clone)
-            },
-            mode,
-        )?;
-
-        let _ = CommitteeVar::new_variable(
-            cs,
-            || {
-                block
-                    .as_ref()
-                    .map(|block| {
-                        let block = block.borrow();
-                        block.committee.clone()
-                    })
-                    .map_err(SynthesisError::clone)
-            },
-            mode,
-        )?;
-
-        Ok(Self)
-    }
-}
-
-impl<CF: ark_ff::PrimeField> FCircuit<CF> for MockBCCircuit<CF> {
-    type Params = BlsParameters<BlsSigConfig>;
-    type ExternalInputs = Block;
-    type ExternalInputsVar = DummyBlockVar;
-
-    fn new(params: Self::Params) -> Result<Self, Error> {
-        Ok(Self {
-            params,
-            target_constraints: 0, // default, overridden in experiments
-            _cf: std::marker::PhantomData,
-        })
-    }
-
-    fn state_len(&self) -> usize {
-        // Same state length as BCCircuitNoMerkle
-        CommitteeVar::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
-            + UInt64::<CF>::num_constraint_var_needed(OptimizationGoal::Constraints)
-    }
-
-    fn generate_step_constraints(
-        &self,
-        cs: ConstraintSystemRef<CF>,
-        _: usize,
-        z: Vec<FpVar<CF>>,
-        _: Self::ExternalInputsVar,
-    ) -> Result<Vec<FpVar<CF>>, SynthesisError> {
-        // Generate dummy constraints to reach target_constraints
-        let current_constraints = cs.num_constraints();
-        let constraints_to_add = self.target_constraints.saturating_sub(current_constraints);
-
-        // Add arithmetic constraints: e.g., x * y = z
-        for j in 0..constraints_to_add {
-            let x = FpVar::new_witness(cs.clone(), || Ok(CF::from((j + 1) as u64)))?;
-            let y = FpVar::new_witness(cs.clone(), || Ok(CF::from((j + 2) as u64)))?;
-            let z =
-                FpVar::new_witness(cs.clone(), || Ok(CF::from((j + 1) as u64 * (j + 2) as u64)))?;
-            x.mul(&y).enforce_equal(&z)?;
-        }
-
-        // Return new state (same as BCCircuit)
-        Ok(z)
-    }
 }
 
 // Measure BCCircuitNoMerkle constraints
@@ -304,7 +132,7 @@ fn main() -> Result<(), Error> {
     }
 
     const N_STEPS_TO_PROVE: usize = 3;
-    let results_path = data_path.join("experiment_results.json");
+    let results_path = data_path.join("experiment_results_time.json");
 
     // Load existing results
     let mut results: Vec<ExperimentResult> = if let Ok(file) = File::open(&results_path) {
@@ -351,9 +179,9 @@ fn main() -> Result<(), Error> {
         println!("Generating Nova parameters");
         let nova_preprocess_params =
             PreprocessorParam::new(poseidon_config.clone(), f_circuit.clone());
-        let nova_param_start = std::time::Instant::now();
+        let nova_param_start = Timer::start();
         let nova_params = N::preprocess(&mut rng, &nova_preprocess_params)?;
-        let nova_param_time = nova_param_start.elapsed().as_secs_f64();
+        let nova_param_time = nova_param_start.end();
 
         // Initialize blockchain
         let bc = gen_blockchain_with_params(N_STEPS_TO_PROVE + 1, MAX_COMMITTEE_SIZE, &mut rng);
@@ -375,36 +203,36 @@ fn main() -> Result<(), Error> {
 
         // Initialize Nova
         println!("Nova init");
-        let nova_init_start = std::time::Instant::now();
+        let nova_init_start = Timer::start();
         let mut nova = N::init(&nova_params, f_circuit.clone(), z_0)?;
-        let nova_init_time = nova_init_start.elapsed().as_secs_f64();
+        let nova_init_time = nova_init_start.end();
 
         // Run folding steps
         println!("Running folding steps");
         let mut folding_step_times = vec![];
         for (_, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(1)) {
-            let folding_start = std::time::Instant::now();
+            let folding_start = Timer::start();
             nova.prove_step(&mut rng, block, None)?;
-            let folding_step_time = folding_start.elapsed().as_secs_f64();
+            let folding_step_time = folding_start.end();
             folding_step_times.push(folding_step_time);
         }
 
         // Generate Decider parameters
         println!("Generating Decider parameters");
-        let snark_start = std::time::Instant::now();
+        let snark_start = Timer::start();
         let (decider_pp, decider_vp) =
             D::preprocess(&mut rng, (nova_params.clone(), f_circuit.state_len()))?;
-        let snark_param_time = snark_start.elapsed().as_secs_f64();
+        let snark_param_time = snark_start.end();
 
         // Generate SNARK proof
         println!("Generating SNARK proof");
-        let prove_start = std::time::Instant::now();
+        let prove_start = Timer::start();
         let proof = D::prove(&mut rng, decider_pp, nova.clone())?;
-        let snark_prove_time = prove_start.elapsed().as_secs_f64();
+        let snark_prove_time = prove_start.end();
 
         // Verify SNARK proof
         println!("Verifying SNARK proof");
-        let verify_start = std::time::Instant::now();
+        let verify_start = Timer::start();
         let verified = D::verify(
             decider_vp,
             nova.i,
@@ -414,7 +242,7 @@ fn main() -> Result<(), Error> {
             &nova.u_i.get_commitments(),
             &proof,
         )?;
-        let snark_verify_time = verify_start.elapsed().as_secs_f64();
+        let snark_verify_time = verify_start.end();
         assert!(verified);
 
         // Record results
