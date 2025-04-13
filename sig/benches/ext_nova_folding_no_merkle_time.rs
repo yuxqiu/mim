@@ -281,6 +281,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
         "- Apply the model to predict times at {} constraints.",
         bc_constraints
     );
+    println!();
 
     Ok(())
 }

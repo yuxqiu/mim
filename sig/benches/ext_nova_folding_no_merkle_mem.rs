@@ -235,6 +235,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
         "- Apply the model to predict peak mem usage at {} constraints.",
         bc_constraints
     );
+    println!();
 
     Ok(())
 }

@@ -242,6 +242,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
         "- Apply the model to predict peak mem usage at {} constraints.",
         bc_constraints
     );
+    println!();
 
     Ok(())
 }
