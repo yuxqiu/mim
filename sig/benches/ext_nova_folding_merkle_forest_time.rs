@@ -4,6 +4,7 @@
 /// - Stores and prints results for extrapolation
 mod utils;
 
+use ark_crypto_primitives::crh::poseidon::constraints::CRHParametersVar;
 use ark_groth16::Groth16;
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
@@ -25,6 +26,8 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 use sig::folding::circuit::BCCircuitMerkleForest;
+use sig::merkle::constraints::LeveledMerkleForestVar;
+use sig::merkle::Config;
 use sig::{
     bc::block::{gen_blockchain_with_params, Block},
     bls::Parameters as BlsParameters,
@@ -161,15 +164,28 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
         let z_0: Vec<_> =
             CommitteeVar::new_constant(cs.clone(), bc.get(0).unwrap().committee.clone())?
                 .to_constraint_field()?
-                .iter()
-                .map(|fpvar| fpvar.value().unwrap())
+                .into_iter()
                 .chain(std::iter::once(
-                    UInt64::constant(bc.get(0).unwrap().epoch)
-                        .to_fp()?
-                        .value()
-                        .unwrap(),
+                    UInt64::constant(bc.get(0).unwrap().epoch).to_fp()?,
                 ))
+                .chain(
+                    LeveledMerkleForestVar::<Config<Fr>>::new_optimal(
+                        STATE_SIZE,
+                        &CRHParametersVar {
+                            parameters: poseidon_config.clone(),
+                        },
+                    )
+                    .expect("LMS should be constructed successfully")
+                    .to_constraint_field()?
+                    .into_iter(),
+                )
+                .map(|fpvar| fpvar.value().unwrap())
                 .collect();
+        assert_eq!(
+            z_0.len(),
+            f_circuit.state_len(),
+            "state length should match"
+        );
 
         // Initialize Nova
         println!("Nova init");

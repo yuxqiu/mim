@@ -163,6 +163,11 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
                         .unwrap(),
                 ))
                 .collect();
+        assert_eq!(
+            z_0.len(),
+            f_circuit.state_len(),
+            "state length should match"
+        );
 
         // Initialize Nova
         println!("Nova init");

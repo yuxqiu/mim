@@ -74,10 +74,6 @@ name = "nova_folding_no_merkle"
 harness = false
 
 [[bench]]
-name = "nova_folding_merkle_forest"
-harness = false
-
-[[bench]]
 name = "ext_nova_folding_no_merkle_time"
 harness = false
 

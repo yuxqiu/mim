@@ -13,7 +13,12 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-use super::{forest::MerkleForestError, left, right, tree::MerkleTreeError, MerkleConfig};
+use super::{
+    forest::{optimal_forest_params, MerkleForestError},
+    left, right,
+    tree::MerkleTreeError,
+    MerkleConfig,
+};
 
 pub struct MerkleTreeVar<'a, P: MerkleConfig> {
     nodes: Vec<FpVar<P::BasePrimeField>>,
@@ -167,6 +172,14 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
             trees,
             _hash_params: PhantomData,
         })
+    }
+
+    pub fn new_optimal(
+        n: usize,
+        params: &'a PoseidonParams<P::BasePrimeField>,
+    ) -> Result<Self, MerkleForestError> {
+        let (capacity_per_tree, num_tree) = optimal_forest_params(n);
+        LeveledMerkleForestVar::new(capacity_per_tree, num_tree, params)
     }
 
     /// Update the Merkle forest with the `new_leaf` at `index`.
