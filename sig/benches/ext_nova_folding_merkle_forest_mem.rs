@@ -253,7 +253,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
 }
 
 fn main() -> Result<(), Error> {
-    let data_path = Path::new("../exp/nova-no-merkle");
+    let data_path = Path::new("../exp/nova-merkle-forest");
     fs::create_dir_all(data_path)?;
 
     const STATE_SIZE: usize = 128;
