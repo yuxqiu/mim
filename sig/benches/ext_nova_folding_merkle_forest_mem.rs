@@ -1,5 +1,5 @@
-/// Adapted experiment to benchmark and extrapolate timing for BCCircuitNoMerkle
-/// - Measures actual BCCircuitNoMerkle constraints and saves to config
+/// Adapted experiment to benchmark and extrapolate timing for BCCircuitMerkleForest
+/// - Measures actual BCCircuitMerkleForest constraints and saves to config
 /// - Uses a mock circuit with configurable constraints to collect timing data
 /// - Stores and prints results for extrapolation
 mod utils;
@@ -24,15 +24,16 @@ use folding_schemes::{
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
+use sig::folding::circuit::BCCircuitMerkleForest;
 use sig::{
     bc::block::{gen_blockchain_with_params, Block},
     bls::Parameters as BlsParameters,
-    folding::{bc::CommitteeVar, circuit::BCCircuitNoMerkle},
+    folding::bc::CommitteeVar,
 };
 use std::fs::{self, File};
 use std::path::Path;
 use utils::ext::{
-    measure_bc_circuit_constraints, DummyBlockVar, MemRecorder, MockBCCircuitNoMerkle,
+    measure_bc_circuit_constraints, DummyBlockVar, MemRecorder, MockBCCircuitMerkleForest,
 };
 
 #[cfg(not(target_env = "msvc"))]
@@ -49,7 +50,9 @@ struct ExperimentResult {
     peak_mem: usize, // bytes
 }
 
-fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Error> {
+fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
+    data_path: &Path,
+) -> Result<(), Error> {
     println!("Start exp with MAX_COMMITTEE_SIZE = {}", MAX_COMMITTEE_SIZE);
 
     let num_base_constraints = {
@@ -62,12 +65,15 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
     let mut rng = StdRng::from_seed([42; 32]);
 
     // Measure BCCircuit constraints
-    let config_path = data_path.join(format!("experiment_config_{}.json", MAX_COMMITTEE_SIZE));
+    let config_path = data_path.join(format!(
+        "experiment_config_{}_{}.json",
+        MAX_COMMITTEE_SIZE, STATE_SIZE
+    ));
     let bc_constraints = measure_bc_circuit_constraints::<
         MAX_COMMITTEE_SIZE,
         Fr,
-        BCCircuitNoMerkle<Fr, MAX_COMMITTEE_SIZE>,
-    >(&config_path, BlsParameters::setup())?;
+        BCCircuitMerkleForest<Fr, MAX_COMMITTEE_SIZE>,
+    >(&config_path, (BlsParameters::setup(), STATE_SIZE))?;
 
     // Define experiment parameters
     // - capped at 1 << 23 as it already requires roughly 900 GB memory
@@ -90,8 +96,8 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
 
     const N_STEPS_TO_PROVE: usize = 3;
     let results_path = data_path.join(format!(
-        "experiment_results_mem_{}.json",
-        MAX_COMMITTEE_SIZE
+        "experiment_results_mem_{}_{}.json",
+        MAX_COMMITTEE_SIZE, STATE_SIZE
     ));
 
     // Load existing results
@@ -120,7 +126,8 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
         );
 
         // Use MockBCCircuit
-        type FC<const MAX_COMMITTEE_SIZE: usize> = MockBCCircuitNoMerkle<Fr, MAX_COMMITTEE_SIZE>;
+        type FC<const MAX_COMMITTEE_SIZE: usize> =
+            MockBCCircuitMerkleForest<Fr, MAX_COMMITTEE_SIZE>;
         type N<const MAX_COMMITTEE_SIZE: usize> =
             Nova<G1, G2, FC<MAX_COMMITTEE_SIZE>, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
         type D<const MAX_COMMITTEE_SIZE: usize> = NovaDecider<
@@ -136,7 +143,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
 
         let mem = MemRecorder::start();
 
-        let f_circuit = FC::<MAX_COMMITTEE_SIZE>::new(target_constraints)?;
+        let f_circuit = FC::<MAX_COMMITTEE_SIZE>::new(STATE_SIZE, target_constraints)?;
 
         // Generate Nova parameters
         println!("Generating Nova parameters");
@@ -217,7 +224,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
 
     // Print all results for extrapolation
     println!("\nAll Experiment Results:");
-    println!("BCCircuitNoMerkle constraints: {}", bc_constraints);
+    println!("BCCircuitMerkleForest constraints: {}", bc_constraints);
     println!("{:>15} | {:>15}", "Constraints", "Peak mem usage (bytes)");
     println!("{}", "-".repeat(85));
     for result in &results {
@@ -243,9 +250,11 @@ fn main() -> Result<(), Error> {
     let data_path = Path::new("../exp/nova-no-merkle");
     fs::create_dir_all(data_path)?;
 
-    run_exp::<128>(data_path)?;
-    run_exp::<256>(data_path)?;
-    run_exp::<512>(data_path)?;
+    const STATE_SIZE: usize = 128;
+
+    run_exp::<128, STATE_SIZE>(data_path)?;
+    run_exp::<256, STATE_SIZE>(data_path)?;
+    run_exp::<512, STATE_SIZE>(data_path)?;
 
     Ok(())
 }

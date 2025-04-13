@@ -24,7 +24,6 @@ use folding_schemes::{
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
-use sig::folding::bc::BlockVar;
 use sig::{
     bc::block::{gen_blockchain_with_params, Block},
     bls::Parameters as BlsParameters,
@@ -32,7 +31,7 @@ use sig::{
 };
 use std::fs::{self, File};
 use std::path::Path;
-use utils::{DummyBlockVar, MockBCCircuit, Timer};
+use utils::ext::{measure_bc_circuit_constraints, DummyBlockVar, MockBCCircuitNoMerkle, Timer};
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -40,12 +39,6 @@ use tikv_jemallocator::Jemalloc;
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
-
-// Configuration to store BCCircuit constraints
-#[derive(Serialize, Deserialize)]
-struct ExperimentConfig {
-    bc_circuit_constraints: usize,
-}
 
 // Timing results for each experiment
 #[derive(Serialize, Deserialize, Clone)]
@@ -57,53 +50,6 @@ struct ExperimentResult {
     folding_step_times: Vec<f64>, // seconds
     snark_prove_time: f64,        // seconds
     snark_verify_time: f64,       // seconds,
-}
-
-// Measure BCCircuitNoMerkle constraints
-fn measure_bc_circuit_constraints<const MAX_COMMITTEE_SIZE: usize>(
-    data_path: &Path,
-) -> Result<usize, Error> {
-    let config_path = data_path.join(format!("experiment_config_{}.json", MAX_COMMITTEE_SIZE));
-    let f_circuit = BCCircuitNoMerkle::<Fr, MAX_COMMITTEE_SIZE>::new(BlsParameters::setup())?;
-
-    // Try to load existing config
-    if let Ok(file) = File::open(&config_path) {
-        let config: ExperimentConfig =
-            serde_json::from_reader(file).expect("serde_json should deserialize correctly");
-        println!(
-            "Loaded BCCircuit constraints: {}",
-            config.bc_circuit_constraints
-        );
-        return Ok(config.bc_circuit_constraints);
-    }
-
-    // Measure constraints
-    let mut rng = StdRng::from_seed([42; 32]);
-    let cs = ConstraintSystem::<Fr>::new_ref();
-
-    let bc = gen_blockchain_with_params(2, MAX_COMMITTEE_SIZE, &mut rng);
-    let block = bc.get(1).expect("there are 2 blocks");
-    let block_var = BlockVar::new_witness(cs.clone(), || Ok(block))?;
-    let z_0: Vec<_> = CommitteeVar::new_witness(cs.clone(), || Ok(block.committee.clone()))?
-        .to_constraint_field()?
-        .into_iter()
-        .chain(std::iter::once(
-            UInt64::constant(bc.get(0).unwrap().epoch).to_fp()?,
-        ))
-        .collect();
-
-    f_circuit.generate_step_constraints(cs.clone(), 0, z_0, block_var)?;
-
-    let constraints = cs.num_constraints();
-    println!("Measured BCCircuit constraints: {}", constraints);
-
-    // Save to config
-    let config = ExperimentConfig {
-        bc_circuit_constraints: constraints,
-    };
-    let mut file = File::create(&config_path)?;
-    serde_json::to_writer(&mut file, &config).expect("serde_json should serialize correctly");
-    Ok(constraints)
 }
 
 fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Error> {
@@ -118,8 +64,13 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
     let poseidon_config = poseidon_canonical_config::<Fr>();
     let mut rng = StdRng::from_seed([42; 32]);
 
-    // Measure BCCircuit constraints
-    let bc_constraints = measure_bc_circuit_constraints::<MAX_COMMITTEE_SIZE>(data_path)?;
+    // Measure BCCircuitNoMerkle constraints
+    let config_path = data_path.join(format!("experiment_config_{}.json", MAX_COMMITTEE_SIZE));
+    let bc_constraints = measure_bc_circuit_constraints::<
+        MAX_COMMITTEE_SIZE,
+        Fr,
+        BCCircuitNoMerkle<Fr, MAX_COMMITTEE_SIZE>,
+    >(&config_path, BlsParameters::setup())?;
 
     // Define experiment parameters
     // - capped at 1 << 22 as 1 << 23 requires roughly 900 GB memory
@@ -170,8 +121,8 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
             target_constraints
         );
 
-        // Use MockBCCircuit
-        type FC<const MAX_COMMITTEE_SIZE: usize> = MockBCCircuit<Fr, MAX_COMMITTEE_SIZE>;
+        // Use MockBCCircuitNoMerkle
+        type FC<const MAX_COMMITTEE_SIZE: usize> = MockBCCircuitNoMerkle<Fr, MAX_COMMITTEE_SIZE>;
         type N<const MAX_COMMITTEE_SIZE: usize> =
             Nova<G1, G2, FC<MAX_COMMITTEE_SIZE>, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
         type D<const MAX_COMMITTEE_SIZE: usize> = NovaDecider<
@@ -185,10 +136,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
             N<MAX_COMMITTEE_SIZE>,
         >;
 
-        let f_circuit = MockBCCircuit::<Fr, MAX_COMMITTEE_SIZE>::new(
-            BlsParameters::setup(),
-            target_constraints,
-        )?;
+        let f_circuit = FC::<MAX_COMMITTEE_SIZE>::new(target_constraints)?;
 
         // Generate Nova parameters
         println!("Generating Nova parameters");
@@ -344,7 +292,6 @@ fn main() -> Result<(), Error> {
     run_exp::<128>(data_path)?;
     run_exp::<256>(data_path)?;
     run_exp::<512>(data_path)?;
-    run_exp::<1024>(data_path)?;
 
     Ok(())
 }
