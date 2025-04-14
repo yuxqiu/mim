@@ -11,7 +11,6 @@ use std::{
 
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
-use ark_r1cs_std::convert::ToConstraintFieldGadget;
 use ark_r1cs_std::{
     alloc::AllocVar,
     eq::EqGadget,
@@ -383,12 +382,10 @@ pub fn measure_bc_circuit_constraints<
     let bc = gen_blockchain_with_params(2, MAX_COMMITTEE_SIZE, &mut rng);
     let block = bc.get(1).expect("there are 2 blocks");
     let block_var = BlockVar::new_witness(cs.clone(), || Ok(block))?;
-    let z_0: Vec<_> = CommitteeVar::new_witness(cs.clone(), || Ok(block.committee.clone()))?
-        .to_constraint_field()?
-        .into_iter()
-        .chain(std::iter::once(
-            UInt64::constant(bc.get(0).unwrap().epoch).to_fp()?,
-        ))
+
+    // as long as length matches, it is fine
+    let z_0: Vec<_> = std::iter::repeat(FpVar::new_witness(cs.clone(), || Ok(Fr::default()))?)
+        .take(f_circuit.state_len())
         .collect();
 
     f_circuit.generate_step_constraints(cs.clone(), 0, z_0, block_var)?;
