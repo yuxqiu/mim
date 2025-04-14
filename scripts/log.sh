@@ -15,7 +15,7 @@ LOGFILE=$2
 # Run the command and log stdout and stderr to the log file
 echo "Running command: $COMMAND"
 echo "Logging output to: $LOGFILE"
-$COMMAND 2>&1 | tee "$LOGFILE"
+$COMMAND 2>&1 | tee -a "$LOGFILE"
 
 # Check if the command was successful
 if [ $? -eq 0 ]; then
