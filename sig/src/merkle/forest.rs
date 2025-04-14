@@ -1,4 +1,4 @@
-use std::{cmp::max, collections::HashMap};
+use std::collections::HashMap;
 
 use ark_crypto_primitives::{
     crh::{poseidon::CRH as Poseidon, CRHScheme},
@@ -306,22 +306,33 @@ pub fn forest_stats(capacity_per_tree: u32, num_tree: u32) -> (u64, u64, u128) {
     (proof_size, forest_state_size, max_permanent_state_size_r)
 }
 
+fn int_to_safe_float(x: u64) -> f64 {
+    let f = x as f64;
+    let back = f as u64;
+
+    if back < x {
+        // Float rounded down — nudge up to ensure it's at least x
+        f.next_up()
+    } else {
+        // Either exact or rounded up
+        f
+    }
+}
+
 /// Find the optimal forest parameters for a given `n` with respect to the forest state size
 pub fn optimal_forest_params(n: usize) -> (u32, u32) {
-    // round n to the next power of 2
-    let n = n.next_power_of_two();
+    let n = int_to_safe_float(n as u64);
 
-    // minimize log2(2N/q)/log2(q/2)*q with respect to q
-    let a = f64::from(n.ilog2());
-    let q = ((2. + a - a.mul_add(a, -(4. * a / std::f64::consts::LN_2)).sqrt()) / 2.).exp2();
-    // safe: as q is <= 4/ln2
+    // minimize log2(N)/log2(q/2)*q with respect to q
+    let q = 2. * std::f64::consts::E;
+    // safe: as q = 2e
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
     let q = (q.ceil() as u32).next_power_of_two() - 1;
-    let q = max(q, 3);
-    // safe: as n is a power of 2
+
+    // safe: as n (float) >= n (uint)
     #[allow(clippy::cast_precision_loss)]
-    let k = ((2. * n as f64) / f64::from(q)).log(f64::from(q) / 2.);
+    let k = n.log(f64::from(q) / 2.);
 
     let k = k.ceil();
     #[allow(clippy::cast_possible_truncation)]
