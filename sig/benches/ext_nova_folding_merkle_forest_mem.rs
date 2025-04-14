@@ -267,7 +267,7 @@ fn main() -> Result<(), Error> {
     let data_path = Path::new("../exp/nova-merkle-forest");
     fs::create_dir_all(data_path)?;
 
-    const STATE_SIZE: usize = 128;
+    const STATE_SIZE: usize = 1024;
 
     run_exp::<128, STATE_SIZE>(data_path)?;
     run_exp::<256, STATE_SIZE>(data_path)?;
