@@ -663,6 +663,7 @@ mod tests {
     fn play_with_optimal_params() {
         let (capacity_per_tree, num_tree) = optimal_forest_params(1 << 25);
         println!("capacity_per_tree: {}", capacity_per_tree);
+        println!("num_tree: {}", num_tree);
         forest_stats(capacity_per_tree, num_tree);
     }
 }
