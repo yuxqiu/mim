@@ -82,11 +82,11 @@ fn run_experiment(n: usize) -> ExperimentResult {
 fn main() {
     // Vector sizes to test
     let sizes = vec![
-        1 << 23, // 2^23
-        1 << 24, // 2^24
-        1 << 25, // 2^25
-        1 << 26, // 2^26
-        1 << 27, // 2^27
+        1 << 15, // 2^15
+        1 << 16, // 2^16
+        1 << 17, // 2^17
+        1 << 18, // 2^18
+        1 << 19, // 2^19
     ];
     let results_path = Path::new("../exp/lmf");
     fs::create_dir_all(results_path).unwrap();
