@@ -93,7 +93,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let mut node = self.trees[0].root();
         let mut idx = self.size / num_leaves_per_tree;
         for i in 1..self.trees.len() {
-            self.trees[i].update_with_hash(idx, node)?;
+            self.trees[i].update_with_hash(idx % num_leaves_per_tree, node)?;
             node = self.trees[i].root();
             idx = idx / num_leaves_per_tree;
         }
@@ -170,15 +170,16 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let n = self.max_leaves();
         let diff = n - leaf_index;
         let state_idx = diff.ilog(num_leaves_per_tree);
+        let state_idx = std::cmp::min(self.num_trees() - 1, state_idx); // handle the special case that leaf_index == 0
 
         let mut forest_proof = vec![];
         let mut idx = leaf_index;
 
         // only need to generate proof for state with index <= state_idx
-        for i in 1..=(state_idx as usize) {
+        for i in 0..=(state_idx as usize) {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
-            let s = self.states[i - 1]
+            let s = self.states[i]
                 .get(&idx)
                 .expect("state exists because leaf index is in bound");
             let (siblings, _) = s.prove(idx_within_tree)?;
@@ -205,6 +206,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
             let n = num_leaves.pow(num_tree);
             let diff = n - proof.leaf_index as u64;
             let state_idx = diff.ilog(num_leaves);
+            let state_idx = std::cmp::min(num_tree - 1, state_idx); // handle the special case that leaf_index == 0
 
             // adjust the index so that only the lower `log(num_leaves) * (state_idx + 1)` bits are kept
             // - this is not needed as `Self::verify` only relies on siblings length to determine
@@ -429,12 +431,13 @@ mod tests {
             LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params).unwrap();
 
         // Fill up the forest completely
-        for _ in 0..8 {
+        for i in 0..8 {
             let val = {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
             };
             let add_result = forest.add(&[val]);
+            dbg!(i);
             assert!(add_result.is_ok());
         }
 

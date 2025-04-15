@@ -35,6 +35,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     let mut rng = thread_rng();
 
     // Generate random leaves
+    println!("generate random leaves");
     let mut leaves = Vec::new();
     for _ in 0..n {
         leaves.push(Fr::rand(&mut rng));
@@ -44,6 +45,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     let proof_indices: Vec<usize> = (0..num_proofs).map(|_| rng.gen_range(0..n)).collect();
 
     // --- Standard Merkle Tree ---
+    println!("eval standard Merkle Tree");
     let merkle_capacity = n.next_power_of_two() * 2 - 1; // Ensure capacity is 2^k - 1
     let mut merkle_tree = MerkleTree::<Config<Fr>>::new(merkle_capacity, &params)
         .expect("Failed to create Merkle tree");
@@ -71,6 +73,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     let merkle_proof_time = merkle_proof_time.as_secs_f64() / (proof_indices.len() as f64);
 
     // --- Leveled Merkle Forest ---
+    println!("eval Leveled Merkle Forest");
     let mut lmf =
         LeveledMerkleForest::<Config<Fr>>::new_optimal(n, &params).expect("Failed to create LMF");
 

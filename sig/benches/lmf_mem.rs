@@ -38,12 +38,14 @@ fn run_experiment(n: usize) -> ExperimentResult {
     let mut rng = thread_rng();
 
     // Generate random leaves
+    println!("generate random leaves");
     let mut leaves = Vec::new();
     for _ in 0..n {
         leaves.push(Fr::rand(&mut rng));
     }
 
     // --- Standard Merkle Tree ---
+    println!("eval standard Merkle Tree");
     let peak_mem_merkle = {
         let mem = MemRecorder::start();
         let merkle_capacity = n.next_power_of_two() * 2 - 1; // Ensure capacity is 2^k - 1
@@ -60,6 +62,7 @@ fn run_experiment(n: usize) -> ExperimentResult {
     };
 
     // --- Leveled Merkle Forest ---
+    println!("eval Leveled Merkle Forest");
     let peak_mem_lmf = {
         let mem = MemRecorder::start();
         let mut lmf = LeveledMerkleForest::<Config<Fr>>::new_optimal(n, &params)
