@@ -71,6 +71,14 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         })
     }
 
+    pub fn new_optimal(
+        n: usize,
+        params: &'a PoseidonConfig<P::BasePrimeField>,
+    ) -> Result<Self, MerkleForestError> {
+        let (capacity_per_tree, num_tree) = optimal_forest_params(n);
+        Self::new(capacity_per_tree, num_tree, params)
+    }
+
     pub fn add(
         &mut self,
         val: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
@@ -79,31 +87,18 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
             return Err(MerkleForestError::ForestIsFull);
         }
 
-        let mut is_prev_tree_full = self.trees[0].is_full();
-        if is_prev_tree_full {
-            self.trees[0].reset_size();
-        }
-        self.trees[0].add(val)?;
-
         // update Merkle trees
+        let num_leaves_per_tree = self.num_leaves_per_tree();
+        self.trees[0].update(self.size % num_leaves_per_tree, val)?;
         let mut node = self.trees[0].root();
+        let mut idx = self.size / num_leaves_per_tree;
         for i in 1..self.trees.len() {
-            let is_cur_tree_full = self.trees[i].is_full();
-            if is_cur_tree_full {
-                self.trees[i].reset_size();
-            }
-            if is_prev_tree_full || self.trees[i].is_empty() {
-                self.trees[i].add_with_hash(node)?;
-            } else {
-                let idx = self.trees[i].last_idx();
-                self.trees[i].update_with_hash(idx, node)?;
-            }
+            self.trees[i].update_with_hash(idx, node)?;
             node = self.trees[i].root();
-            is_prev_tree_full = is_cur_tree_full;
+            idx = idx / num_leaves_per_tree;
         }
 
         // update states
-        let num_leaves_per_tree = self.num_leaves_per_tree();
         let mut idx = self.size / num_leaves_per_tree;
         for i in 0..self.trees.len() {
             self.states[i].insert(idx, self.trees[i].clone());
@@ -181,10 +176,10 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
 
         // only need to generate proof for state with index <= state_idx
         let num_leaves_per_tree = self.num_leaves_per_tree();
-        for i in 0..=(state_idx as usize) {
+        for i in 1..=(state_idx as usize) {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
-            let s = self.states[i]
+            let s = self.states[i - 1]
                 .get(&idx)
                 .expect("state exists because leaf index is in bound");
             let (siblings, _) = s.prove(idx_within_tree)?;
@@ -546,8 +541,6 @@ mod tests {
             &[values[leaf_index]],
             proof,
         );
-
-        dbg!(forest.trees);
 
         assert!(verify_result.is_ok());
         assert_eq!(verify_result.unwrap(), true);

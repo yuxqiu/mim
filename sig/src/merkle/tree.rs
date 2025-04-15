@@ -14,7 +14,6 @@ use super::{is_left_node, left, parent, right, MerkleConfig};
 #[derivative(Debug(bound = ""))]
 pub struct MerkleTree<'a, P: MerkleConfig> {
     states: Vec<P::BasePrimeField>,
-    size: usize,
 
     #[derivative(Debug = "ignore")]
     params: &'a PoseidonConfig<P::BasePrimeField>,
@@ -24,7 +23,6 @@ impl<'a, P: MerkleConfig> Clone for MerkleTree<'a, P> {
     fn clone(&self) -> Self {
         Self {
             states: self.states.clone(),
-            size: self.size,
             params: self.params,
         }
     }
@@ -61,7 +59,6 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
 
         let mut s = Self {
             states: vec![P::BasePrimeField::default(); capacity],
-            size: 0,
             params,
         };
 
@@ -74,7 +71,7 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
     }
 
     pub fn prove(&self, leaf_index: usize) -> Result<MerkleProof<P>, MerkleTreeError> {
-        if leaf_index >= self.size {
+        if leaf_index >= self.num_leaves() {
             return Err(MerkleTreeError::IndexOutOfBound);
         }
 
@@ -93,7 +90,7 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         leaf_index: usize,
         val: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
     ) -> Result<(), MerkleTreeError> {
-        if leaf_index >= (self.capacity() + 1) / 2 {
+        if leaf_index >= self.num_leaves() {
             return Err(MerkleTreeError::IndexOutOfBound);
         }
 
@@ -101,29 +98,6 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
             leaf_index,
             Poseidon::evaluate(self.params, val).map_err(|_| MerkleTreeError::CRHError)?,
         )
-    }
-
-    pub fn add(
-        &mut self,
-        val: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
-    ) -> Result<(), MerkleTreeError> {
-        if self.size == (self.capacity() + 1) / 2 {
-            return Err(MerkleTreeError::TreeIsFull);
-        }
-
-        self.update(self.size, val)?;
-        self.size += 1;
-        Ok(())
-    }
-
-    #[inline]
-    pub const fn is_empty(&self) -> bool {
-        self.size == 0
-    }
-
-    #[inline]
-    pub fn is_full(&self) -> bool {
-        self.size == (self.capacity() + 1) / 2
     }
 
     #[inline]
@@ -198,15 +172,6 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         (self.capacity() + 1) / 2
     }
 
-    #[inline]
-    pub(crate) const fn last_idx(&self) -> usize {
-        self.size - 1
-    }
-
-    pub(crate) fn reset_size(&mut self) {
-        self.size = 0;
-    }
-
     pub(crate) fn update_with_hash(
         &mut self,
         leaf_index: usize,
@@ -223,16 +188,6 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
             self.update_state(index)?;
         }
 
-        Ok(())
-    }
-
-    pub(crate) fn add_with_hash(&mut self, val: P::BasePrimeField) -> Result<(), MerkleTreeError> {
-        if self.size == (self.capacity() + 1) / 2 {
-            return Err(MerkleTreeError::TreeIsFull);
-        }
-
-        self.update_with_hash(self.size, val)?;
-        self.size += 1;
         Ok(())
     }
 }
@@ -265,14 +220,12 @@ mod tests {
         }
 
         let mut tree = tree.unwrap();
-        assert_eq!(tree.size, 0);
 
         let mut rng = thread_rng();
         let leaf = Fr::rand(&mut rng);
 
         // Test adding a leaf
-        assert!(tree.add(&[leaf]).is_ok());
-        assert_eq!(tree.size, 1);
+        assert!(tree.update(0, &[leaf]).is_ok());
 
         // Test updating a leaf
         let new_leaf = Fr::rand(&mut rng);
@@ -301,19 +254,17 @@ mod tests {
 
         // Create a tree with a large capacity
         let mut tree = MerkleTree::<TestConfig>::new(capacity, &params).unwrap();
-        assert_eq!(tree.size, 0);
 
         let mut rng = thread_rng();
         let leaf_max_index = (capacity + 1) / 2;
 
         // Perform multiple add operations
         let mut leaves = Vec::new();
-        for _ in 0..leaf_max_index {
+        for i in 0..leaf_max_index {
             let leaf = Fr::rand(&mut rng);
             leaves.push(leaf);
-            assert!(tree.add(&[leaf]).is_ok());
+            assert!(tree.update(i, &[leaf]).is_ok());
         }
-        assert_eq!(tree.size, leaf_max_index);
 
         for i in 0..leaf_max_index {
             let proof = tree.prove(i).unwrap();
