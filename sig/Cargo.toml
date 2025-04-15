@@ -88,3 +88,11 @@ harness = false
 [[bench]]
 name = "ext_nova_folding_merkle_forest_mem"
 harness = false
+
+[[bench]]
+name = "lmf_time"
+harness = false
+
+[[bench]]
+name = "lmf_mem"
+harness = false

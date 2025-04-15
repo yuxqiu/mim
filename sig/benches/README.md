@@ -25,3 +25,9 @@ These files benchmark the time required to use a folding-based SNARK (Nova + Gro
 ## `ext_nova_folding_no_merkle_{mem,time}` and `ext_nova_folding_merkle_forest_{mem,time}`
 
 Due to the prohibitively high number of constraints when using Nova, we employ extrapolation to estimate the memory and time required for folding-based SNARK proofs. Files ending in `_mem` measure estimated memory usage, while those ending in `_time` measure estimated execution time. Both extrapolation scenarios are considered: with and without the Leveled Merkle Forest optimization.
+
+## `lmf_time` and `lmf_mem`
+
+`lmf_time` measures the time required to construct the LMF and compares it against a traditional Merkle tree of the same size. It also measures the average time to generate 10 proofs for randomly selected leaves, along with the average length of these proofs.
+
+`lmf_mem` captures the peak memory usage during the construction phase of the LMF, and similarly compares it with the memory footprint of the traditional Merkle tree.

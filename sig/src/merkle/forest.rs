@@ -88,7 +88,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         }
 
         // update Merkle trees
-        let num_leaves_per_tree = self.num_leaves_per_tree();
+        let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
         self.trees[0].update(self.size % num_leaves_per_tree, val)?;
         let mut node = self.trees[0].root();
         let mut idx = self.size / num_leaves_per_tree;
@@ -117,7 +117,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let mut forest_proof = vec![];
         let mut idx = leaf_index;
 
-        let num_leaves_per_tree = self.num_leaves_per_tree();
+        let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
         for i in 0..self.trees.len() {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
@@ -166,16 +166,15 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
             return Err(MerkleForestError::IndexOutOfBound);
         }
 
-        let num_leaves = self.num_leaves_per_tree();
+        let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
         let n = self.max_leaves();
         let diff = n - leaf_index;
-        let state_idx = diff.ilog(num_leaves);
+        let state_idx = diff.ilog(num_leaves_per_tree);
 
         let mut forest_proof = vec![];
         let mut idx = leaf_index;
 
         // only need to generate proof for state with index <= state_idx
-        let num_leaves_per_tree = self.num_leaves_per_tree();
         for i in 1..=(state_idx as usize) {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
@@ -244,12 +243,17 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     pub fn max_leaves(&self) -> usize {
         // safe conversion as trees.len() is limited to be <= 2^32 - 1
         #[allow(clippy::cast_possible_truncation)]
-        self.num_leaves_per_tree().pow(self.trees.len() as u32)
+        (self.num_leaves_per_tree() as usize).pow(self.trees.len() as u32)
     }
 
     #[inline]
-    fn num_leaves_per_tree(&self) -> usize {
-        self.trees[0].num_leaves()
+    pub fn num_leaves_per_tree(&self) -> u32 {
+        self.trees[0].num_leaves() as u32
+    }
+
+    #[inline]
+    pub fn num_trees(&self) -> u32 {
+        self.trees.len() as u32
     }
 }
 
