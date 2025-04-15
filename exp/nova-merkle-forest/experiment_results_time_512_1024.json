@@ -1,0 +1,41 @@
+[
+  {
+    "constraint_count": 1048576,
+    "nova_param_gen_time": 228.021635576,
+    "nova_init_time": 215.413817036,
+    "snark_param_gen_time": 485.146345751,
+    "folding_step_times": [
+      26.947125001,
+      27.282430691,
+      39.802627316
+    ],
+    "snark_prove_time": 709.320726173,
+    "snark_verify_time": 3.205878758
+  },
+  {
+    "constraint_count": 2097152,
+    "nova_param_gen_time": 247.96290678,
+    "nova_init_time": 220.938948841,
+    "snark_param_gen_time": 732.077399885,
+    "folding_step_times": [
+      43.273784311,
+      44.324557794,
+      56.625775188
+    ],
+    "snark_prove_time": 1101.794458423,
+    "snark_verify_time": 3.204219758
+  },
+  {
+    "constraint_count": 4194304,
+    "nova_param_gen_time": 287.645857468,
+    "nova_init_time": 233.081008182,
+    "snark_param_gen_time": 1330.373900723,
+    "folding_step_times": [
+      78.610460546,
+      80.83696537,
+      104.51795214
+    ],
+    "snark_prove_time": 2088.663047586,
+    "snark_verify_time": 3.205654777
+  }
+]

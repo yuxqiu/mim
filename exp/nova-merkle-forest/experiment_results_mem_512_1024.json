@@ -1,0 +1,18 @@
+[
+  {
+    "constraint_count": 1048576,
+    "peak_mem": 187473784832
+  },
+  {
+    "constraint_count": 2097152,
+    "peak_mem": 274851745792
+  },
+  {
+    "constraint_count": 4194304,
+    "peak_mem": 497470066688
+  },
+  {
+    "constraint_count": 8388608,
+    "peak_mem": 968463851520
+  }
+]

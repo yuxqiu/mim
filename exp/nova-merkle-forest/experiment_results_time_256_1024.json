@@ -1,0 +1,54 @@
+[
+  {
+    "constraint_count": 524288,
+    "nova_param_gen_time": 116.219089968,
+    "nova_init_time": 110.762717608,
+    "snark_param_gen_time": 254.474205823,
+    "folding_step_times": [
+      13.642388157,
+      13.709714279,
+      20.12884295
+    ],
+    "snark_prove_time": 360.545556336,
+    "snark_verify_time": 1.859031439
+  },
+  {
+    "constraint_count": 1048576,
+    "nova_param_gen_time": 126.644978889,
+    "nova_init_time": 113.302830237,
+    "snark_param_gen_time": 375.988768173,
+    "folding_step_times": [
+      22.071871295,
+      21.969627108,
+      28.771923915
+    ],
+    "snark_prove_time": 559.943976023,
+    "snark_verify_time": 1.857833824
+  },
+  {
+    "constraint_count": 2097152,
+    "nova_param_gen_time": 147.914739249,
+    "nova_init_time": 119.186613076,
+    "snark_param_gen_time": 679.505604403,
+    "folding_step_times": [
+      40.245947311,
+      40.108092619,
+      52.652946707
+    ],
+    "snark_prove_time": 1050.785564338,
+    "snark_verify_time": 1.955422983
+  },
+  {
+    "constraint_count": 4194304,
+    "nova_param_gen_time": 186.690557901,
+    "nova_init_time": 132.073684714,
+    "snark_param_gen_time": 1274.352752006,
+    "folding_step_times": [
+      75.267965367,
+      76.479566795,
+      100.515324412
+    ],
+    "snark_prove_time": 2036.374776214,
+    "snark_verify_time": 1.8662000060000001
+  }
+]
