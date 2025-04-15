@@ -41,23 +41,18 @@ fn run_experiment(n: usize) -> ExperimentResult {
     println!("generate random leaves");
     let mut leaves = Vec::new();
     for _ in 0..n {
-        leaves.push(Fr::rand(&mut rng));
+        leaves.push([Fr::rand(&mut rng)]);
     }
 
     // --- Standard Merkle Tree ---
     println!("eval standard Merkle Tree");
     let peak_mem_merkle = {
         let mem = MemRecorder::start();
-        let merkle_capacity = n.next_power_of_two() * 2 - 1; // Ensure capacity is 2^k - 1
-        let mut merkle_tree = MerkleTree::<Config<Fr>>::new(merkle_capacity, &params)
-            .expect("Failed to create Merkle tree");
-
-        // Add leaves to Merkle tree
-        for (i, leaf) in leaves.iter().enumerate() {
-            merkle_tree
-                .update(i, &[*leaf])
-                .expect("Failed to add leaf to Merkle tree");
-        }
+        let _merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(
+            &leaves.iter().map(|v| &v[..]).collect::<Vec<_>>(),
+            &params,
+        )
+        .expect("Failed to create Merkle tree");
         mem.end()
     };
 
@@ -70,7 +65,7 @@ fn run_experiment(n: usize) -> ExperimentResult {
 
         // Add leaves to LMF
         for leaf in &leaves {
-            lmf.add(&[*leaf]).expect("Failed to add leaf to LMF");
+            lmf.add(leaf).expect("Failed to add leaf to LMF");
         }
         mem.end()
     };

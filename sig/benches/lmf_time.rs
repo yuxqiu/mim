@@ -38,7 +38,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     println!("generate random leaves");
     let mut leaves = Vec::new();
     for _ in 0..n {
-        leaves.push(Fr::rand(&mut rng));
+        leaves.push([Fr::rand(&mut rng)]);
     }
 
     // Select 10 random leaf indices for proof generation
@@ -46,17 +46,12 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
 
     // --- Standard Merkle Tree ---
     println!("eval standard Merkle Tree");
-    let merkle_capacity = n.next_power_of_two() * 2 - 1; // Ensure capacity is 2^k - 1
-    let mut merkle_tree = MerkleTree::<Config<Fr>>::new(merkle_capacity, &params)
-        .expect("Failed to create Merkle tree");
-
-    // Add leaves to Merkle tree
     let merkle_start = Instant::now();
-    for (i, leaf) in leaves.iter().enumerate() {
-        merkle_tree
-            .update(i, &[*leaf])
-            .expect("Failed to add leaf to Merkle tree");
-    }
+    let merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(
+        &leaves.iter().map(|v| &v[..]).collect::<Vec<_>>(),
+        &params,
+    )
+    .expect("Failed to create Merkle tree");
     let merkle_construction_time = merkle_start.elapsed().as_secs_f64();
 
     // Generate proofs for Merkle tree
@@ -80,7 +75,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     // Add leaves to LMF
     let lmf_start = Instant::now();
     for leaf in &leaves {
-        lmf.add(&[*leaf]).expect("Failed to add leaf to LMF");
+        lmf.add(leaf).expect("Failed to add leaf to LMF");
     }
     let lmf_construction_time = lmf_start.elapsed().as_secs_f64();
 

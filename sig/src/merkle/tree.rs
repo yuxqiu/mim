@@ -70,6 +70,32 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         Ok(s)
     }
 
+    pub fn new_with_data(
+        data: &[&<Poseidon<P::BasePrimeField> as CRHScheme>::Input],
+        params: &'a PoseidonConfig<P::BasePrimeField>,
+    ) -> Result<Self, MerkleTreeError> {
+        if data.len() < 2 || !data.len().is_power_of_two() {
+            return Err(MerkleTreeError::InvalidCapacity);
+        }
+
+        let capacity = data.len() * 2 - 1;
+        let mut s = Self {
+            states: vec![P::BasePrimeField::default(); capacity],
+            params,
+        };
+
+        for (h, v) in s.states[capacity - data.len()..].iter_mut().zip(data) {
+            *h = Poseidon::evaluate(s.params, *v).map_err(|_| MerkleTreeError::CRHError)?;
+        }
+
+        // ensure the constructed merkle tree is valid
+        for i in (0..s.leaf_start()).rev() {
+            s.update_state(i)?;
+        }
+
+        Ok(s)
+    }
+
     pub fn prove(&self, leaf_index: usize) -> Result<MerkleProof<P>, MerkleTreeError> {
         if leaf_index >= self.num_leaves() {
             return Err(MerkleTreeError::IndexOutOfBound);
@@ -198,7 +224,7 @@ mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::UniformRand;
     use folding_schemes::transcript::poseidon::poseidon_canonical_config;
-    use rand::thread_rng;
+    use rand::{rngs::StdRng, thread_rng, SeedableRng};
 
     struct TestConfig;
     impl MerkleConfig for TestConfig {
@@ -298,6 +324,30 @@ mod tests {
     fn test_large_tree_operations_varied_capacities() {
         for capacity in [4 - 1, 32 - 1, 64 - 1, 128 - 1] {
             test_large_tree_operations(capacity);
+        }
+    }
+
+    #[test]
+    fn test_new_with_data() {
+        let mut rng = StdRng::from_seed([42; 32]);
+        let leaf_max_index = 128;
+        let params = poseidon_params();
+
+        let mut leaves = Vec::new();
+        for _ in 0..leaf_max_index {
+            leaves.push([Fr::rand(&mut rng)]);
+        }
+
+        let merkle = MerkleTree::<TestConfig>::new_with_data(
+            &leaves.iter().map(|v| &v[..]).collect::<Vec<_>>(),
+            &params,
+        )
+        .unwrap();
+        for i in 0..leaf_max_index {
+            let p = merkle.prove(i).unwrap();
+            let valid =
+                MerkleTree::<TestConfig>::verify(&params, merkle.root(), &leaves[i], p).unwrap();
+            assert!(valid);
         }
     }
 }
