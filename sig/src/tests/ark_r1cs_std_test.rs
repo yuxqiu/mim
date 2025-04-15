@@ -10,6 +10,7 @@ mod test {
     };
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::FieldVar;
+
     use ark_r1cs_std::R1CSVar;
     use ark_r1cs_std::{
         alloc::AllocVar,
@@ -653,5 +654,53 @@ mod test {
         // Instead of storing `num_of_additions_over_normal_form` and `prod_of_num_of_additions`, they store an explicit upper bound.
         // This makes it way easier to know when to reduce the element and whether overflow will happen.
         // It's relatively harder to manage `surfeit` values in `arkworks`.
+    }
+
+    // Some assumptions about R1CS is not true when emulation is used
+    #[test]
+    fn emulation_cost() {
+        type TargetF = <ark_bls12_381::Config as Bls12Config>::Fp;
+        type BaseF = <ark_bls12_377::Bls12_377 as Pairing>::ScalarField;
+
+        {
+            // 1. mul by constant is not free
+            let cs = ConstraintSystem::<BaseF>::new_ref();
+            let a = EmulatedFpVar::new_input(cs.clone(), || Ok(TargetF::default())).unwrap();
+            let ncs = cs.num_constraints();
+            let _ = a * TargetF::from(183651); // use 183651 to prevent some optim for 0/1
+
+            let diff = cs.num_constraints() - ncs;
+            println!("mul by constant: diff = {}", diff);
+            assert!(diff > 0);
+        }
+
+        {
+            // 2. add by constant is not free (when a has gone through many additions)
+
+            /*
+            pub fn add_constant(&self, other: &TargetF) -> R1CSResult<Self> {
+                let other_limbs = Self::get_limbs_representations(other, self.get_optimization_type())?;
+
+                let mut limbs = Vec::new();
+                for (this_limb, other_limb) in self.limbs.iter().zip(other_limbs.iter()) {
+                    limbs.push(this_limb + *other_limb);
+                }
+
+                let mut res = Self {
+                    cs: self.cs(),
+                    limbs,
+                    num_of_additions_over_normal_form: self
+                        .num_of_additions_over_normal_form
+                        .add(&BaseF::one()),
+                    is_in_the_normal_form: false,
+                    target_phantom: PhantomData,
+                };
+
+                Reducer::<TargetF, BaseF>::post_add_reduce(&mut res)?;       <----------- this is not free
+
+                Ok(res)
+            }
+            */
+        }
     }
 }
