@@ -47,12 +47,11 @@ fn run_experiment(n: usize) -> ExperimentResult {
     // --- Standard Merkle Tree ---
     println!("eval standard Merkle Tree");
     let peak_mem_merkle = {
+        // for fair comparison, init this before MemRecorder starts
+        let leaves = leaves.iter().map(|v| &v[..]).collect::<Vec<_>>();
         let mem = MemRecorder::start();
-        let _merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(
-            &leaves.iter().map(|v| &v[..]).collect::<Vec<_>>(),
-            &params,
-        )
-        .expect("Failed to create Merkle tree");
+        let _merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(&leaves, &params)
+            .expect("Failed to create Merkle tree");
         mem.end()
     };
 
@@ -90,6 +89,7 @@ fn main() {
     ];
     let results_path = Path::new("../exp/lmf");
     fs::create_dir_all(results_path).unwrap();
+    let results_path = results_path.join("experiment_results_mem.json");
 
     println!("Running Merkle Tree and LMF experiments...");
     println!(
@@ -100,12 +100,11 @@ fn main() {
 
     let mut results = Vec::new();
     for n in sizes {
-        let results_path = results_path.join("experiment_results_mem.json");
         let result = run_experiment(n);
         results.push(result);
 
         let mut file = File::create(&results_path).unwrap();
-        serde_json::to_writer_pretty(&mut file, &result)
+        serde_json::to_writer_pretty(&mut file, &results)
             .expect("serde_json pretty print should succeed");
 
         // Print results in a formatted table
