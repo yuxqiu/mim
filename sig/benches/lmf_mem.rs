@@ -43,14 +43,14 @@ fn run_experiment(n: usize) -> ExperimentResult {
     for _ in 0..n {
         leaves.push([Fr::rand(&mut rng)]);
     }
+    // for fair comparison, init this here so that MemRecorder records this for both merkle and lmf
+    let leaves_ref = leaves.iter().map(|v| &v[..]).collect::<Vec<_>>();
 
     // --- Standard Merkle Tree ---
     println!("eval standard Merkle Tree");
     let peak_mem_merkle = {
-        // for fair comparison, init this before MemRecorder starts
-        let leaves = leaves.iter().map(|v| &v[..]).collect::<Vec<_>>();
         let mem = MemRecorder::start();
-        let _merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(&leaves, &params)
+        let _merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(&leaves_ref, &params)
             .expect("Failed to create Merkle tree");
         mem.end()
     };
