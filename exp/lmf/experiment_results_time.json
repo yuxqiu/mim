@@ -1,0 +1,47 @@
+[
+  {
+    "n": 32768,
+    "merkle_construction_time": 2.513726263,
+    "merkle_proof_size": 15,
+    "merkle_proof_time": 2.272e-7,
+    "lmf_construction_time": 2.523984871,
+    "lmf_fixed_proof_size": 18,
+    "lmf_fixed_proof_time": 9.205999999999999e-7
+  },
+  {
+    "n": 65536,
+    "merkle_construction_time": 5.083264185,
+    "merkle_proof_size": 16,
+    "merkle_proof_time": 4.002e-7,
+    "lmf_construction_time": 5.107905796,
+    "lmf_fixed_proof_size": 18,
+    "lmf_fixed_proof_time": 1.116e-6
+  },
+  {
+    "n": 131072,
+    "merkle_construction_time": 10.170738367,
+    "merkle_proof_size": 17,
+    "merkle_proof_time": 4.129e-7,
+    "lmf_construction_time": 10.205685235,
+    "lmf_fixed_proof_size": 20,
+    "lmf_fixed_proof_time": 1.2619e-6
+  },
+  {
+    "n": 262144,
+    "merkle_construction_time": 20.366109848,
+    "merkle_proof_size": 18,
+    "merkle_proof_time": 4.7119999999999993e-7,
+    "lmf_construction_time": 20.422548199,
+    "lmf_fixed_proof_size": 20,
+    "lmf_fixed_proof_time": 1.4286e-6
+  },
+  {
+    "n": 524288,
+    "merkle_construction_time": 40.606209952,
+    "merkle_proof_size": 19,
+    "merkle_proof_time": 5.434e-7,
+    "lmf_construction_time": 40.860081383,
+    "lmf_fixed_proof_size": 22,
+    "lmf_fixed_proof_time": 1.7003999999999998e-6
+  }
+]

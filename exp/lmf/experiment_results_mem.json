@@ -1,0 +1,27 @@
+[
+  {
+    "n": 32768,
+    "peak_mem_merkle": 20500480,
+    "peak_mem_lmf": 22777856
+  },
+  {
+    "n": 65536,
+    "peak_mem_merkle": 29024256,
+    "peak_mem_lmf": 28073984
+  },
+  {
+    "n": 131072,
+    "peak_mem_merkle": 40665088,
+    "peak_mem_lmf": 38195200
+  },
+  {
+    "n": 262144,
+    "peak_mem_merkle": 60989440,
+    "peak_mem_lmf": 60411904
+  },
+  {
+    "n": 524288,
+    "peak_mem_merkle": 96157696,
+    "peak_mem_lmf": 99778560
+  }
+]
