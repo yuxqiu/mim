@@ -418,6 +418,9 @@ pub fn optimal_forest_params(n: usize) -> (u32, u32) {
     let kr = k as u32;
     assert_eq!(f64::from(kr), k, "k is too large for u32");
 
+    // guard against when n = 1
+    let kr = std::cmp::max(1, kr);
+
     (q, kr)
 }
 

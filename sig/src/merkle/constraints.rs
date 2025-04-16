@@ -311,7 +311,7 @@ mod test {
     use ark_r1cs_std::{alloc::AllocVar, R1CSVar};
     use ark_relations::r1cs::ConstraintSystem;
     use folding_schemes::transcript::poseidon::poseidon_canonical_config;
-    use rand::thread_rng;
+    use rand::{rngs::StdRng, thread_rng, SeedableRng};
 
     struct TestConfig;
     impl MerkleConfig for TestConfig {
@@ -358,30 +358,19 @@ mod test {
         assert_eq!(root_var.value().unwrap(), root);
     }
 
-    #[test]
-    fn test_r1cs_merkle_forest_gadget_large_capacity() {
+    fn test_r1cs_merkle_forest_gadget_helper(values: Vec<Fr>) {
         let params = poseidon_params();
-        let capacity_per_tree = 8 - 1;
-        let num_tree = 3;
         let cs = ConstraintSystem::new_ref();
 
-        let mut values = vec![];
-        for _ in 0..3 {
-            let val = {
-                let mut rng = thread_rng();
-                Fr::rand(&mut rng)
-            };
-            values.push(val);
-        }
-
+        let values_ref = values.iter().map(|v| [*v]).collect::<Vec<_>>();
+        let values_ref = values_ref.iter().map(|v| &v[..]).collect::<Vec<_>>();
         let forest = LeveledMerkleForest::<TestConfig>::new_with_data(
-            either::Left(&values),
+            either::Right(&values_ref),
             &params.parameters,
         )
         .unwrap();
         let mut forest_var =
-            LeveledMerkleForestVar::<TestConfig>::new(capacity_per_tree, num_tree, &params)
-                .unwrap();
+            LeveledMerkleForestVar::<TestConfig>::new_optimal(values.len(), &params).unwrap();
 
         for (i, val) in values.iter().enumerate() {
             let add_result = forest_var.update(
@@ -390,6 +379,9 @@ mod test {
             );
             assert!(add_result.is_ok());
         }
+
+        dbg!(forest_var.value().unwrap());
+        dbg!(&forest);
 
         let new_root = forest_var.root();
         assert_eq!(new_root.value().unwrap(), forest.root());
@@ -399,42 +391,16 @@ mod test {
     }
 
     #[test]
-    fn test_r1cs_merkle_forest_gadget_small_capacity() {
-        let params = poseidon_params();
-        let capacity_per_tree = 4 - 1;
-        let num_tree = 3;
-        let cs = ConstraintSystem::new_ref();
+    fn test_r1cs_merkle_forest_gadget() {
+        let mut rng = StdRng::from_seed([42; 32]);
 
-        let mut values = vec![];
-        for _ in 0..3 {
-            let val = {
-                let mut rng = thread_rng();
-                Fr::rand(&mut rng)
-            };
-            values.push(val);
+        for i in [1, 2, 3, 4, 8, 16] {
+            let mut values = vec![];
+            for _ in 0..i {
+                let val = { Fr::rand(&mut rng) };
+                values.push(val);
+            }
+            test_r1cs_merkle_forest_gadget_helper(values);
         }
-
-        let forest = LeveledMerkleForest::<TestConfig>::new_with_data(
-            either::Left(&values),
-            &params.parameters,
-        )
-        .unwrap();
-        let mut forest_var =
-            LeveledMerkleForestVar::<TestConfig>::new(capacity_per_tree, num_tree, &params)
-                .unwrap();
-
-        for (i, val) in values.iter().enumerate() {
-            let add_result = forest_var.update(
-                FpVar::new_witness(cs.clone(), || Ok(Fr::from(i as u32))).unwrap(),
-                &[FpVar::new_witness(cs.clone(), || Ok(val)).unwrap()],
-            );
-            assert!(add_result.is_ok());
-        }
-
-        let new_root = forest_var.root();
-        assert_eq!(new_root.value().unwrap(), forest.root());
-        assert!(cs.is_satisfied().unwrap());
-
-        println!("{}", cs.num_constraints());
     }
 }
