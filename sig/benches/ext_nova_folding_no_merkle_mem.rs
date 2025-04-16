@@ -67,7 +67,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
         MAX_COMMITTEE_SIZE,
         Fr,
         BCCircuitNoMerkle<Fr, MAX_COMMITTEE_SIZE>,
-    >(&config_path, BlsParameters::setup())?;
+    >(&config_path, BlsParameters::setup(), false)?;
 
     // Define experiment parameters
     // - capped at 1 << 23 as it already requires roughly 900 GB memory

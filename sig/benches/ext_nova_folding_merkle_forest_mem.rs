@@ -76,7 +76,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
         MAX_COMMITTEE_SIZE,
         Fr,
         BCCircuitMerkleForest<Fr, MAX_COMMITTEE_SIZE>,
-    >(&config_path, (BlsParameters::setup(), STATE_SIZE))?;
+    >(&config_path, (BlsParameters::setup(), STATE_SIZE), false)?;
 
     // Define experiment parameters
     // - capped at 1 << 23 as it already requires roughly 900 GB memory

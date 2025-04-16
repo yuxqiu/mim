@@ -361,18 +361,21 @@ pub fn measure_bc_circuit_constraints<
 >(
     config_path: &Path,
     params: BCCircuit::Params,
+    rerun: bool,
 ) -> Result<usize, Error> {
     let f_circuit = BCCircuit::new(params)?;
 
     // Try to load existing config
-    if let Ok(file) = File::open(&config_path) {
-        let config: ExperimentConfig =
-            serde_json::from_reader(file).expect("serde_json should deserialize correctly");
-        println!(
-            "Loaded BCCircuit constraints: {}",
-            config.bc_circuit_constraints
-        );
-        return Ok(config.bc_circuit_constraints);
+    if !rerun {
+        if let Ok(file) = File::open(&config_path) {
+            let config: ExperimentConfig =
+                serde_json::from_reader(file).expect("serde_json should deserialize correctly");
+            println!(
+                "Loaded BCCircuit constraints: {}",
+                config.bc_circuit_constraints
+            );
+            return Ok(config.bc_circuit_constraints);
+        }
     }
 
     // Measure constraints
