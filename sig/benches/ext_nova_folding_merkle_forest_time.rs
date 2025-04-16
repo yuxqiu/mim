@@ -315,6 +315,15 @@ fn main() -> Result<(), Error> {
 
     const STATE_SIZE: usize = 1024;
 
+    // warmup the allocator
+    {
+        let mut sys = sysinfo::System::new_all();
+        sys.refresh_all();
+        let mut v: Vec<u8> = Vec::with_capacity(sys.total_memory() as usize); // 100 MB
+                                                                              // Optionally touch the memory to ensure pages are mapped
+        v.resize(sys.total_memory() as usize, 42);
+    } // v is dropped here, memory is "freed" but likely retained by the allocator
+
     run_exp::<128, STATE_SIZE>(data_path)?;
     run_exp::<256, STATE_SIZE>(data_path)?;
     run_exp::<512, STATE_SIZE>(data_path)?;
