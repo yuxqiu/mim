@@ -72,23 +72,23 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         let capacity = len * 2 - 1;
         let mut s = Self::new_with_empty(capacity, params)?;
 
+        let mut data_holder = Vec::new();
         let data = match data {
-            Either::Left(v) => v.to_owned(),
+            Either::Left(v) => v,
             Either::Right(v) => {
-                let mut data = Vec::new();
-                data.reserve_exact(v.len());
+                data_holder.reserve_exact(v.len());
                 for d in v {
-                    data.push(
+                    data_holder.push(
                         Poseidon::evaluate(s.params, *d).map_err(|_| MerkleTreeError::CRHError)?,
                     );
                 }
-                data
+                &data_holder
             }
         };
 
         let leaf_start = s.leaf_start();
         for (h, v) in s.states[leaf_start..].iter_mut().zip(data) {
-            *h = v;
+            *h = *v;
         }
 
         // O(N) construction
