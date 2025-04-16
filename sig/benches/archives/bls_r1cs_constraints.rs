@@ -1,3 +1,4 @@
+#[path = "../utils/mod.rs"]
 mod utils;
 
 use ark_ec::{bls12::Bls12Config, pairing::Pairing};

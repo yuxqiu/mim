@@ -4,6 +4,7 @@
 /// - generate a `DeciderEthCircuit` final proof
 ///
 /// It's adapted from `sonobe/examples/full_flow.rs`
+#[path = "../utils/mod.rs"]
 mod utils;
 
 use ark_mnt4_298::{Fr, G1Projective as G1, MNT4_298 as MNT4};

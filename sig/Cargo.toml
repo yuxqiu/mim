@@ -56,22 +56,27 @@ tikv-jemalloc-ctl = {version = "0.6.0", features = ["stats"]}
 
 [[bench]]
 name = "bls_pairing"
-harness = false
-
-[[bench]]
-name = "groth16_single_step_native"
-harness = false
-
-[[bench]]
-name = "groth16_single_step_emulation"
+path = "benches/archives/bls_pairing.rs"
 harness = false
 
 [[bench]]
 name = "bls_r1cs_constraints"
+path = "benches/archives/bls_r1cs_constraints.rs"
+harness = false  # optional, only if you're not using the standard test harness
+
+[[bench]]
+name = "groth16_single_step_native"
+path = "benches/archives/groth16_single_step_native.rs"
+harness = false
+
+[[bench]]
+name = "groth16_single_step_emulation"
+path = "benches/archives/groth16_single_step_emulation.rs"
 harness = false
 
 [[bench]]
 name = "nova_folding_no_merkle"
+path = "benches/archives/nova_folding_no_merkle.rs"
 harness = false
 
 [[bench]]

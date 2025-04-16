@@ -15,7 +15,8 @@ fn main() {
 
     register_tracing();
 
-    let dir = temp_dir();
+    let mut dir = temp_dir();
+    dir.push("tmp_config.json");
 
     measure_bc_circuit_constraints::<
         MAX_COMMITTEE_SIZE,
