@@ -104,9 +104,15 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     let lmf_fixed_proof_time = lmf_fixed_proof_time / proof_indices.len() as f64;
 
     // Generate variable-size proofs for LMF
-    let proof_indices: Vec<usize> = (0..=n.ilog(lmf.num_leaves_per_tree() as usize))
-        .map(|e| (lmf.num_leaves_per_tree() as usize).pow(e) - 1)
-        .collect();
+    let mut proof_indices = Vec::new();
+    let mut nl = lmf
+        .num_leaves_per_tree()
+        .pow(n.ilog(lmf.num_leaves_per_tree() as usize));
+    while nl > 0 {
+        proof_indices.push(n - nl as usize);
+        nl /= lmf.num_leaves_per_tree();
+    }
+
     let mut lmf_variable_proof_sizes = Vec::new();
     let mut lmf_variable_proof_times = Vec::new();
     for &idx in &proof_indices {
