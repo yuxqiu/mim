@@ -62,6 +62,16 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
             .expect("Failed to generate Merkle proof");
         merkle_proof_time += proof_start.elapsed();
         merkle_proof_size = proof.0.len();
+
+        // ensure the proof is correct
+        let valid = MerkleTree::<Config<Fr>>::verify(
+            &params,
+            merkle_tree.root(),
+            Either::Left(&leaves[idx]),
+            proof,
+        )
+        .unwrap();
+        assert!(valid);
     }
     let merkle_proof_time = merkle_proof_time.as_secs_f64() / (proof_indices.len() as f64);
 
@@ -82,6 +92,12 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
             .expect("Failed to generate fixed-size LMF proof");
         lmf_fixed_proof_time += proof_start.elapsed();
         lmf_fixed_proof_size = proof.siblings.len();
+
+        // ensure the proof is correct
+        let valid =
+            LeveledMerkleForest::verify(&params, lmf.root(), Either::Left(&leaves[idx]), proof)
+                .unwrap();
+        assert!(valid);
     }
     let lmf_fixed_proof_time = lmf_fixed_proof_time.as_secs_f64() / proof_indices.len() as f64;
 
@@ -98,6 +114,18 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
             .expect("Failed to generate variable-size LMF proof");
         lmf_variable_proof_times.push(proof_start.elapsed().as_secs_f64());
         lmf_variable_proof_sizes.push(proof.siblings.len());
+
+        // ensure the proof is correct
+        let valid = LeveledMerkleForest::verify_variable(
+            &params,
+            lmf.states(),
+            lmf.capacity_per_tree(),
+            lmf.num_trees(),
+            Either::Left(&leaves[idx]),
+            proof,
+        )
+        .unwrap();
+        assert!(valid);
     }
 
     // Return results
