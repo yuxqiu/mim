@@ -104,26 +104,11 @@ Measured BCCircuit constraints: 124142647
       INFO num_constraints=122293303
   INFO start proving forest update
      update 
-      INFO start hashing the input for LMF
+      INFO start updating the LMF
+      INFO num_constraints=124142647
+      INFO start hashing the input
       INFO num_constraints=124146239
       INFO num_constraints=124415036
-         update_with_hash 
-          INFO start updating the LMF
-          INFO num_constraints=124415921
-     update_with_hash 
-      INFO start updating the LMF
-      INFO num_constraints=124420398
-     update_with_hash 
-      INFO start updating the LMF
-      INFO num_constraints=124424875
-     update_with_hash 
-      INFO start updating the LMF
-      INFO num_constraints=124429352
-     update_with_hash 
-      INFO start updating the LMF
-      INFO num_constraints=124433829
-     update_with_hash 
-      INFO start updating the LMF
       INFO num_constraints=124438306
   INFO start returning the new state
   INFO num_constraints=126291242
