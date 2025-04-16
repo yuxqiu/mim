@@ -1,12 +1,12 @@
    Compiling sig v0.1.0 (/home/ubuntu/dev/mim/sig)
-    Finished `bench` profile [optimized] target(s) in 9.94s
-     Running benches/constraints.rs (target/release/deps/constra
-ints-0f9524c0889a79e6)                                           generate_step_constraints 
+    Finished `bench` profile [optimized] target(s) in 7.59s
+     Running benches/constraints.rs (target/release/deps/constraints-b83b86dedd065fe5)
+ generate_step_constraints 
   INFO start reconstructing committee and epoch
   INFO num_constraints=24827996
      bc_generate_constraints 
-      INFO start enforcing epoch of new committee = epoch of old
- committee + 1                                                        INFO num_constraints=24828065
+      INFO start enforcing epoch of new committee = epoch of old committee + 1
+      INFO num_constraints=24828065
       INFO start enforcing signature matches
       INFO start aggregating public keys
       INFO num_constraints=33247413
@@ -53,4 +53,78 @@ ints-0f9524c0889a79e6)                                           generate_step_c
   INFO start returning the new state
   INFO num_constraints=124142647
 Measured BCCircuit constraints: 124142647
-Loaded BCCircuit constraints: 124142647
+ generate_step_constraints 
+  INFO start reconstructing committee and epoch
+  INFO num_constraints=24827996
+     bc_generate_constraints 
+      INFO start enforcing epoch of new committee = epoch of old committee + 1
+      INFO num_constraints=24828065
+      INFO start enforcing signature matches
+      INFO start aggregating public keys
+      INFO num_constraints=33247413
+      INFO start checking signatures
+         verify 
+             hash_to_curve 
+              INFO num_constraints=37272757
+                 hash 
+                  INFO num_constraints=37272757
+                     hash_to_field 
+                      INFO num_constraints=37272757
+                         expand 
+                          INFO num_constraints=37272757
+                             new_xmd 
+                              INFO num_constraints=0
+                              INFO num_constraints=0
+                          INFO num_constraints=55902133
+                      INFO num_constraints=58271669
+                     map_to_curve 
+                      INFO num_constraints=58271669
+                         map_to_curve 
+                          INFO num_constraints=58271669
+                          INFO num_constraints=59804331
+                      INFO num_constraints=59899107
+                     map_to_curve 
+                      INFO num_constraints=59899107
+                         map_to_curve 
+                          INFO num_constraints=59899107
+                          INFO num_constraints=61431769
+                      INFO num_constraints=61526545
+                     clear_cofactor_var 
+                      INFO num_constraints=61582740
+                      INFO num_constraints=65259378
+                  INFO num_constraints=65259378
+              INFO num_constraints=65259378
+             miller_loop 
+             final_exponentiation 
+              INFO num_constraints=95154811
+              INFO num_constraints=122270655
+          INFO num_constraints=122289711
+      INFO num_constraints=122289711
+      INFO start checking weight > threshold
+      INFO num_constraints=122293303
+  INFO start proving forest update
+     update 
+      INFO start hashing the input for LMF
+      INFO num_constraints=124146239
+      INFO num_constraints=124415036
+         update_with_hash 
+          INFO start updating the LMF
+          INFO num_constraints=124415921
+     update_with_hash 
+      INFO start updating the LMF
+      INFO num_constraints=124420398
+     update_with_hash 
+      INFO start updating the LMF
+      INFO num_constraints=124424875
+     update_with_hash 
+      INFO start updating the LMF
+      INFO num_constraints=124429352
+     update_with_hash 
+      INFO start updating the LMF
+      INFO num_constraints=124433829
+     update_with_hash 
+      INFO start updating the LMF
+      INFO num_constraints=124438306
+  INFO start returning the new state
+  INFO num_constraints=126291242
+Measured BCCircuit constraints: 126291242
