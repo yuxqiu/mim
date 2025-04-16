@@ -4,7 +4,7 @@ use sig::{
     bls::Parameters,
     folding::circuit::{BCCircuitMerkleForest, BCCircuitNoMerkle},
 };
-use utils::{ext::measure_bc_circuit_constraints, register_tracing};
+use utils::{ext::measure_bc_circuit_constraints, generate_random_string, register_tracing};
 
 mod utils;
 
@@ -16,7 +16,7 @@ fn main() {
     register_tracing();
 
     let mut dir = temp_dir();
-    dir.push("tmp_config.json");
+    dir.push(format!("tmp_config_{}.json", generate_random_string(12)));
 
     measure_bc_circuit_constraints::<
         MAX_COMMITTEE_SIZE,

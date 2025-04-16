@@ -1,5 +1,6 @@
 pub mod ext;
 
+use rand::{distributions::Alphanumeric, Rng};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use tracing_tree::HierarchicalLayer;
 
@@ -46,4 +47,14 @@ macro_rules! timeit {
         println!("{}: {:?}", $label, duration);
         result
     }};
+}
+
+#[allow(dead_code)]
+pub fn generate_random_string(length: usize) -> String {
+    let rand_string: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(length)
+        .map(char::from)
+        .collect();
+    rand_string
 }
