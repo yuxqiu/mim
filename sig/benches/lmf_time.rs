@@ -28,6 +28,7 @@ struct ExperimentResult {
     lmf_construction_time: f64, // seconds
     lmf_fixed_proof_size: usize,
     lmf_fixed_proof_time: f64, // seconds
+    lmf_variable_proof_indices: Vec<usize>,
     lmf_variable_proof_sizes: Vec<usize>,
     lmf_variable_proof_times: Vec<f64>, // seconds
 }
@@ -104,15 +105,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     let lmf_fixed_proof_time = lmf_fixed_proof_time / proof_indices.len() as f64;
 
     // Generate variable-size proofs for LMF
-    let mut proof_indices = Vec::new();
-    let mut nl = lmf
-        .num_leaves_per_tree()
-        .pow(n.ilog(lmf.num_leaves_per_tree() as usize));
-    while nl > 0 {
-        proof_indices.push(n - nl as usize);
-        nl /= lmf.num_leaves_per_tree();
-    }
-
+    let proof_indices = (0..n.ilog2()).map(|v| 1 << v).collect::<Vec<_>>();
     let mut lmf_variable_proof_sizes = Vec::new();
     let mut lmf_variable_proof_times = Vec::new();
     for &idx in &proof_indices {
@@ -146,6 +139,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
         lmf_construction_time,
         lmf_fixed_proof_size,
         lmf_fixed_proof_time,
+        lmf_variable_proof_indices: proof_indices,
         lmf_variable_proof_sizes,
         lmf_variable_proof_times,
     }
