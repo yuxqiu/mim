@@ -54,13 +54,12 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
     ///
     /// Note: caller of this method should ensure `index` is within the acceptable
     /// range of the Merkle tree.
-    #[tracing::instrument(skip_all)]
     pub fn update(
         &mut self,
         index: FpVar<P::BasePrimeField>,
         new_leaf: &[FpVar<P::BasePrimeField>],
     ) -> Result<FpVar<P::BasePrimeField>, SynthesisError> {
-        tracing::info!("start hashing the input for LMF");
+        tracing::info!("start hashing the input");
 
         let cs = self.cs();
 
@@ -77,16 +76,11 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
     ///
     /// Note: caller of this method should ensure `index` is within the acceptable
     /// range of the Merkle tree.
-    #[tracing::instrument(skip_all)]
     pub fn update_with_hash(
         &mut self,
         index: FpVar<P::BasePrimeField>,
         new_leaf: FpVar<P::BasePrimeField>,
     ) -> Result<FpVar<P::BasePrimeField>, SynthesisError> {
-        tracing::info!("start updating the LMF");
-
-        let cs = self.cs();
-
         let num_leaves = self.num_leaves();
         let leaves_start = num_leaves - 1;
 
@@ -113,8 +107,6 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
         for i in (0..leaves_start).rev() {
             self.update_state(i)?;
         }
-
-        tracing::info!(num_constraints = cs.num_constraints());
 
         // Return the updated root.
         Ok(self.root())
@@ -204,11 +196,18 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
     ///
     /// Note: caller of this method should ensure `index` is within the acceptable
     /// range of the Merkle tree.
+    #[tracing::instrument(skip_all)]
     pub fn update(
         &mut self,
         index: FpVar<P::BasePrimeField>,
         new_leaf: &[FpVar<P::BasePrimeField>],
     ) -> Result<FpVar<P::BasePrimeField>, SynthesisError> {
+        tracing::info!("start updating the LMF");
+
+        let cs = self.cs();
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
         let num_leaves_per_tree = self.num_leaves_per_tree();
         let (mut index, index_within_tree) = div_rem_power_of_2(index, num_leaves_per_tree)?;
 
@@ -219,6 +218,9 @@ impl<'a, P: MerkleConfig> LeveledMerkleForestVar<'a, P> {
             new_root = tree.update_with_hash(index_within_tree, new_root)?;
             index = new_index;
         }
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
         Ok(new_root)
     }
 
