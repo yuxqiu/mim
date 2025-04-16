@@ -1,3 +1,5 @@
+mod utils;
+
 use ark_bls12_381::Fr;
 use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use ark_ff::UniformRand;
@@ -8,8 +10,8 @@ use sig::merkle::{forest::LeveledMerkleForest, tree::MerkleTree, Config};
 use std::{
     fs::{self, File},
     path::Path,
-    time::{Duration, Instant},
 };
+use utils::ext::Timer;
 
 // Utility to get Poseidon parameters
 fn poseidon_params() -> PoseidonConfig<Fr> {
@@ -47,20 +49,20 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
 
     // --- Standard Merkle Tree ---
     println!("eval standard Merkle Tree");
-    let merkle_start = Instant::now();
+    let merkle_start = Timer::start();
     let merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(Either::Left(&leaves), &params)
         .expect("Failed to create Merkle tree");
-    let merkle_construction_time = merkle_start.elapsed().as_secs_f64();
+    let merkle_construction_time = merkle_start.end();
 
     // Generate proofs for Merkle tree
     let mut merkle_proof_size = 0;
-    let mut merkle_proof_time = Duration::new(0, 0);
+    let mut merkle_proof_time = 0.;
     for &idx in &proof_indices {
-        let proof_start = Instant::now();
+        let proof_start = Timer::start();
         let proof = merkle_tree
             .prove(idx)
             .expect("Failed to generate Merkle proof");
-        merkle_proof_time += proof_start.elapsed();
+        merkle_proof_time += proof_start.end();
         merkle_proof_size = proof.0.len();
 
         // ensure the proof is correct
@@ -73,24 +75,24 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
         .unwrap();
         assert!(valid);
     }
-    let merkle_proof_time = merkle_proof_time.as_secs_f64() / (proof_indices.len() as f64);
+    let merkle_proof_time = merkle_proof_time / (proof_indices.len() as f64);
 
     // --- Leveled Merkle Forest ---
     println!("eval Leveled Merkle Forest");
-    let lmf_start = Instant::now();
+    let lmf_start = Timer::start();
     let lmf = LeveledMerkleForest::<Config<Fr>>::new_with_data(Either::Left(&leaves), &params)
         .expect("Failed to create LMF");
-    let lmf_construction_time = lmf_start.elapsed().as_secs_f64();
+    let lmf_construction_time = lmf_start.end();
 
     // Generate fixed-size proofs for LMF
     let mut lmf_fixed_proof_size = 0;
-    let mut lmf_fixed_proof_time = Duration::new(0, 0);
+    let mut lmf_fixed_proof_time = 0.;
     for &idx in &proof_indices {
-        let proof_start = Instant::now();
+        let proof_start = Timer::start();
         let proof = lmf
             .prove(idx)
             .expect("Failed to generate fixed-size LMF proof");
-        lmf_fixed_proof_time += proof_start.elapsed();
+        lmf_fixed_proof_time += proof_start.end();
         lmf_fixed_proof_size = proof.siblings.len();
 
         // ensure the proof is correct
@@ -99,7 +101,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
                 .unwrap();
         assert!(valid);
     }
-    let lmf_fixed_proof_time = lmf_fixed_proof_time.as_secs_f64() / proof_indices.len() as f64;
+    let lmf_fixed_proof_time = lmf_fixed_proof_time / proof_indices.len() as f64;
 
     // Generate variable-size proofs for LMF
     let proof_indices: Vec<usize> = (0..=n.ilog(lmf.num_leaves_per_tree() as usize))
@@ -108,11 +110,11 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     let mut lmf_variable_proof_sizes = Vec::new();
     let mut lmf_variable_proof_times = Vec::new();
     for &idx in &proof_indices {
-        let proof_start = Instant::now();
+        let proof_start = Timer::start();
         let proof = lmf
             .prove_variable(idx)
             .expect("Failed to generate variable-size LMF proof");
-        lmf_variable_proof_times.push(proof_start.elapsed().as_secs_f64());
+        lmf_variable_proof_times.push(proof_start.end());
         lmf_variable_proof_sizes.push(proof.siblings.len());
 
         // ensure the proof is correct
