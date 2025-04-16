@@ -5,6 +5,7 @@ use ark_crypto_primitives::{
     sponge::poseidon::PoseidonConfig,
 };
 use derivative::Derivative;
+use either::{for_both, Either};
 use thiserror::Error;
 
 use super::{
@@ -52,25 +53,6 @@ pub struct MerkleForestVariableLengthProof<P: MerkleConfig> {
 }
 
 impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
-    pub fn new(
-        capacity_per_tree: u32,
-        num_tree: u32,
-        params: &'a PoseidonConfig<P::BasePrimeField>,
-    ) -> Result<Self, MerkleForestError> {
-        if num_tree == 0 {
-            return Err(MerkleForestError::InvalidNumTree);
-        }
-
-        let trees = vec![MerkleTree::new(capacity_per_tree as usize, params)?; num_tree as usize];
-        let states = vec![HashMap::new(); num_tree as usize];
-
-        Ok(Self {
-            trees,
-            states,
-            size: 0,
-        })
-    }
-
     pub fn new_optimal(
         n: usize,
         params: &'a PoseidonConfig<P::BasePrimeField>,
@@ -79,35 +61,64 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         Self::new(capacity_per_tree, num_tree, params)
     }
 
-    pub fn add(
-        &mut self,
-        val: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
-    ) -> Result<(), MerkleForestError> {
-        if self.size == self.max_leaves() {
-            return Err(MerkleForestError::ForestIsFull);
+    // the `Construct-Fast` algorithm in the thesis
+    pub fn new_with_data(
+        data: either::Either<
+            &[P::BasePrimeField],
+            &[&<Poseidon<P::BasePrimeField> as CRHScheme>::Input],
+        >,
+        params: &'a PoseidonConfig<P::BasePrimeField>,
+    ) -> Result<Self, MerkleForestError> {
+        let len = for_both!(data, data => data.len());
+        let mut s = Self::new_optimal(len, params)?;
+        s.size = len;
+
+        let mut data = match data {
+            either::Either::Left(v) => v.to_owned(),
+            either::Either::Right(v) => {
+                let mut data = Vec::new();
+                data.reserve_exact(v.len());
+                for d in v {
+                    data.push(
+                        Poseidon::evaluate(params, *d).map_err(|_| MerkleTreeError::CRHError)?,
+                    );
+                }
+                data
+            }
+        };
+
+        for i in 0..s.num_trees() as usize {
+            let mut new_data = Vec::new();
+            for (j, data_per_tree) in data
+                .chunks(s.num_leaves_per_tree() as usize)
+                .by_ref()
+                .enumerate()
+            {
+                // guard against the last chunk
+                let mut data_per_tree = data_per_tree.to_owned();
+                data_per_tree.extend(
+                    std::iter::repeat(P::BasePrimeField::default())
+                        .take(s.num_leaves_per_tree() as usize - data_per_tree.len()),
+                );
+
+                let merkle_tree = MerkleTree::new_with_data(either::Left(&data_per_tree), params)?;
+                let root = merkle_tree.root();
+                s.states[i].insert(j, merkle_tree);
+                new_data.push(root);
+            }
+            s.trees[i] = s.states[i]
+                .get(&(new_data.len() - 1))
+                .expect("state exists because leaf index is in bound")
+                .clone();
+            data = new_data;
         }
 
-        // update Merkle trees
-        let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
-        self.trees[0].update(self.size % num_leaves_per_tree, val)?;
-        let mut node = self.trees[0].root();
-        let mut idx = self.size / num_leaves_per_tree;
-        for i in 1..self.trees.len() {
-            self.trees[i].update_with_hash(idx % num_leaves_per_tree, node)?;
-            node = self.trees[i].root();
-            idx = idx / num_leaves_per_tree;
-        }
-
-        // update states
-        let mut idx = self.size / num_leaves_per_tree;
-        for i in 0..self.trees.len() {
-            self.states[i].insert(idx, self.trees[i].clone());
-            idx /= num_leaves_per_tree;
-        }
-
-        self.size += 1;
-        Ok(())
+        Ok(s)
     }
+
+    // TODO: add an `update` method that allows arbitrary position update
+    // - 1. We can get rid of `s` entirely
+    // - 2. During the update, we need to update each level's tree
 
     pub fn prove(&self, leaf_index: usize) -> Result<MerkleForestProof<P>, MerkleForestError> {
         if leaf_index >= self.size {
@@ -138,14 +149,19 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     pub fn verify(
         params: &PoseidonConfig<P::BasePrimeField>,
         root: P::BasePrimeField,
-        leaf: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
+        leaf: Either<&P::BasePrimeField, &<Poseidon<P::BasePrimeField> as CRHScheme>::Input>,
         proof: MerkleForestProof<P>,
     ) -> Result<bool, MerkleForestError> {
-        let mut hash = Poseidon::evaluate(params, leaf).map_err(|_| MerkleTreeError::CRHError)?;
-
         let mut index = proof.leaf_index;
         let leaf_start = proof.num_leaves_per_tree - 1;
         let tree_height = proof.num_leaves_per_tree.ilog2();
+
+        let mut hash = match leaf {
+            Either::Left(v) => *v,
+            Either::Right(v) => {
+                Poseidon::evaluate(params, v).map_err(|_| MerkleTreeError::CRHError)?
+            }
+        };
 
         // chunk by tree_height to get siblings for each tree
         for siblings in proof.siblings.chunks(tree_height as usize) {
@@ -198,7 +214,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         states: &[MerkleTree<P>],
         capacity_per_tree: u32,
         num_tree: u32,
-        leaf: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
+        leaf: Either<&P::BasePrimeField, &<Poseidon<P::BasePrimeField> as CRHScheme>::Input>,
         proof: MerkleForestVariableLengthProof<P>,
     ) -> Result<bool, MerkleForestError> {
         let (root, adjusted_index) = {
@@ -256,6 +272,76 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     #[inline]
     pub fn num_trees(&self) -> u32 {
         self.trees.len() as u32
+    }
+
+    #[inline]
+    pub fn capacity_per_tree(&self) -> u32 {
+        self.trees[0].capacity() as u32
+    }
+
+    // for the `Construct-Naive` algorithm in the thesis
+    fn seqadd(
+        &mut self,
+        val: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
+    ) -> Result<(), MerkleForestError> {
+        if self.size == self.max_leaves() {
+            return Err(MerkleForestError::ForestIsFull);
+        }
+
+        // update Merkle trees
+        let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
+        self.trees[0].update(self.size % num_leaves_per_tree, val)?;
+        let mut node = self.trees[0].root();
+        let mut idx = self.size / num_leaves_per_tree;
+        for i in 1..self.trees.len() {
+            self.trees[i].update_with_hash(idx % num_leaves_per_tree, node)?;
+            node = self.trees[i].root();
+            idx = idx / num_leaves_per_tree;
+        }
+
+        // update states
+        let mut idx = self.size / num_leaves_per_tree;
+        for i in 0..self.trees.len() {
+            self.states[i].insert(idx, self.trees[i].clone());
+            idx /= num_leaves_per_tree;
+        }
+
+        self.size += 1;
+        Ok(())
+    }
+
+    fn new(
+        capacity_per_tree: u32,
+        num_tree: u32,
+        params: &'a PoseidonConfig<P::BasePrimeField>,
+    ) -> Result<Self, MerkleForestError> {
+        if num_tree == 0 {
+            return Err(MerkleForestError::InvalidNumTree);
+        }
+
+        let trees = vec![MerkleTree::new(capacity_per_tree as usize, params)?; num_tree as usize];
+        let states = vec![HashMap::new(); num_tree as usize];
+
+        Ok(Self {
+            trees,
+            states,
+            size: 0,
+        })
+    }
+
+    // the `Construct-Naive` algorithm in the thesis
+    #[allow(dead_code)]
+    fn new_with_data_naive(
+        data: &[&<Poseidon<P::BasePrimeField> as CRHScheme>::Input],
+        params: &'a PoseidonConfig<P::BasePrimeField>,
+    ) -> Result<Self, MerkleForestError> {
+        let mut s = Self::new_optimal(data.len(), params)?;
+
+        for d in data {
+            s.seqadd(d)?;
+        }
+
+        Ok(s)
     }
 }
 
@@ -387,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_single_element() {
+    fn test_seqadd_single_element() {
         let params = poseidon_params();
         let capacity_per_tree = 8 - 1;
         let num_tree = 3;
@@ -398,13 +484,13 @@ mod tests {
             let mut rng = thread_rng();
             Fr::rand(&mut rng)
         };
-        let add_result = forest.add(&[val]);
+        let add_result = forest.seqadd(&[val]);
         assert!(add_result.is_ok());
         assert_eq!(forest.size, 1);
     }
 
     #[test]
-    fn test_add_multiple_elements() {
+    fn test_seqadd_multiple_elements() {
         let params = poseidon_params();
         let capacity_per_tree = 8 - 1;
         let num_tree = 3;
@@ -416,14 +502,14 @@ mod tests {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
             };
-            let add_result = forest.add(&[val]);
+            let add_result = forest.seqadd(&[val]);
             assert!(add_result.is_ok());
         }
         assert_eq!(forest.size, 5);
     }
 
     #[test]
-    fn test_add_until_full() {
+    fn test_seqadd_until_full() {
         let params = poseidon_params();
         let capacity_per_tree = 4 - 1; // Small capacity for testing full condition
         let num_tree = 3;
@@ -436,7 +522,7 @@ mod tests {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
             };
-            let add_result = forest.add(&[val]);
+            let add_result = forest.seqadd(&[val]);
             dbg!(i);
             assert!(add_result.is_ok());
         }
@@ -460,7 +546,7 @@ mod tests {
                 Fr::rand(&mut rng)
             };
             values.push(val);
-            let add_result = forest.add(&[val]);
+            let add_result = forest.seqadd(&[val]);
             assert!(add_result.is_ok());
         }
 
@@ -473,8 +559,12 @@ mod tests {
 
         // Verify the proof
         let root = forest.root();
-        let verify_result =
-            LeveledMerkleForest::<TestConfig>::verify(&params, root, &[values[leaf_index]], proof);
+        let verify_result = LeveledMerkleForest::<TestConfig>::verify(
+            &params,
+            root,
+            either::Right(&[values[leaf_index]]),
+            proof,
+        );
         assert!(verify_result.is_ok());
         assert_eq!(verify_result.unwrap(), true);
     }
@@ -494,7 +584,7 @@ mod tests {
                 Fr::rand(&mut rng)
             };
             values.push(val);
-            let add_result = forest.add(&[val]);
+            let add_result = forest.seqadd(&[val]);
             assert!(add_result.is_ok());
         }
 
@@ -507,8 +597,12 @@ mod tests {
 
         // Verify the proof
         let root = forest.root();
-        let verify_result =
-            LeveledMerkleForest::<TestConfig>::verify(&params, root, &[values[leaf_index]], proof);
+        let verify_result = LeveledMerkleForest::<TestConfig>::verify(
+            &params,
+            root,
+            either::Right(&[values[leaf_index]]),
+            proof,
+        );
         assert!(verify_result.is_ok());
         assert_eq!(verify_result.unwrap(), true);
     }
@@ -528,7 +622,7 @@ mod tests {
                 Fr::rand(&mut rng)
             };
             values.push(val);
-            let add_result = forest.add(&[val]);
+            let add_result = forest.seqadd(&[val]);
             assert!(add_result.is_ok());
         }
 
@@ -545,7 +639,7 @@ mod tests {
             forest.states(),
             capacity_per_tree,
             num_tree,
-            &[values[leaf_index]],
+            either::Right(&[values[leaf_index]]),
             proof,
         );
 
@@ -568,7 +662,7 @@ mod tests {
                 Fr::rand(&mut rng)
             };
             values.push(val);
-            let add_result = forest.add(&[val]);
+            let add_result = forest.seqadd(&[val]);
             assert!(add_result.is_ok());
         }
 
@@ -585,7 +679,7 @@ mod tests {
             forest.states(),
             capacity_per_tree,
             num_tree,
-            &[values[leaf_index]],
+            either::Right(&[values[leaf_index]]),
             proof,
         );
         assert!(verify_result.is_ok());
@@ -605,7 +699,7 @@ mod tests {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
             };
-            let add_result = forest.add(&[val]);
+            let add_result = forest.seqadd(&[val]);
             assert!(add_result.is_ok());
         }
 
@@ -635,7 +729,7 @@ mod tests {
 
         let mut forest =
             LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params).unwrap();
-        forest.add(&[Fr::default()]).unwrap();
+        forest.seqadd(&[Fr::default()]).unwrap();
 
         let (proof_size, _, max_permanent_state_size) = forest_stats(capacity_per_tree, num_tree);
 
@@ -644,7 +738,7 @@ mod tests {
 
         // populate the forest
         for _ in 0..((capacity_per_tree + 1) / 2).pow(num_tree as u32) - 1 {
-            forest.add(&[Fr::default()]).unwrap();
+            forest.seqadd(&[Fr::default()]).unwrap();
         }
 
         // count permanent state size
@@ -657,6 +751,50 @@ mod tests {
             max_permanent_state_size as usize,
             actual_permanent_state_size
         );
+    }
+
+    #[test]
+    fn test_new_with_data() {
+        let params = poseidon_params();
+        let mut values = Vec::new();
+        for _ in 0..5 {
+            let val = {
+                let mut rng = thread_rng();
+                Fr::rand(&mut rng)
+            };
+            values.push(val);
+        }
+
+        let forest =
+            LeveledMerkleForest::<TestConfig>::new_with_data(either::Left(&values), &params)
+                .unwrap();
+
+        dbg!(&forest);
+
+        for i in 0..values.len() {
+            let proof = forest.prove(i).unwrap();
+            let valid = LeveledMerkleForest::verify(
+                &params,
+                forest.root(),
+                either::Left(&values[i]),
+                proof,
+            )
+            .unwrap();
+            assert!(valid);
+
+            let proof = forest.prove_variable(i).unwrap();
+            let valid = LeveledMerkleForest::<TestConfig>::verify_variable(
+                &params,
+                forest.states(),
+                forest.capacity_per_tree(),
+                forest.num_trees(),
+                either::Left(&values[i]),
+                proof,
+            )
+            .unwrap();
+            assert!(valid);
+        }
+        assert_eq!(forest.size, 5);
     }
 
     #[test]

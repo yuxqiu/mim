@@ -365,26 +365,27 @@ mod test {
         let num_tree = 3;
         let cs = ConstraintSystem::new_ref();
 
-        let mut forest =
-            LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params.parameters)
-                .unwrap();
-        let mut forest_var =
-            LeveledMerkleForestVar::<TestConfig>::new(capacity_per_tree, num_tree, &params)
-                .unwrap();
-
         let mut values = vec![];
-        for i in 0..3 {
+        for _ in 0..3 {
             let val = {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
             };
             values.push(val);
+        }
 
-            let add_result = forest.add(&[val]);
-            assert!(add_result.is_ok());
+        let forest = LeveledMerkleForest::<TestConfig>::new_with_data(
+            either::Left(&values),
+            &params.parameters,
+        )
+        .unwrap();
+        let mut forest_var =
+            LeveledMerkleForestVar::<TestConfig>::new(capacity_per_tree, num_tree, &params)
+                .unwrap();
 
+        for (i, val) in values.iter().enumerate() {
             let add_result = forest_var.update(
-                FpVar::new_witness(cs.clone(), || Ok(Fr::from(i))).unwrap(),
+                FpVar::new_witness(cs.clone(), || Ok(Fr::from(i as u32))).unwrap(),
                 &[FpVar::new_witness(cs.clone(), || Ok(val)).unwrap()],
             );
             assert!(add_result.is_ok());
@@ -404,26 +405,27 @@ mod test {
         let num_tree = 3;
         let cs = ConstraintSystem::new_ref();
 
-        let mut forest =
-            LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params.parameters)
-                .unwrap();
-        let mut forest_var =
-            LeveledMerkleForestVar::<TestConfig>::new(capacity_per_tree, num_tree, &params)
-                .unwrap();
-
         let mut values = vec![];
-        for i in 0..3 {
+        for _ in 0..3 {
             let val = {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
             };
             values.push(val);
+        }
 
-            let add_result = forest.add(&[val]);
-            assert!(add_result.is_ok());
+        let forest = LeveledMerkleForest::<TestConfig>::new_with_data(
+            either::Left(&values),
+            &params.parameters,
+        )
+        .unwrap();
+        let mut forest_var =
+            LeveledMerkleForestVar::<TestConfig>::new(capacity_per_tree, num_tree, &params)
+                .unwrap();
 
+        for (i, val) in values.iter().enumerate() {
             let add_result = forest_var.update(
-                FpVar::new_witness(cs.clone(), || Ok(Fr::from(i))).unwrap(),
+                FpVar::new_witness(cs.clone(), || Ok(Fr::from(i as u32))).unwrap(),
                 &[FpVar::new_witness(cs.clone(), || Ok(val)).unwrap()],
             );
             assert!(add_result.is_ok());

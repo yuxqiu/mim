@@ -1,6 +1,7 @@
 use ark_bls12_381::Fr;
 use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use ark_ff::UniformRand;
+use either::Either;
 use rand::{thread_rng, Rng};
 use serde::Serialize;
 use sig::merkle::{forest::LeveledMerkleForest, tree::MerkleTree, Config};
@@ -38,7 +39,7 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     println!("generate random leaves");
     let mut leaves = Vec::new();
     for _ in 0..n {
-        leaves.push([Fr::rand(&mut rng)]);
+        leaves.push(Fr::rand(&mut rng));
     }
 
     // Select 10 random leaf indices for proof generation
@@ -47,11 +48,8 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     // --- Standard Merkle Tree ---
     println!("eval standard Merkle Tree");
     let merkle_start = Instant::now();
-    let merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(
-        &leaves.iter().map(|v| &v[..]).collect::<Vec<_>>(),
-        &params,
-    )
-    .expect("Failed to create Merkle tree");
+    let merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(Either::Left(&leaves), &params)
+        .expect("Failed to create Merkle tree");
     let merkle_construction_time = merkle_start.elapsed().as_secs_f64();
 
     // Generate proofs for Merkle tree
@@ -69,14 +67,9 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
 
     // --- Leveled Merkle Forest ---
     println!("eval Leveled Merkle Forest");
-    let mut lmf =
-        LeveledMerkleForest::<Config<Fr>>::new_optimal(n, &params).expect("Failed to create LMF");
-
-    // Add leaves to LMF
     let lmf_start = Instant::now();
-    for leaf in &leaves {
-        lmf.add(leaf).expect("Failed to add leaf to LMF");
-    }
+    let lmf = LeveledMerkleForest::<Config<Fr>>::new_with_data(Either::Left(&leaves), &params)
+        .expect("Failed to create LMF");
     let lmf_construction_time = lmf_start.elapsed().as_secs_f64();
 
     // Generate fixed-size proofs for LMF

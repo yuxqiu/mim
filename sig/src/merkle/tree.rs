@@ -6,6 +6,7 @@ use ark_crypto_primitives::{
     sponge::poseidon::PoseidonConfig,
 };
 use derivative::Derivative;
+use either::{for_both, Either};
 use thiserror::Error;
 
 use super::{is_left_node, left, parent, right, MerkleConfig};
@@ -53,14 +54,7 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         capacity: usize,
         params: &'a PoseidonConfig<P::BasePrimeField>,
     ) -> Result<Self, MerkleTreeError> {
-        if capacity < 3 || !(capacity + 1).is_power_of_two() {
-            return Err(MerkleTreeError::InvalidCapacity);
-        }
-
-        let mut s = Self {
-            states: vec![P::BasePrimeField::default(); capacity],
-            params,
-        };
+        let mut s = Self::new_with_empty(capacity, params)?;
 
         // ensure the constructed merkle tree is valid
         for i in (0..s.leaf_start()).rev() {
@@ -71,25 +65,34 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
     }
 
     pub fn new_with_data(
-        data: &[&<Poseidon<P::BasePrimeField> as CRHScheme>::Input],
+        data: Either<&[P::BasePrimeField], &[&<Poseidon<P::BasePrimeField> as CRHScheme>::Input]>,
         params: &'a PoseidonConfig<P::BasePrimeField>,
     ) -> Result<Self, MerkleTreeError> {
-        if data.len() < 2 || !data.len().is_power_of_two() {
-            return Err(MerkleTreeError::InvalidCapacity);
-        }
+        let len = for_both!(data, data => data.len());
+        let capacity = len * 2 - 1;
+        let mut s = Self::new_with_empty(capacity, params)?;
 
-        let capacity = data.len() * 2 - 1;
-        let mut s = Self {
-            states: vec![P::BasePrimeField::default(); capacity],
-            params,
+        let data = match data {
+            Either::Left(v) => v.to_owned(),
+            Either::Right(v) => {
+                let mut data = Vec::new();
+                data.reserve_exact(v.len());
+                for d in v {
+                    data.push(
+                        Poseidon::evaluate(s.params, *d).map_err(|_| MerkleTreeError::CRHError)?,
+                    );
+                }
+                data
+            }
         };
 
-        for (h, v) in s.states[capacity - data.len()..].iter_mut().zip(data) {
-            *h = Poseidon::evaluate(s.params, *v).map_err(|_| MerkleTreeError::CRHError)?;
+        let leaf_start = s.leaf_start();
+        for (h, v) in s.states[leaf_start..].iter_mut().zip(data) {
+            *h = v;
         }
 
-        // ensure the constructed merkle tree is valid
-        for i in (0..s.leaf_start()).rev() {
+        // O(N) construction
+        for i in (0..leaf_start).rev() {
             s.update_state(i)?;
         }
 
@@ -134,7 +137,7 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
     pub fn verify(
         params: &PoseidonConfig<P::BasePrimeField>,
         root: P::BasePrimeField,
-        leaf: &<Poseidon<P::BasePrimeField> as CRHScheme>::Input,
+        leaf: Either<&P::BasePrimeField, &<Poseidon<P::BasePrimeField> as CRHScheme>::Input>,
         proof: MerkleProof<P>,
     ) -> Result<bool, MerkleTreeError> {
         let (siblings, leaf_index) = proof;
@@ -142,9 +145,24 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
             return Err(MerkleTreeError::PathLenMismatch);
         }
 
-        let hash = Poseidon::evaluate(params, leaf).map_err(|_| MerkleTreeError::CRHError)?;
+        let hash = match leaf {
+            Either::Left(v) => *v,
+            Either::Right(v) => {
+                Poseidon::evaluate(params, v).map_err(|_| MerkleTreeError::CRHError)?
+            }
+        };
         let hash = Self::hash_path(params, hash, leaf_index, &siblings)?;
         Ok(hash == root)
+    }
+
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.states.len()
+    }
+
+    #[inline]
+    pub fn num_leaves(&self) -> usize {
+        (self.capacity() + 1) / 2
     }
 
     pub(crate) fn hash_path(
@@ -166,38 +184,6 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         Ok(hash)
     }
 
-    const fn sibling(index: usize) -> usize {
-        if index % 2 == 0 {
-            index - 1
-        } else {
-            index + 1
-        }
-    }
-
-    #[inline]
-    fn leaf_start(&self) -> usize {
-        (self.capacity() + 1) / 2 - 1
-    }
-
-    #[inline]
-    fn capacity(&self) -> usize {
-        self.states.len()
-    }
-
-    fn update_state(&mut self, index: usize) -> Result<(), MerkleTreeError> {
-        let left = left(index);
-        let right = right(index);
-        self.states[index] =
-            PoseidonTwoToOne::evaluate(self.params, self.states[left], self.states[right])
-                .map_err(|_| MerkleTreeError::CRHError)?;
-        Ok(())
-    }
-
-    #[inline]
-    pub(crate) fn num_leaves(&self) -> usize {
-        (self.capacity() + 1) / 2
-    }
-
     pub(crate) fn update_with_hash(
         &mut self,
         leaf_index: usize,
@@ -214,6 +200,45 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
             self.update_state(index)?;
         }
 
+        Ok(())
+    }
+
+    const fn sibling(index: usize) -> usize {
+        if index % 2 == 0 {
+            index - 1
+        } else {
+            index + 1
+        }
+    }
+
+    #[inline]
+    fn new_with_empty(
+        capacity: usize,
+        params: &'a PoseidonConfig<P::BasePrimeField>,
+    ) -> Result<Self, MerkleTreeError> {
+        if capacity < 3 || !(capacity + 1).is_power_of_two() {
+            return Err(MerkleTreeError::InvalidCapacity);
+        }
+
+        let s = Self {
+            states: vec![P::BasePrimeField::default(); capacity],
+            params,
+        };
+
+        Ok(s)
+    }
+
+    #[inline]
+    fn leaf_start(&self) -> usize {
+        (self.capacity() + 1) / 2 - 1
+    }
+
+    fn update_state(&mut self, index: usize) -> Result<(), MerkleTreeError> {
+        let left = left(index);
+        let right = right(index);
+        self.states[index] =
+            PoseidonTwoToOne::evaluate(self.params, self.states[left], self.states[right])
+                .map_err(|_| MerkleTreeError::CRHError)?;
         Ok(())
     }
 }
@@ -264,7 +289,8 @@ mod tests {
         // Test proof verification
         let proof = proof.unwrap();
         let root = tree.root();
-        let valid = MerkleTree::<TestConfig>::verify(&params, root, &[new_leaf], proof);
+        let valid =
+            MerkleTree::<TestConfig>::verify(&params, root, either::Right(&[new_leaf]), proof);
         assert!(matches!(valid, Ok(true)));
     }
 
@@ -297,7 +323,8 @@ mod tests {
             let root = tree.root();
 
             // Verify the proof of each updated leaf
-            let valid = MerkleTree::<TestConfig>::verify(&params, root, &[leaves[i]], proof);
+            let valid =
+                MerkleTree::<TestConfig>::verify(&params, root, either::Right(&[leaves[i]]), proof);
             assert!(matches!(valid, Ok(true)));
         }
 
@@ -315,7 +342,8 @@ mod tests {
             let root = tree.root();
 
             // Verify the proof of each updated leaf
-            let valid = MerkleTree::<TestConfig>::verify(&params, root, &[leaves[i]], proof);
+            let valid =
+                MerkleTree::<TestConfig>::verify(&params, root, either::Right(&[leaves[i]]), proof);
             assert!(matches!(valid, Ok(true)));
         }
     }
@@ -335,18 +363,20 @@ mod tests {
 
         let mut leaves = Vec::new();
         for _ in 0..leaf_max_index {
-            leaves.push([Fr::rand(&mut rng)]);
+            leaves.push(Fr::rand(&mut rng));
         }
 
-        let merkle = MerkleTree::<TestConfig>::new_with_data(
-            &leaves.iter().map(|v| &v[..]).collect::<Vec<_>>(),
-            &params,
-        )
-        .unwrap();
+        let merkle =
+            MerkleTree::<TestConfig>::new_with_data(either::Left(&leaves), &params).unwrap();
         for i in 0..leaf_max_index {
             let p = merkle.prove(i).unwrap();
-            let valid =
-                MerkleTree::<TestConfig>::verify(&params, merkle.root(), &leaves[i], p).unwrap();
+            let valid = MerkleTree::<TestConfig>::verify(
+                &params,
+                merkle.root(),
+                either::Left(&leaves[i]),
+                p,
+            )
+            .unwrap();
             assert!(valid);
         }
     }

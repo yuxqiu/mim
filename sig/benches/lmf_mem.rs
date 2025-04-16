@@ -1,5 +1,6 @@
 mod utils;
 
+use either::Either;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 
@@ -41,16 +42,14 @@ fn run_experiment(n: usize) -> ExperimentResult {
     println!("generate random leaves");
     let mut leaves = Vec::new();
     for _ in 0..n {
-        leaves.push([Fr::rand(&mut rng)]);
+        leaves.push(Fr::rand(&mut rng));
     }
-    // for fair comparison, init this here so that MemRecorder records this for both merkle and lmf
-    let leaves_ref = leaves.iter().map(|v| &v[..]).collect::<Vec<_>>();
 
     // --- Standard Merkle Tree ---
     println!("eval standard Merkle Tree");
     let peak_mem_merkle = {
         let mem = MemRecorder::start();
-        let _merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(&leaves_ref, &params)
+        let _merkle_tree = MerkleTree::<Config<Fr>>::new_with_data(Either::Left(&leaves), &params)
             .expect("Failed to create Merkle tree");
         mem.end()
     };
@@ -59,13 +58,8 @@ fn run_experiment(n: usize) -> ExperimentResult {
     println!("eval Leveled Merkle Forest");
     let peak_mem_lmf = {
         let mem = MemRecorder::start();
-        let mut lmf = LeveledMerkleForest::<Config<Fr>>::new_optimal(n, &params)
+        let _lmf = LeveledMerkleForest::<Config<Fr>>::new_with_data(Either::Left(&leaves), &params)
             .expect("Failed to create LMF");
-
-        // Add leaves to LMF
-        for leaf in &leaves {
-            lmf.add(leaf).expect("Failed to add leaf to LMF");
-        }
         mem.end()
     };
 
