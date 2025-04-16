@@ -31,3 +31,7 @@ Due to the prohibitively high number of constraints when using Nova, we employ e
 `lmf_time` measures the time required to construct the LMF and compares it against a traditional Merkle tree of the same size. It also measures the average time to generate 10 proofs for randomly selected leaves, along with the average length of these proofs.
 
 `lmf_mem` captures the peak memory usage during the construction phase of the LMF, and similarly compares it with the memory footprint of the traditional Merkle tree.
+
+## `constraints`
+
+`constraints` measures the number of constraints contributed by each component of the folding circuit.

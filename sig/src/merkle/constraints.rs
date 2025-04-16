@@ -54,23 +54,39 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
     ///
     /// Note: caller of this method should ensure `index` is within the acceptable
     /// range of the Merkle tree.
+    #[tracing::instrument(skip_all)]
     pub fn update(
         &mut self,
         index: FpVar<P::BasePrimeField>,
         new_leaf: &[FpVar<P::BasePrimeField>],
     ) -> Result<FpVar<P::BasePrimeField>, SynthesisError> {
-        self.update_with_hash(index, Poseidon::evaluate(self.hash_params, new_leaf)?)
+        tracing::info!("start hashing the input for LMF");
+
+        let cs = self.cs();
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        let hash = Poseidon::evaluate(self.hash_params, new_leaf)?;
+
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        self.update_with_hash(index, hash)
     }
 
     /// Update the Merkle tree with the `new_leaf` at `index`.
     ///
     /// Note: caller of this method should ensure `index` is within the acceptable
     /// range of the Merkle tree.
+    #[tracing::instrument(skip_all)]
     pub fn update_with_hash(
         &mut self,
         index: FpVar<P::BasePrimeField>,
         new_leaf: FpVar<P::BasePrimeField>,
     ) -> Result<FpVar<P::BasePrimeField>, SynthesisError> {
+        tracing::info!("start updating the LMF");
+
+        let cs = self.cs();
+
         let num_leaves = self.num_leaves();
         let leaves_start = num_leaves - 1;
 
@@ -98,7 +114,9 @@ impl<'a, P: MerkleConfig> MerkleTreeVar<'a, P> {
             self.update_state(i)?;
         }
 
-        // Return the updated root).
+        tracing::info!(num_constraints = cs.num_constraints());
+
+        // Return the updated root.
         Ok(self.root())
     }
 

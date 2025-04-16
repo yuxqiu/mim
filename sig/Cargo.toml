@@ -97,3 +97,7 @@ harness = false
 [[bench]]
 name = "lmf_mem"
 harness = false
+
+[[bench]]
+name = "constraints"
+harness = false
