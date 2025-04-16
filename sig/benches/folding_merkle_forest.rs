@@ -40,6 +40,8 @@ use std::path::Path;
 // Timing results for each experiment
 #[derive(Serialize, Deserialize, Clone)]
 struct ExperimentResult {
+    folding_preprocess_time: f64,
+    folding_init_time: f64,
     folding_step_times: Vec<f64>, // seconds
 }
 
@@ -79,7 +81,9 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
     // - can serialize this when the circuit is stable
     println!("nova folding preprocess");
     let nova_preprocess_params = PreprocessorParam::new(poseidon_config.clone(), f_circuit);
+    let timer = Timer::start();
     let nova_params = N::preprocess(&mut rng, &nova_preprocess_params)?;
+    let folding_preprocess_time = timer.end();
 
     // prepare num steps and blockchain
     println!("generate blockchain instance");
@@ -114,7 +118,9 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
         "state length should match"
     );
 
+    let timer = Timer::start();
     let mut nova = N::init(&nova_params, f_circuit, z_0)?;
+    let folding_init_time = timer.end();
 
     // run `N_STEPS_TO_PROVE` steps of the folding iteration
     let mut folding_step_times = Vec::new();
@@ -126,8 +132,15 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
     }
 
     let mut file = File::create(&results_path)?;
-    serde_json::to_writer_pretty(&mut file, &ExperimentResult { folding_step_times })
-        .expect("serde_json pretty print should succeed");
+    serde_json::to_writer_pretty(
+        &mut file,
+        &ExperimentResult {
+            folding_step_times,
+            folding_preprocess_time,
+            folding_init_time,
+        },
+    )
+    .expect("serde_json pretty print should succeed");
 
     Ok(())
 }
