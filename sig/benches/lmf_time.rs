@@ -127,8 +127,9 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
         let valid = LeveledMerkleForest::verify_variable(
             &params,
             lmf.states(),
-            lmf.capacity_per_tree(),
+            lmf.size(),
             lmf.num_trees(),
+            lmf.num_leaves_per_tree(),
             Either::Left(&leaves[idx]),
             proof,
         )

@@ -183,9 +183,9 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         }
 
         let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
-        let n = self.max_leaves();
+        let n = self.size;
         let diff = n - leaf_index;
-        let state_idx = diff.ilog(num_leaves_per_tree);
+        let state_idx = ilog_ceil(diff, num_leaves_per_tree);
         let state_idx = std::cmp::min(self.num_trees() - 1, state_idx); // handle the special case that leaf_index == 0
 
         let mut forest_proof = vec![];
@@ -212,16 +212,15 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     pub fn verify_variable(
         params: &PoseidonConfig<P::BasePrimeField>,
         states: &[MerkleTree<P>],
-        capacity_per_tree: u32,
+        n: usize,
         num_tree: u32,
+        num_leaves: u32,
         leaf: Either<&P::BasePrimeField, &<Poseidon<P::BasePrimeField> as CRHScheme>::Input>,
         proof: MerkleForestVariableLengthProof<P>,
     ) -> Result<bool, MerkleForestError> {
         let (root, adjusted_index) = {
-            let num_leaves = (u64::from(capacity_per_tree) + 1) / 2;
-            let n = num_leaves.pow(num_tree);
-            let diff = n - proof.leaf_index as u64;
-            let state_idx = diff.ilog(num_leaves);
+            let diff = n - proof.leaf_index;
+            let state_idx = ilog_ceil(diff, num_leaves as usize);
             let state_idx = std::cmp::min(num_tree - 1, state_idx); // handle the special case that leaf_index == 0
 
             // adjust the index so that only the lower `log(num_leaves) * (state_idx + 1)` bits are kept
@@ -277,6 +276,11 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
     #[inline]
     pub fn capacity_per_tree(&self) -> u32 {
         self.trees[0].capacity() as u32
+    }
+
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.size
     }
 
     // for the `Construct-Naive` algorithm in the thesis
@@ -393,19 +397,6 @@ pub fn forest_stats(capacity_per_tree: u32, num_tree: u32) -> (u64, u64, u128) {
     (proof_size, forest_state_size, max_permanent_state_size_r)
 }
 
-fn int_to_safe_float(x: u64) -> f64 {
-    let f = x as f64;
-    let back = f as u64;
-
-    if back < x {
-        // Float rounded down — nudge up to ensure it's at least x
-        f.next_up()
-    } else {
-        // Either exact or rounded up
-        f
-    }
-}
-
 /// Find the optimal forest parameters for a given `n` with respect to the forest state size
 pub fn optimal_forest_params(n: usize) -> (u32, u32) {
     let n = int_to_safe_float(n as u64);
@@ -428,6 +419,28 @@ pub fn optimal_forest_params(n: usize) -> (u32, u32) {
     assert_eq!(f64::from(kr), k, "k is too large for u32");
 
     (q, kr)
+}
+
+fn int_to_safe_float(x: u64) -> f64 {
+    let f = x as f64;
+    let back = f as u64;
+
+    if back < x {
+        // Float rounded down — nudge up to ensure it's at least x
+        f.next_up()
+    } else {
+        // Either exact or rounded up
+        f
+    }
+}
+
+fn ilog_ceil(x: usize, base: usize) -> u32 {
+    let floor = x.ilog(base);
+    if base.pow(floor) == x {
+        floor
+    } else {
+        floor + 1
+    }
 }
 
 #[cfg(test)]
@@ -517,13 +530,12 @@ mod tests {
             LeveledMerkleForest::<TestConfig>::new(capacity_per_tree, num_tree, &params).unwrap();
 
         // Fill up the forest completely
-        for i in 0..8 {
+        for _ in 0..8 {
             let val = {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
             };
             let add_result = forest.seqadd(&[val]);
-            dbg!(i);
             assert!(add_result.is_ok());
         }
 
@@ -637,8 +649,9 @@ mod tests {
         let verify_result = LeveledMerkleForest::<TestConfig>::verify_variable(
             &params,
             forest.states(),
-            capacity_per_tree,
+            forest.size(),
             num_tree,
+            forest.num_leaves_per_tree(),
             either::Right(&[values[leaf_index]]),
             proof,
         );
@@ -677,8 +690,9 @@ mod tests {
         let verify_result = LeveledMerkleForest::<TestConfig>::verify_variable(
             &params,
             forest.states(),
-            capacity_per_tree,
+            forest.size(),
             num_tree,
+            forest.num_leaves_per_tree(),
             either::Right(&[values[leaf_index]]),
             proof,
         );
@@ -769,8 +783,6 @@ mod tests {
             LeveledMerkleForest::<TestConfig>::new_with_data(either::Left(&values), &params)
                 .unwrap();
 
-        dbg!(&forest);
-
         for i in 0..values.len() {
             let proof = forest.prove(i).unwrap();
             let valid = LeveledMerkleForest::verify(
@@ -786,8 +798,9 @@ mod tests {
             let valid = LeveledMerkleForest::<TestConfig>::verify_variable(
                 &params,
                 forest.states(),
-                forest.capacity_per_tree(),
+                forest.size(),
                 forest.num_trees(),
+                forest.num_leaves_per_tree(),
                 either::Left(&values[i]),
                 proof,
             )
