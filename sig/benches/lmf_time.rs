@@ -28,9 +28,6 @@ struct ExperimentResult {
     lmf_construction_time: f64, // seconds
     lmf_fixed_proof_size: usize,
     lmf_fixed_proof_time: f64, // seconds
-    lmf_variable_proof_indices: Vec<usize>,
-    lmf_variable_proof_sizes: Vec<usize>,
-    lmf_variable_proof_times: Vec<f64>, // seconds
 }
 
 // Function to run the experiment for a given n
@@ -104,32 +101,6 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
     }
     let lmf_fixed_proof_time = lmf_fixed_proof_time / proof_indices.len() as f64;
 
-    // Generate variable-size proofs for LMF
-    let proof_indices = (0..n.ilog2()).map(|v| 1 << v).collect::<Vec<_>>();
-    let mut lmf_variable_proof_sizes = Vec::new();
-    let mut lmf_variable_proof_times = Vec::new();
-    for &idx in &proof_indices {
-        let proof_start = Timer::start();
-        let proof = lmf
-            .prove_variable(idx)
-            .expect("Failed to generate variable-size LMF proof");
-        lmf_variable_proof_times.push(proof_start.end());
-        lmf_variable_proof_sizes.push(proof.siblings.len());
-
-        // ensure the proof is correct
-        let valid = LeveledMerkleForest::verify_variable(
-            &params,
-            lmf.states(),
-            lmf.size(),
-            lmf.num_trees(),
-            lmf.num_leaves_per_tree(),
-            Either::Left(&leaves[idx]),
-            proof,
-        )
-        .unwrap();
-        assert!(valid);
-    }
-
     // Return results
     ExperimentResult {
         n,
@@ -139,9 +110,6 @@ fn run_experiment(n: usize, num_proofs: usize) -> ExperimentResult {
         lmf_construction_time,
         lmf_fixed_proof_size,
         lmf_fixed_proof_time,
-        lmf_variable_proof_indices: proof_indices,
-        lmf_variable_proof_sizes,
-        lmf_variable_proof_times,
     }
 }
 
@@ -162,7 +130,7 @@ fn main() {
 
     println!("Running Merkle Tree and LMF experiments...");
     println!(
-        "{:<10} | {:<25} | {:<15} | {:<25} | {:<25} | {:<20} | {:<25} | {:<20} | {:<25}",
+        "{:<10} | {:<25} | {:<15} | {:<25} | {:<25} | {:<20} | {:<25}",
         "n",
         "Merkle Construct (ms)",
         "Merkle Proof Size",
@@ -170,8 +138,6 @@ fn main() {
         "LMF Construct (ms)",
         "LMF Fixed Proof Size",
         "LMF Fixed Proof Time (ms)",
-        "LMF Var Proof Size",
-        "LMF Var Proof Time (ms)"
     );
     println!("{}", "-".repeat(200));
 
@@ -186,7 +152,7 @@ fn main() {
 
         // Print results in a formatted table
         println!(
-            "{:<10} | {:<25.2} | {:<15} | {:<25.2} | {:<25.2} | {:<20} | {:<25.2} | {:?} | {:?}",
+            "{:<10} | {:<25.2} | {:<15} | {:<25.2} | {:<25.2} | {:<20} | {:<25.2}",
             result.n,
             result.merkle_construction_time * 1000.0,
             result.merkle_proof_size,
@@ -194,8 +160,6 @@ fn main() {
             result.lmf_construction_time * 1000.0,
             result.lmf_fixed_proof_size,
             result.lmf_fixed_proof_time * 1000.0,
-            result.lmf_variable_proof_sizes,
-            result.lmf_variable_proof_times
         );
     }
 }
