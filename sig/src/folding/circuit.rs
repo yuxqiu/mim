@@ -181,6 +181,7 @@ impl<CF: PrimeField + Absorb, const MAX_COMMITTEE_SIZE: usize> FCircuit<CF>
 
         // 2.1 Prove forest Update
         // - the forest stores the hash of the committee
+        tracing::info!("start proving forest update");
         let _ = forest.update(
             external_inputs.epoch.to_fp()?,
             &external_inputs.committee.to_constraint_field()?,
