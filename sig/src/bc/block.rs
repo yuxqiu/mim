@@ -146,10 +146,8 @@ impl<const MAX_COMMITTEE_SIZE: usize> Block<MAX_COMMITTEE_SIZE> {
             committee: data,
         };
 
-        let mut hasher = HashFunc::new();
-        hasher.update(bincode::serialize(&block)?);
         let sig = AuthorityAggregatedSignature::aggregate_sign(
-            &Into::<[u8; HASH_OUTPUT_SIZE]>::into(hasher.finalize()),
+            &bincode::serialize(&block)?,
             &signers
                 .iter()
                 .enumerate()
@@ -202,9 +200,7 @@ impl<const MAX_COMMITTEE_SIZE: usize> Block<MAX_COMMITTEE_SIZE> {
             if weights < STRONG_THRESHOLD {
                 return false;
             }
-            let mut hasher = HashFunc::new();
-            hasher.update(msg);
-            return Signature::verify(&hasher.finalize(), &self.sig.sig, &aggregate_pk, params);
+            return Signature::verify(&msg, &self.sig.sig, &aggregate_pk, params);
         }
 
         // weights == 0 => no quorum signs this block
