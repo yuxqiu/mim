@@ -280,3 +280,123 @@ fn bc_generate_constraints<CF: PrimeField, const MAX_COMMITTEE_SIZE: usize>(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    use ark_crypto_primitives::crh::poseidon::constraints::CRHParametersVar;
+    use ark_r1cs_std::{alloc::AllocVar, convert::ToConstraintFieldGadget, uint64::UInt64};
+    use ark_relations::r1cs::ConstraintSystem;
+    use folding_schemes::{frontend::FCircuit, transcript::poseidon::poseidon_canonical_config};
+    use rand::{rngs::StdRng, SeedableRng};
+
+    use crate::{
+        bc::block::{gen_blockchain_with_params, Blockchain},
+        bls::Parameters,
+        folding::{
+            bc::{BlockVar, CommitteeVar},
+            circuit::BCCircuitMerkleForest,
+        },
+        merkle::{constraints::LeveledMerkleForestVar, Config},
+    };
+
+    use super::BCCircuitNoMerkle;
+    use ark_bls12_381::Fr;
+
+    const COMMITTEE_SIZE: usize = 25;
+
+    #[test]
+    #[ignore = "folding circuit generates ~2^26 constraints"]
+    fn test_bc_no_merkle() {
+        let mut rng = StdRng::from_seed([42; 32]);
+        let bc: Blockchain<COMMITTEE_SIZE> =
+            gen_blockchain_with_params(2, COMMITTEE_SIZE, &mut rng);
+        let cs = ConstraintSystem::new_ref();
+
+        let f_circuit: BCCircuitNoMerkle<Fr, COMMITTEE_SIZE> =
+            BCCircuitNoMerkle::new(Parameters::setup()).unwrap();
+        let z_0: Vec<_> = {
+            let cs = ConstraintSystem::<Fr>::new_ref();
+            CommitteeVar::new_constant(cs.clone(), bc.get(0).unwrap().committee.clone())
+                .unwrap()
+                .to_constraint_field()
+                .unwrap()
+                .into_iter()
+                .chain(std::iter::once(
+                    UInt64::constant(bc.get(0).unwrap().epoch).to_fp().unwrap(),
+                ))
+                .collect()
+        };
+        assert_eq!(
+            z_0.len(),
+            f_circuit.state_len(),
+            "state length should match"
+        );
+
+        f_circuit
+            .generate_step_constraints(
+                cs.clone(),
+                0,
+                z_0,
+                BlockVar::new_witness(cs.clone(), || Ok(bc.get(1).unwrap())).unwrap(),
+            )
+            .unwrap();
+
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    #[ignore = "folding circuit generates ~2^26 constraints"]
+    fn test_bc_merkle() {
+        const STATE_SIZE: usize = 1024;
+
+        let mut rng = StdRng::from_seed([42; 32]);
+        let bc: Blockchain<COMMITTEE_SIZE> =
+            gen_blockchain_with_params(2, COMMITTEE_SIZE, &mut rng);
+        let cs = ConstraintSystem::new_ref();
+
+        let f_circuit: BCCircuitMerkleForest<Fr, COMMITTEE_SIZE> =
+            BCCircuitMerkleForest::new((Parameters::setup(), STATE_SIZE)).unwrap();
+        let z_0: Vec<_> = {
+            let cs = ConstraintSystem::<Fr>::new_ref();
+            let poseidon_config = poseidon_canonical_config();
+
+            CommitteeVar::new_constant(cs.clone(), bc.get(0).unwrap().committee.clone())
+                .unwrap()
+                .to_constraint_field()
+                .unwrap()
+                .into_iter()
+                .chain(std::iter::once(
+                    UInt64::constant(bc.get(0).unwrap().epoch).to_fp().unwrap(),
+                ))
+                .chain(
+                    LeveledMerkleForestVar::<Config<Fr>>::new_optimal(
+                        STATE_SIZE,
+                        &CRHParametersVar {
+                            parameters: poseidon_config,
+                        },
+                    )
+                    .expect("LMS should be constructed successfully")
+                    .to_constraint_field()
+                    .unwrap()
+                    .into_iter(),
+                )
+                .collect()
+        };
+        assert_eq!(
+            z_0.len(),
+            f_circuit.state_len(),
+            "state length should match"
+        );
+
+        f_circuit
+            .generate_step_constraints(
+                cs.clone(),
+                0,
+                z_0,
+                BlockVar::new_witness(cs.clone(), || Ok(bc.get(1).unwrap())).unwrap(),
+            )
+            .unwrap();
+
+        assert!(cs.is_satisfied().unwrap());
+    }
+}

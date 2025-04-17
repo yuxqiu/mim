@@ -46,9 +46,7 @@ struct ExperimentResult {
     folding_step_times: Vec<f64>, // seconds
 }
 
-fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
-    data_path: &Path,
-) -> Result<(), Error> {
+fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Error> {
     println!("Start exp with MAX_COMMITTEE_SIZE = {}", MAX_COMMITTEE_SIZE);
 
     let poseidon_config = poseidon_canonical_config::<Fr>();
@@ -56,8 +54,8 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
 
     const N_STEPS_TO_PROVE: usize = 3;
     let results_path = data_path.join(format!(
-        "experiment_results_time_{}_{}.json",
-        MAX_COMMITTEE_SIZE, STATE_SIZE
+        "experiment_results_time_{}.json",
+        MAX_COMMITTEE_SIZE
     ));
 
     // Load existing results
@@ -173,13 +171,11 @@ fn main() -> Result<(), Error> {
     let data_path = Path::new("../exp/nova-merkle-forest");
     fs::create_dir_all(data_path)?;
 
-    const STATE_SIZE: usize = 1024;
-
     // all this should be able to fit in 756 GB memory
     // run_exp::<25, STATE_SIZE>(data_path)?;
     // run_exp::<50, STATE_SIZE>(data_path)?;
     // run_exp::<75, STATE_SIZE>(data_path)?;
-    run_exp::<100, STATE_SIZE>(data_path)?;
+    run_exp::<100>(data_path)?;
 
     // Suggest extrapolation
     println!("\nTo extrapolate for 128, 256, 512 constraints:");
