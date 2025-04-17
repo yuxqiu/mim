@@ -72,7 +72,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
     // Define experiment parameters
     // - capped at 1 << 23 as it already requires roughly 900 GB memory
     // - take 5 data points at most
-    let constraint_points = vec![1 << 19, 1 << 20, 1 << 21, 1 << 22, 1 << 23];
+    let constraint_points = vec![1 << 18, 1 << 19, 1 << 20, 1 << 21, 1 << 22, 1 << 23];
     let constraint_points: Vec<_> = constraint_points
         .into_iter()
         .filter(|v| *v >= num_base_constraints)
