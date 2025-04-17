@@ -1,9 +1,5 @@
 [
   {
-    "constraint_count": 262144,
-    "peak_mem": 49657221120
-  },
-  {
     "constraint_count": 524288,
     "peak_mem": 79123705856
   },
