@@ -109,9 +109,9 @@ name = "constraints"
 harness = false
 
 [[bench]]
-name = "ext_folding_no_merkle"
+name = "folding_no_merkle"
 harness = false
 
 [[bench]]
-name = "ext_folding_merkle_forest"
+name = "folding_merkle_forest"
 harness = false
