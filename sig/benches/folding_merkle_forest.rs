@@ -4,6 +4,7 @@
 /// - Stores and prints results for extrapolation
 mod utils;
 
+use ark_crypto_primitives::crh::poseidon::constraints::CRHParametersVar;
 use ark_mnt4_753::{Fr, G1Projective as G1, MNT4_753 as MNT4};
 use ark_mnt6_753::{G1Projective as G2, MNT6_753 as MNT6};
 use ark_r1cs_std::convert::ToConstraintFieldGadget;
@@ -21,7 +22,9 @@ use folding_schemes::{
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
-use sig::folding::circuit::BCCircuitNoMerkle;
+use sig::folding::circuit::BCCircuitMerkleForest;
+use sig::merkle::constraints::LeveledMerkleForestVar;
+use sig::merkle::Config;
 use sig::{
     bc::block::gen_blockchain_with_params, bls::Parameters as BlsParameters,
     folding::bc::CommitteeVar,
@@ -46,7 +49,9 @@ struct ExperimentResult {
     folding_step_times: Vec<f64>, // seconds
 }
 
-fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Error> {
+fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
+    data_path: &Path,
+) -> Result<(), Error> {
     println!("Start exp with MAX_COMMITTEE_SIZE = {}", MAX_COMMITTEE_SIZE);
 
     let poseidon_config = poseidon_canonical_config::<Fr>();
@@ -54,8 +59,8 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
 
     const N_STEPS_TO_PROVE: usize = 3;
     let results_path = data_path.join(format!(
-        "experiment_results_time_{}.json",
-        MAX_COMMITTEE_SIZE
+        "experiment_folding_results_time_{}_{}.json",
+        MAX_COMMITTEE_SIZE, STATE_SIZE
     ));
 
     // Load existing results
@@ -83,11 +88,11 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
     );
 
     // Use MockBCCircuitMerkleForest
-    type FC<const MAX_COMMITTEE_SIZE: usize> = BCCircuitNoMerkle<Fr, MAX_COMMITTEE_SIZE>;
+    type FC<const MAX_COMMITTEE_SIZE: usize> = BCCircuitMerkleForest<Fr, MAX_COMMITTEE_SIZE>;
     type N<const MAX_COMMITTEE_SIZE: usize> =
         Nova<G1, G2, FC<MAX_COMMITTEE_SIZE>, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
 
-    let f_circuit = FC::<MAX_COMMITTEE_SIZE>::new(BlsParameters::setup())?;
+    let f_circuit = FC::<MAX_COMMITTEE_SIZE>::new((BlsParameters::setup(), STATE_SIZE))?;
 
     // Generate Nova parameters
     println!("Generating Nova parameters");
@@ -107,6 +112,17 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize>(data_path: &Path) -> Result<(), Erro
         .chain(std::iter::once(
             UInt64::constant(bc.get(0).unwrap().epoch).to_fp()?,
         ))
+        .chain(
+            LeveledMerkleForestVar::<Config<Fr>>::new_optimal(
+                STATE_SIZE,
+                &CRHParametersVar {
+                    parameters: poseidon_config.clone(),
+                },
+            )
+            .expect("LMS should be constructed successfully")
+            .to_constraint_field()?
+            .into_iter(),
+        )
         .map(|fpvar| fpvar.value().unwrap())
         .collect();
     assert_eq!(
@@ -173,18 +189,12 @@ fn main() -> Result<(), Error> {
     let data_path = Path::new("../exp/nova-merkle-forest");
     fs::create_dir_all(data_path)?;
 
-    // all this should be able to fit in 756 GB memory
-    run_exp::<125>(data_path)?;
-    run_exp::<256>(data_path)?;
-    run_exp::<512>(data_path)?;
+    const STATE_SIZE: usize = 1024;
 
-    // Suggest extrapolation
-    println!("\nTo extrapolate for 128, 256, 512 constraints:");
-    println!("- Use linear or polynomial regression on the above data points.");
-    println!(
-        "- Fit models for each metric (param gen, folding, prove, verify) vs. constraint count."
-    );
-    println!("- Apply the model to predict times at 128, 256, 512 constraints.",);
+    // all this should be able to fit in 756 GB memory
+    run_exp::<128, STATE_SIZE>(data_path)?;
+    run_exp::<256, STATE_SIZE>(data_path)?;
+    run_exp::<512, STATE_SIZE>(data_path)?;
 
     Ok(())
 }

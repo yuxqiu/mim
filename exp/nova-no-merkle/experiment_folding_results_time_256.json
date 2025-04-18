@@ -1,0 +1,12 @@
+[
+  {
+    "committee_size": 256,
+    "nova_param_gen_time": 4193.742383145,
+    "nova_init_time": 3788.036130232,
+    "folding_step_times": [
+      834.165639277,
+      832.023453806,
+      1204.412719215
+    ]
+  }
+]

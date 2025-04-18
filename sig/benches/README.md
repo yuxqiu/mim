@@ -16,9 +16,9 @@ Due to the prohibitively high number of constraints when using Nova, we employ e
 
 `constraints` measures the number of constraints contributed by each component of the folding circuit.
 
-## `ext_folding_no_merkle` and `ext_folding_merkle_forest`
+## `folding_no_merkle` and `folding_merkle_forest`
 
-`ext_folding_no_merkle` and `ext_folding_merkle_forest` benchmark the time needed to run the folding steps.
+`folding_no_merkle` and `folding_merkle_forest` benchmark the time needed to run the folding steps.
 
 ## Archived
 
