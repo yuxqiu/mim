@@ -434,7 +434,12 @@ impl<TargetF: PrimeField, BaseF: PrimeField> Reducer<TargetF, BaseF> {
             // cur_left - cur_right + carry_in + pad (to accommodate possible overflow for subtraction)
             // = carry_out (of the above computation) + remainder (of accumulated padding)
             //
-            // this is sound because it proves the remainder of the subtraction is 0 all the time.
+            // This is sound because
+            // - accumulated_extra is a known public constant (verifier will know its value an every step
+            // as it's solely calculated based on public input - pad_limb, shift_per_limb, and num_limb_in_this_group)
+            // - Based on this, it's sufficient to verify
+            //   - carry at each step is valid (in valid bit range and it's actually a carry)
+            //   - left == right (by using publicly known remainder, pad_limb, and verified carry_in / carry)s
 
             let eqn_left = left_total_limb + pad_limb + &carry_in - right_total_limb;
 
