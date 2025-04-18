@@ -137,6 +137,9 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
     let mut nova = N::init(&nova_params, f_circuit.clone(), z_0)?;
     let nova_init_time = nova_init_start.end();
 
+    // drop params to save memory
+    drop(nova_params);
+
     // Run folding steps
     println!("Running folding steps");
     let mut folding_step_times = vec![];
@@ -146,9 +149,6 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
         let folding_step_time = folding_start.end();
         folding_step_times.push(folding_step_time);
     }
-
-    let ivc_proof = nova.ivc_proof();
-    N::<MAX_COMMITTEE_SIZE>::verify(nova_params.1, ivc_proof).expect("Nova verify failed");
 
     // Record results
     let result = ExperimentResult {
