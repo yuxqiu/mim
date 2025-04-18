@@ -143,11 +143,13 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
     // Run folding steps
     println!("Running folding steps");
     let mut folding_step_times = vec![];
-    for (_, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(1)) {
+    for (i, block) in (0..N_STEPS_TO_PROVE).zip(bc.into_blocks().skip(1)) {
+        println!("start folding step {}", i);
         let folding_start = Timer::start();
         nova.prove_step(&mut rng, block, None)?;
         let folding_step_time = folding_start.end();
         folding_step_times.push(folding_step_time);
+        println!("finish folding step {} with time {}", i, folding_step_time);
     }
 
     // Record results
@@ -190,10 +192,9 @@ fn main() -> Result<(), Error> {
     const STATE_SIZE: usize = 1024;
 
     // all this should be able to fit in 756 GB memory
-    run_exp::<25, STATE_SIZE>(data_path)?;
-    run_exp::<50, STATE_SIZE>(data_path)?;
-    run_exp::<75, STATE_SIZE>(data_path)?;
-    run_exp::<100, STATE_SIZE>(data_path)?;
+    run_exp::<125, STATE_SIZE>(data_path)?;
+    run_exp::<256, STATE_SIZE>(data_path)?;
+    run_exp::<512, STATE_SIZE>(data_path)?;
 
     // Suggest extrapolation
     println!("\nTo extrapolate for 128, 256, 512 constraints:");
