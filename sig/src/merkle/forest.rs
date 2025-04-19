@@ -183,10 +183,10 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         }
 
         let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
-        let n = self.size;
-        let diff = n - leaf_index;
-        let state_idx = ilog_ceil(diff, num_leaves_per_tree);
-        let state_idx = std::cmp::min(self.num_trees() - 1, state_idx); // handle the special case that leaf_index == 0
+        let n = round_up_to_next_power_of_q(self.size, num_leaves_per_tree);
+        let diff = n - leaf_index - 1;
+        let diff = std::cmp::max(diff, 1); // handle the special case that leaf_index == n-1
+        let state_idx = diff.ilog(num_leaves_per_tree);
 
         let mut forest_proof = vec![];
         let mut idx = leaf_index;
@@ -213,15 +213,16 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         params: &PoseidonConfig<P::BasePrimeField>,
         states: &[MerkleTree<P>],
         n: usize,
-        num_tree: u32,
         num_leaves: u32,
         leaf: Either<&P::BasePrimeField, &<Poseidon<P::BasePrimeField> as CRHScheme>::Input>,
         proof: MerkleForestVariableLengthProof<P>,
     ) -> Result<bool, MerkleForestError> {
         let (root, adjusted_index) = {
-            let diff = n - proof.leaf_index;
-            let state_idx = ilog_ceil(diff, num_leaves as usize);
-            let state_idx = std::cmp::min(num_tree - 1, state_idx); // handle the special case that leaf_index == 0
+            let n = round_up_to_next_power_of_q(n, num_leaves as usize);
+            let diff = n - proof.leaf_index - 1;
+            let diff = std::cmp::max(diff, 1); // handle the special case that leaf_index == n-1
+            let state_idx = diff.ilog(num_leaves as usize);
+            // let state_idx = std::cmp::min(num_tree - 1, state_idx); // handle the special case that leaf_index == 0
 
             // adjust the index so that only the lower `log(num_leaves) * (state_idx + 1)` bits are kept
             // - this is not needed as `Self::verify` only relies on siblings length to determine
@@ -437,13 +438,9 @@ fn int_to_safe_float(x: u64) -> f64 {
     }
 }
 
-fn ilog_ceil(x: usize, base: usize) -> u32 {
-    let floor = x.ilog(base);
-    if base.pow(floor) == x {
-        floor
-    } else {
-        floor + 1
-    }
+fn round_up_to_next_power_of_q(x: usize, q: usize) -> usize {
+    debug_assert!(q.is_power_of_two(), "q must be a power of two");
+    (x + q - 1) & !(q - 1)
 }
 
 #[cfg(test)]
@@ -653,7 +650,6 @@ mod tests {
             &params,
             forest.states(),
             forest.size(),
-            num_tree,
             forest.num_leaves_per_tree(),
             either::Right(&[values[leaf_index]]),
             proof,
@@ -694,7 +690,6 @@ mod tests {
             &params,
             forest.states(),
             forest.size(),
-            num_tree,
             forest.num_leaves_per_tree(),
             either::Right(&[values[leaf_index]]),
             proof,
@@ -770,11 +765,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_new_with_data() {
+    fn test_new_with_data_helper(data_size: usize) {
         let params = poseidon_params();
         let mut values = Vec::new();
-        for _ in 0..5 {
+        for _ in 0..data_size {
             let val = {
                 let mut rng = thread_rng();
                 Fr::rand(&mut rng)
@@ -785,6 +779,14 @@ mod tests {
         let forest =
             LeveledMerkleForest::<TestConfig>::new_with_data(either::Left(&values), &params)
                 .unwrap();
+
+        fn is_power_of_q(x: usize, q: usize) -> bool {
+            let i = x.ilog(q);
+            if q.pow(i) as usize == x {
+                return true;
+            }
+            false
+        }
 
         for i in 0..values.len() {
             let proof = forest.prove(i).unwrap();
@@ -798,11 +800,23 @@ mod tests {
             assert!(valid);
 
             let proof = forest.prove_variable(i).unwrap();
+
+            // enforce variable length proof property
+            let diff =
+                round_up_to_next_power_of_q(values.len(), forest.num_leaves_per_tree() as usize)
+                    - i;
+            if is_power_of_q(diff, forest.num_leaves_per_tree() as usize) && diff != 1 {
+                assert_eq!(
+                    proof.siblings.len(),
+                    forest.num_leaves_per_tree().ilog2() as usize
+                        * diff.ilog(forest.num_leaves_per_tree() as usize) as usize
+                )
+            }
+
             let valid = LeveledMerkleForest::<TestConfig>::verify_variable(
                 &params,
                 forest.states(),
                 forest.size(),
-                forest.num_trees(),
                 forest.num_leaves_per_tree(),
                 either::Left(&values[i]),
                 proof,
@@ -810,7 +824,13 @@ mod tests {
             .unwrap();
             assert!(valid);
         }
-        assert_eq!(forest.size, 5);
+    }
+
+    #[test]
+    fn test_new_with_data() {
+        for i in [1, 2, 3, 4, 5, 6, 7, 8, 16, 32, 64, 128] {
+            test_new_with_data_helper(i);
+        }
     }
 
     #[test]
