@@ -400,9 +400,6 @@ mod test {
             assert!(add_result.is_ok());
         }
 
-        dbg!(forest_var.value().unwrap());
-        dbg!(&forest);
-
         let new_root = forest_var.root();
         assert_eq!(new_root.value().unwrap(), forest.root());
         assert!(cs.is_satisfied().unwrap());
@@ -414,7 +411,7 @@ mod test {
     fn test_r1cs_merkle_forest_gadget() {
         let mut rng = StdRng::from_seed([42; 32]);
 
-        for i in [1, 2, 3, 4, 8, 16] {
+        for i in [1, 2, 3, 4, 5, 6, 7, 8, 16] {
             let mut values = vec![];
             for _ in 0..i {
                 let val = { Fr::rand(&mut rng) };

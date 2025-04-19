@@ -96,10 +96,18 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
             {
                 // guard against the last chunk
                 let mut data_per_tree = data_per_tree.to_owned();
-                data_per_tree.extend(
-                    std::iter::repeat(P::BasePrimeField::default())
-                        .take(s.num_leaves_per_tree() as usize - data_per_tree.len()),
-                );
+                if j == 0 {
+                    data_per_tree.extend(
+                        std::iter::repeat(P::BasePrimeField::default())
+                            .take(s.num_leaves_per_tree() as usize - data_per_tree.len()),
+                    );
+                } else {
+                    // extend with previous tree's remaining data to match incremental update
+                    data_per_tree.extend_from_slice(
+                        &data[(j - 1) * s.num_leaves_per_tree() as usize + data_per_tree.len()
+                            ..j * s.num_leaves_per_tree() as usize],
+                    );
+                }
 
                 let merkle_tree = MerkleTree::new_with_data(either::Left(&data_per_tree), params)?;
                 let root = merkle_tree.root();
@@ -183,7 +191,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         }
 
         let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
-        let n = round_up_to_next_power_of_q(self.size, num_leaves_per_tree);
+        let n = self.size;
         let diff = n - leaf_index - 1;
         let diff = std::cmp::max(diff, 1); // handle the special case that leaf_index == n-1
         let state_idx = diff.ilog(num_leaves_per_tree);
@@ -192,7 +200,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let mut idx = leaf_index;
 
         // only need to generate proof for state with index <= state_idx
-        for i in 0..=(state_idx as usize) {
+        for i in 0..(state_idx as usize) {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
             let s = self.states[i]
@@ -201,6 +209,9 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
             let (siblings, _) = s.prove(idx_within_tree)?;
             forest_proof.extend(siblings);
         }
+        let idx_within_tree = idx % num_leaves_per_tree;
+        let (siblings, _) = self.trees[state_idx as usize].prove(idx_within_tree)?;
+        forest_proof.extend(siblings);
 
         Ok(MerkleForestVariableLengthProof {
             siblings: forest_proof,
@@ -218,7 +229,6 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         proof: MerkleForestVariableLengthProof<P>,
     ) -> Result<bool, MerkleForestError> {
         let (root, adjusted_index) = {
-            let n = round_up_to_next_power_of_q(n, num_leaves as usize);
             let diff = n - proof.leaf_index - 1;
             let diff = std::cmp::max(diff, 1); // handle the special case that leaf_index == n-1
             let state_idx = diff.ilog(num_leaves as usize);
@@ -436,11 +446,6 @@ fn int_to_safe_float(x: u64) -> f64 {
         // Either exact or rounded up
         f
     }
-}
-
-fn round_up_to_next_power_of_q(x: usize, q: usize) -> usize {
-    debug_assert!(q.is_power_of_two(), "q must be a power of two");
-    (x + q - 1) & !(q - 1)
 }
 
 #[cfg(test)]
@@ -802,10 +807,9 @@ mod tests {
             let proof = forest.prove_variable(i).unwrap();
 
             // enforce variable length proof property
-            let diff =
-                round_up_to_next_power_of_q(values.len(), forest.num_leaves_per_tree() as usize)
-                    - i;
+            let diff = values.len() - i;
             if is_power_of_q(diff, forest.num_leaves_per_tree() as usize) && diff != 1 {
+                dbg!(i, values.len());
                 assert_eq!(
                     proof.siblings.len(),
                     forest.num_leaves_per_tree().ilog2() as usize
