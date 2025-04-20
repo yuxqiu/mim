@@ -57,7 +57,7 @@ fn run_exp<const MAX_COMMITTEE_SIZE: usize, const STATE_SIZE: usize>(
     let poseidon_config = poseidon_canonical_config::<Fr>();
     let mut rng = StdRng::from_seed([42; 32]);
 
-    const N_STEPS_TO_PROVE: usize = 3;
+    const N_STEPS_TO_PROVE: usize = 5;
     let results_path = data_path.join(format!(
         "experiment_folding_results_time_{}_{}.json",
         MAX_COMMITTEE_SIZE, STATE_SIZE
