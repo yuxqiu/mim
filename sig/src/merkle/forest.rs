@@ -191,7 +191,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         }
 
         let num_leaves_per_tree = self.num_leaves_per_tree() as usize;
-        let n = self.size;
+        let n = next_power_of_q(self.size, num_leaves_per_tree);
         let diff = n - leaf_index - 1;
         let diff = std::cmp::max(diff, 1); // handle the special case that leaf_index == n-1
         let state_idx = diff.ilog(num_leaves_per_tree);
@@ -199,7 +199,7 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         let mut forest_proof = vec![];
         let mut idx = leaf_index;
 
-        // only need to generate proof for state with index <= state_idx
+        // only need to generate proof for state with index < state_idx
         for i in 0..(state_idx as usize) {
             let idx_within_tree = idx % num_leaves_per_tree;
             idx /= num_leaves_per_tree;
@@ -209,9 +209,6 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
             let (siblings, _) = s.prove(idx_within_tree)?;
             forest_proof.extend(siblings);
         }
-        let idx_within_tree = idx % num_leaves_per_tree;
-        let (siblings, _) = self.trees[state_idx as usize].prove(idx_within_tree)?;
-        forest_proof.extend(siblings);
 
         Ok(MerkleForestVariableLengthProof {
             siblings: forest_proof,
@@ -229,19 +226,19 @@ impl<'a, P: MerkleConfig> LeveledMerkleForest<'a, P> {
         proof: MerkleForestVariableLengthProof<P>,
     ) -> Result<bool, MerkleForestError> {
         let (root, adjusted_index) = {
+            let n = next_power_of_q(n, num_leaves as usize);
             let diff = n - proof.leaf_index - 1;
             let diff = std::cmp::max(diff, 1); // handle the special case that leaf_index == n-1
             let state_idx = diff.ilog(num_leaves as usize);
-            // let state_idx = std::cmp::min(num_tree - 1, state_idx); // handle the special case that leaf_index == 0
+            let idx_within_tree = {
+                // calculate the position of the leaf at the (state_idx)-th level (indexed from 0)
+                proof.leaf_index / num_leaves.pow(state_idx) as usize % num_leaves as usize
+            };
 
-            // adjust the index so that only the lower `log(num_leaves) * (state_idx + 1)` bits are kept
-            // - this is not needed as `Self::verify` only relies on siblings length to determine
-            //   how many hashes to do.
-            // - this means only the lower `log(num_leaves) * (state_idx + 1)` will be used in `verify`
-            //
-            // let adjusted_index = proof.leaf_index & (num_leaves.pow(state_idx + 1) - 1);
-
-            (states[state_idx as usize].root(), proof.leaf_index)
+            (
+                states[state_idx as usize].leaves()[idx_within_tree],
+                proof.leaf_index,
+            )
         };
 
         Self::verify(
@@ -448,6 +445,18 @@ fn int_to_safe_float(x: u64) -> f64 {
     }
 }
 
+const fn next_power_of_q(n: usize, q: usize) -> usize {
+    debug_assert!(q.is_power_of_two() && q > 1);
+
+    // start at 1, keep multiplying by q until we reach >= n
+    // - this does not guard against possible overflows
+    let mut p = 1;
+    while p < n {
+        p *= q;
+    }
+    p
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -455,6 +464,7 @@ mod tests {
     use ark_ff::UniformRand;
     use folding_schemes::transcript::poseidon::poseidon_canonical_config;
     use rand::thread_rng;
+    use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     struct TestConfig;
     impl MerkleConfig for TestConfig {
@@ -807,13 +817,15 @@ mod tests {
             let proof = forest.prove_variable(i).unwrap();
 
             // enforce variable length proof property
-            let diff = values.len() - i;
+            let n = next_power_of_q(values.len(), forest.num_leaves_per_tree() as usize);
+            let diff = n - i;
             if is_power_of_q(diff, forest.num_leaves_per_tree() as usize) && diff != 1 {
-                dbg!(i, values.len());
                 assert_eq!(
                     proof.siblings.len(),
                     forest.num_leaves_per_tree().ilog2() as usize
-                        * diff.ilog(forest.num_leaves_per_tree() as usize) as usize
+                        * diff
+                            .ilog(forest.num_leaves_per_tree() as usize)
+                            .saturating_sub(1) as usize
                 )
             }
 
@@ -832,9 +844,9 @@ mod tests {
 
     #[test]
     fn test_new_with_data() {
-        for i in [1, 2, 3, 4, 5, 6, 7, 8, 16, 32, 64, 128] {
+        (1..=128).into_par_iter().for_each(|i| {
             test_new_with_data_helper(i);
-        }
+        });
     }
 
     #[test]

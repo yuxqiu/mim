@@ -134,6 +134,11 @@ impl<'a, P: MerkleConfig> MerkleTree<'a, P> {
         self.states[0]
     }
 
+    #[inline]
+    pub fn leaves(&self) -> &[P::BasePrimeField] {
+        &self.states[self.leaf_start()..]
+    }
+
     pub fn verify(
         params: &PoseidonConfig<P::BasePrimeField>,
         root: P::BasePrimeField,
