@@ -1,38 +1,43 @@
 # Mím
 
-**Mím** is a work-in-progress research prototype designed to verify committee rotation in quorum-based blockchains using folding-based SNARKs.
+**Mím** is a research prototype for verifying committee rotation in quorum-based blockchains using **folding-based SNARKs**.
 
-## Highlights
+## ✨ Key Features
 
-- 🌀 [hash-to-curve](https://datatracker.ietf.org/doc/rfc9380/) implementation for **BLS12 curves** in the `arkworks` R1CS framework
-- 🔏 R1CS circuit for verifying **BLS signatures** over BLS12 curves, supporting both **native** and **emulated** fields
-- ♻️ Implementation of `FCircuit` from `sonobe`, enabling proof generation via **folding schemes**
+- 🌀 RFC9380-compliant [hash-to-curve](https://datatracker.ietf.org/doc/rfc9380/) implementation for **BLS12 curves** in the `arkworks` R1CS framework
+- 🔏 R1CS circuit for verifying **BLS signatures**, supporting both **native** and **emulated** fields
+- ♻️ Integration with `sonobe`'s `FCircuit`, enabling proof generation via **folding schemes**
+- 🌲 On-circuit and off-circuit implementation of **Leveled Merkle Forests (LMFs)**
 
-## Usage
+## 🚀 Getting Started
 
-Add the dependency in your `Cargo.toml`:
+Add **Mím** as a dependency in your `Cargo.toml`:
 
 ```toml
 [dependencies]
 mim = { git = "https://github.com/yuxqiu/mim", package = "sig" }
 ```
 
-### Module Overview
+## 📦 Module Overview
 
-- `bc`: abstraction for a quorum-based blockchain
-- `bls`: BLS signature implementation (off-circuit and R1CS circuit)
-- `folding`: folding circuit verifying `bc`’s committee rotation
-- `hash`: R1CS hash-to-curve for BLS12 curves
-- `tests`: test harnesses and debugging notes exposing an issue in `EmulatedFpVar` that results in unsatisfiable constraints
+- `bc` — Abstractions for quorum-based blockchains and committee structures
+- `bls` — BLS signature implementation (off-circuit and on-circuit)
+- `folding` — Folding circuits for verifying committee rotation
+- `hash` — Hash-to-curve R1CS gadgets for BLS12 curves
+- `merkle` — Merkle tree and Leveled Merkle Forest implementations (off-circuit and on-circuit)
+- `tests` — Test harnesses and debug utilities, including [a known issue](https://github.com/arkworks-rs/r1cs-std/pull/157) with `EmulatedFpVar` causing unsatisfiable constraints
 
-📊 Example usage and experiments can be found in [`sig/benches`](./sig/benches/).
+📊 Example usage and benchmarking experiments are located in [`sig/benches`](./sig/benches/), with experiment outputs stored in [`exp`](./exp/).
 
-## License
+## 📄 License
 
-This project is [MIT licensed](./LICENSE).
+This project is licensed under the [MIT License](./LICENSE).
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-This work builds on the excellent libraries from [arkworks](https://github.com/arkworks-rs) and [sonobe](https://github.com/privacy-scaling-explorations/sonobe).
+This work builds on the excellent libraries developed by:
 
-Special thanks to **Philipp Jovanovic** and **Alberto Sonnino** for their insightful discussions and invaluable feedback throughout the development of this project.
+- [arkworks](https://github.com/arkworks-rs)
+- [sonobe](https://github.com/privacy-scaling-explorations/sonobe)
+
+Special thanks to **Philipp Jovanovic** and **Alberto Sonnino** for their insightful discussions and valuable feedback during development.
