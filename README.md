@@ -2,14 +2,14 @@
 
 **Mím** is a research prototype for verifying committee rotation in quorum-based blockchains using **folding-based SNARKs**.
 
-## ✨ Key Features
+## Key Features
 
-- 🌀 RFC9380-compliant [hash-to-curve](https://datatracker.ietf.org/doc/rfc9380/) implementation for **BLS12 curves** in the `arkworks` R1CS framework
-- 🔏 R1CS circuit for verifying **BLS signatures**, supporting both **native** and **emulated** fields
-- ♻️ Integration with `sonobe`'s `FCircuit`, enabling proof generation via **folding schemes**
-- 🌲 On-circuit and off-circuit implementation of **Leveled Merkle Forests (LMFs)**
+- RFC9380-compliant [hash-to-curve](https://datatracker.ietf.org/doc/rfc9380/) implementation for **BLS12 curves** in the `arkworks` R1CS framework
+- R1CS circuit for verifying **BLS signatures**, supporting both **native** and **emulated** fields
+- Integration with `sonobe`'s `FCircuit`, enabling proof generation via **folding schemes**
+- On-circuit and off-circuit implementation of [**Leveled Merkle Forests (LMFs)**](https://yuxqiu.github.io/assets/pdf/writings/2025/trustless-efficient-light-client.pdf#page=31)
 
-## 🚀 Getting Started
+## Getting Started
 
 Add **Mím** as a dependency in your `Cargo.toml`:
 
@@ -18,7 +18,7 @@ Add **Mím** as a dependency in your `Cargo.toml`:
 mim = { git = "https://github.com/yuxqiu/mim", package = "sig" }
 ```
 
-## 📦 Module Overview
+## Module Overview
 
 - `bc` — Abstractions for quorum-based blockchains and committee structures
 - `bls` — BLS signature implementation (off-circuit and on-circuit)
@@ -27,13 +27,13 @@ mim = { git = "https://github.com/yuxqiu/mim", package = "sig" }
 - `merkle` — Merkle tree and Leveled Merkle Forest implementations (off-circuit and on-circuit)
 - `tests` — Test harnesses and debug utilities, including [a known issue](https://github.com/arkworks-rs/r1cs-std/pull/157) with `EmulatedFpVar` causing unsatisfiable constraints
 
-📊 Example usage and benchmarking experiments are located in [`sig/benches`](./sig/benches/), with experiment outputs stored in [`exp`](./exp/).
+Example usage and benchmarking experiments are located in [`sig/benches`](./sig/benches/), with experiment outputs stored in [`exp`](./exp/).
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](./LICENSE).
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 This work builds on the excellent libraries developed by:
 
