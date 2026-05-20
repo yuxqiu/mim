@@ -31,7 +31,7 @@ derive_more = { version = "2", features = ["from", "into", "as_ref"] }
 either = "1.15.0"
 folding-schemes = { git = "https://github.com/privacy-scaling-explorations/sonobe", package = "folding-schemes" }
 gen_ops = "0.4.0"
-rand = "0.8.5"
+rand = "0.8.6"
 rayon = "1.10.0"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_with = "3.12.0"
